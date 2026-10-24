@@ -26,6 +26,8 @@ import { mountTaxProfiles } from '../modules/tax/taxProfiles.js';
 import { mountTaxApprovals, TAX_APPROVAL_TYPES } from '../modules/tax/taxApprovals.js';
 import { printDocument, docHeader } from '../utils/printDocument.js';
 import { renderOpdWorkflowSettings } from '../modules/opd/opdWorkflowSettings.js';
+import { mountAlertBell } from '../components/alertBell.js';   // Session 357 (TODO §276)
+import { loadDepositWaivers, isAdmissionOverseer } from '../modules/ipd/admissionCounter.js';   // Session 357 (owner addition 8)
 
 await requireAuth(['super_admin','dept_admin'], 'index.html');
 initNavbar();
@@ -36,6 +38,7 @@ const tenant   = getCurrentTenant();
 const tenantId = getCurrentTenantId();
 const role     = getCurrentRole();
 if (!profile) { window.location.href = 'login.html'; }
+else mountAlertBell({ supabase, userId: profile.id });   // Session 357 (TODO §276): the MS / Super Admin get server alerts too
 document.title = 'Master Control — ' + (tenant?.name || 'AyurXpert');
 
 const todayStr   = todayLocalStr();
@@ -295,6 +298,11 @@ window.loadStats = async function() {
 // SECTION 1b — ACCOUNTS (Financial)
 // ────────────────────────────────────────────────
 window.loadAccounts = async function() {
+  // Session 357 (owner addition 8): the monthly deposit-waiver report -- the Super Admin / the MS only (the server decides)
+  if (isAdmissionOverseer(profile)) {
+    const card = document.getElementById('deposit-waivers-card');
+    if (card) { card.hidden = false; loadDepositWaivers({ supabase, container: document.getElementById('deposit-waivers-body') }); }
+  }
   const monthStart   = istDayStartUTC(istMonthStr() + '-01');   // IST month start (TODO §59)
   const thirtyDaysAgo = new Date(Date.now() - 30*24*60*60*1000).toISOString();
 

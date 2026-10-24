@@ -431,6 +431,20 @@ export function safeErrorMessage(error, fallback = 'Something went wrong. Please
   if (['P0001','42501','22023','P0002','23505','23514'].includes(error?.code) && ADMISSION_MSGS.some(m => error?.message?.startsWith(m))) {
     return error.message;
   }
+  // Session 357 (TODO §265-C / §275): the admission counter, the deposit rule and the waiver
+  const COUNTER_MSGS = ['Choose a room type preference', 'Only the admission counter can set the payer', 'This admission advice is already',
+    'Choose the payer', 'Cashless or reimbursement must be chosen', 'Enter the insurance company', 'Enter the policy number', 'The co-pay must be',
+    'A field of the insurance details', 'A pre-authorization is waiting for the insurer', 'The pre-authorization of this case is approved',
+    'Only the Finance Manager, the Medical Superintendent or the Super Admin', 'Waive the deposit of one', 'Give the reason for waiving the deposit',
+    'Only a self-pay admission needs a deposit', 'The deposit of this admission advice is already waived', 'There is no deposit due',
+    'A self-pay admission needs a deposit of more than', 'The payer of this admission was set at the counter',
+    'Your role cannot see the admissions awaiting a deposit', 'Only the Medical Superintendent or the Super Admin can see the deposit waivers'];
+  if (['P0001','42501','22023','P0002'].includes(error?.code) && COUNTER_MSGS.some(m => error?.message?.startsWith(m))) {
+    return error.message;
+  }
+  if (error?.code === '42501' && /^permission denied for (table|column) doctor_alerts/.test(error?.message || '')) {
+    return 'Only your own alerts can be opened or marked read.';
+  }
   if (error?.code === '42501' && /^permission denied for table admission_advice(_items)?$/.test(error?.message || '')) {
     return 'An admission advice is sent and changed only by the advising doctor (doctor.html → Admission tab).';
   }

@@ -1171,7 +1171,7 @@ body.vh-split .vh-panel{width:480px;box-shadow:none}
         <div class="panel-sub" id="q-date"></div>
       </div>
       <div class="q-hdr-right">
-        <button class="alert-btn" id="btn-alerts" title="On-request alerts">
+        <button class="alert-btn" id="btn-alerts" title="Your alerts" aria-label="Your alerts">
           🔔
           <div class="alert-dot" id="alert-dot">0</div>
         </button>
@@ -1184,6 +1184,18 @@ body.vh-split .vh-panel{width:480px;box-shadow:none}
       <div style="font-size:11.5px;font-weight:700;color:#7a3a00;margin-bottom:4px">🚑 Emergency admissions to confirm (within 24 h)</div>
       <div id="er-confirm-list"></div>
     </div>
+
+    <!-- Session 357 (TODO §265-C): own patients advised for admission -- at the counter / awaiting the deposit / pre-auth / admitted
+         today / deposit due (the server list: list_awaiting_deposit). Information only: orders never wait for the deposit (D9). -->
+    <div id="dep-wait-box" hidden style="padding:8px 10px;border-bottom:1px solid var(--border);background:#fffbf0;flex-shrink:0;max-height:220px;overflow:auto">
+      <div style="font-size:11.5px;font-weight:700;color:#7a5200;margin-bottom:4px">💰 Admissions: awaiting the deposit / the counter</div>
+      <div id="dep-wait-list"></div>
+    </div>
+    <!-- Session 357 (owner addition 8): the Medical Superintendent's monthly deposit-waiver report (read-only) -->
+    <details id="dep-waiver-report" hidden style="padding:6px 10px;border-bottom:1px solid var(--border);flex-shrink:0">
+      <summary style="font-size:11.5px;font-weight:700;color:var(--green-deep);cursor:pointer;min-height:32px">📋 Deposit waivers (Medical Superintendent)</summary>
+      <div id="dep-waiver-body" style="margin-top:6px"></div>
+    </details>
 
     <!-- Search -->
     <div style="padding:6px 10px;border-bottom:1px solid var(--border);flex-shrink:0">
@@ -3869,12 +3881,13 @@ body.vh-split .vh-panel{width:480px;box-shadow:none}
             <div class="section-title">Admission Advice <span class="section-sub">You recommend — reception collects the advance and admits</span></div>
             <div class="field-row col2">
               <div class="field">
-                <label>Target Department</label>
+                <label for="adm-dept">Target Department <span class="req">*</span></label>
                 <select id="adm-dept"><option value="">— Select department —</option></select>
               </div>
               <div class="field">
-                <label>Room Type Preference</label>
+                <label for="adm-room-type">Room Type Preference <span class="req">*</span></label>
                 <select id="adm-room-type" data-onchange="recomputeAdviceEstimate">
+                  <option value="">— Select room type —</option>
                   <option value="general">General Ward</option>
                   <option value="semi_private">Semi-Private</option>
                   <option value="private">Private</option>
@@ -3884,7 +3897,7 @@ body.vh-split .vh-panel{width:480px;box-shadow:none}
             </div>
             <div class="field-row col2">
               <div class="field">
-                <label>Expected Duration (days)</label>
+                <label for="adm-duration-days">Expected Duration (days) <span class="req">*</span></label>
                 <input id="adm-duration-days" type="number" min="1" placeholder="e.g. 7" data-onchange="recomputeAdviceEstimate"/>
               </div>
               <div class="field">
@@ -3893,7 +3906,7 @@ body.vh-split .vh-panel{width:480px;box-shadow:none}
               </div>
             </div>
             <div class="field">
-              <label>Clinical Indication</label>
+              <label for="adm-indication">Clinical Indication <span class="req">*</span></label>
               <textarea id="adm-indication" placeholder="Clinical reason requiring in-patient care…" style="min-height:60px"></textarea>
             </div>
             <div class="field-row col2">

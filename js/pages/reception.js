@@ -20,6 +20,8 @@ import { uhidOf } from '../utils/uhid.js';
 import { canCorrectPatient, openCorrectPatientDetails } from '../modules/patient/correctPatientDetails.js';
 import { notify, dismissNotify } from '../components/notify.js';
 import { printDocument } from '../utils/printDocument.js';
+import { mountAlertBell } from '../components/alertBell.js';
+import { stageChip, awaitingRows, buildCounterPanel, canWaiveDeposit } from '../modules/ipd/admissionCounter.js';
 import {
   requestABHAOtp, enrollABHA,
   checkAndGenerateMobileOTP, verifyCommMobileOtp, finalizeAbhaEnrollment,
@@ -50,6 +52,8 @@ wireDelegatedEvents();
 
 const profile  = getCurrentProfile();
 const tenantId = getCurrentTenantId();
+// Session 357 (owner addition 6 / §276): the counter's own alerts (e.g. "advice expires ... pre-auth not decided") in a bell list
+mountAlertBell({ supabase, userId: profile.id });
 const tenant   = getCurrentTenant();
 const _ctx     = { tenantId, userId: profile.id, userName: profile.full_name };
 
@@ -4741,7 +4745,7 @@ async function loadAdmissionRequests() {
         <div class="q-row3">Estimated total: <strong>₹${Number(r.estimated_total||0).toLocaleString('en-IN')}</strong> · Suggested advance: <strong>₹${Number(r.advance_amount_suggested||0).toLocaleString('en-IN')}</strong></div>
       </div>
       <div class="q-right" style="display:flex;flex-direction:column;gap:4px;align-items:flex-end">
-        <button class="q-edit-btn" data-onclick="openAdmissionFromAdvice" data-onclick-a0="${r.id}" style="width:auto;padding:0 10px;font-size:11px;background:var(--green-mid);color:#fff">🛏️ Collect Advance &amp; Admit →</button>
+        <button class="q-edit-btn" data-onclick="openAdmissionFromAdvice" data-onclick-a0="${r.id}" style="width:auto;padding:0 10px;font-size:11px;background:var(--green-mid);color:#fff">🛏️ Collect deposit &amp; admit →</button>
         <button class="q-edit-btn" data-onclick="openRefuseAdmission" data-onclick-a0="${r.id}" style="width:auto;padding:0 8px;font-size:11px;background:#a01a1a;color:#fff">✕ Patient refuses admission</button>
       </div>
     </div>`;
@@ -4762,6 +4766,78 @@ let _refusePanel = null;
 function _admReqAfterRender(list) {
   if (_refusePanel && _refuseAdviceId) list.prepend(_refusePanel);
   _renderRecentRefusals(list);
+  _decorateAdmissionRows(list);
+}
+
+// Session 357 (TODO §265-C): the counter step on each advice -- its stage (server: list_awaiting_deposit), the payer & insurance
+// panel, the pre-auth request / the insurer's decision on the advice's case, the deposit waiver (finance_manager / MS / super_admin;
+// the server decides), and admitted patients whose deposit is due. One open panel at a time; it survives the 30-second refresh.
+let _ctr = null;   // { id, panel }
+async function _openCounterPanel(r, mode) {
+  let caseRow = null;
+  if (mode === 'preauth_request' || mode === 'preauth_decision') {
+    const { data } = await supabase.from('ipd_insurance_cases').select('id, insurer_name, policy_number, pre_auth_status')
+      .eq('tenant_id', tenantId).eq('admission_advice_id', r.id).eq('status', 'open').maybeSingle();
+    caseRow = data;
+  }
+  _ctr?.panel.remove();
+  const panel = buildCounterPanel({ supabase, tenantId, advice: r, mode, caseRow,
+    onDone: () => loadAdmissionRequests(), onClose: () => { _ctr?.panel.remove(); _ctr = null; loadAdmissionRequests(); } });
+  _ctr = { id: r.id, panel };
+  document.getElementById('admission-requests-list').prepend(panel);
+  panel.querySelector('select, input, textarea')?.focus();
+}
+function _ctrBtn(label, bg, onClick) {
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.className = 'q-edit-btn';
+  b.style.cssText = `width:auto;padding:0 10px;font-size:11px;min-height:44px;${bg ? `background:${bg};color:#fff` : ''}`;
+  b.textContent = label;
+  b.addEventListener('click', onClick);
+  return b;
+}
+async function _decorateAdmissionRows(list) {
+  const { data, error } = await supabase.rpc('list_awaiting_deposit');
+  if (error) return;
+  const rows = data || [];
+  const byId = new Map(rows.filter(r => r.kind === 'advice').map(r => [r.id, r]));
+  const canWaive = canWaiveDeposit(profile);
+  for (const item of list.querySelectorAll('.q-item')) {
+    const id = item.querySelector('[data-onclick="openAdmissionFromAdvice"]')?.dataset.onclickA0;
+    const r = byId.get(id);
+    if (!r || item.querySelector('[data-part="stage"]')) continue;
+    const line = document.createElement('div');
+    line.className = 'q-row3';
+    line.dataset.part = 'stage';
+    line.append(stageChip(r.stage));
+    item.querySelector('.q-info')?.append(line);
+    const right = item.querySelector('.q-right');
+    if (!right) continue;
+    right.append(_ctrBtn('💳 Payer & insurance', null, () => _openCounterPanel(r, 'payer')));
+    if (r.stage === 'pre_auth_not_requested') right.append(_ctrBtn('📨 Request pre-auth', null, () => _openCounterPanel(r, 'preauth_request')));
+    if (r.stage === 'pre_auth_pending') right.append(_ctrBtn("📄 Insurer's decision", null, () => _openCounterPanel(r, 'preauth_decision')));
+    if (canWaive && (r.stage === 'awaiting_deposit' || (r.stage === 'at_counter' && (r.payer_type || 'self_pay') === 'self_pay'))) {
+      right.append(_ctrBtn('Waive deposit', 'var(--gold)', () => _openCounterPanel(r, 'waive')));
+    }
+  }
+  if (_ctr && !list.contains(_ctr.panel)) list.prepend(_ctr.panel);
+  // admitted patients whose deposit is due (an emergency admission, or a pre-auth rejected after admission) -> the Account drawer
+  list.querySelector('[data-part="due"]')?.remove();
+  const due = rows.filter(r => r.kind === 'admission' && r.stage === 'deposit_due');
+  if (!due.length) return;
+  const box = document.createElement('div');
+  box.dataset.part = 'due';
+  box.style.cssText = 'margin:8px;padding:8px 10px;border:1.5px solid #a01a1a;border-radius:8px;background:#fff7f7';
+  const h = document.createElement('div');
+  h.style.cssText = 'font-size:12px;font-weight:700;color:#7a1f1f';
+  h.textContent = `💰 Admitted — deposit due (${due.length})`;
+  box.append(h, ...awaitingRows(due, { onAccount: id => window.open(`ipd.html?account=${encodeURIComponent(id)}`, '_blank') }));
+  if (canWaive) {
+    for (const [i, r] of due.entries()) {
+      box.children[i + 1].append(_ctrBtn('Waive deposit', 'var(--gold)', () => _openCounterPanel(r, 'waive')));
+    }
+  }
+  list.prepend(box);
 }
 function _refuseBtn(label, onclick, primary) {
   const b = document.createElement('button');

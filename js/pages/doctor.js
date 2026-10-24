@@ -25,6 +25,8 @@ import { identityLines } from '../utils/signerIdentity.js';
 import { getOpdWorkflow, screeningOpdId } from '../modules/opd/screeningOpd.js';
 import { AWAITING_SIGNOFF, isAwaitingSignOff, anyAwaitingSignOff } from '../modules/lab/signOff.js';
 import { loadMyPkSessions, resetMyPkSessions } from '../modules/panchakarma/myPkSessions.js';
+import { initAlertBell } from '../components/alertBell.js';
+import { loadAwaitingDeposit, loadDepositWaivers } from '../modules/ipd/admissionCounter.js';
 
 // Auth + navbar first — page must always be visible and navigable even if proforma module is absent
 await requireAuth(['doctor', 'trainee_doctor', 'super_admin', 'dept_admin']);
@@ -1280,6 +1282,22 @@ async function loadEmergencyConfirmations() {
   box.hidden = false;
 }
 
+// Session 357 (TODO §265-C): own patients advised for admission -- waiting at the counter, awaiting the deposit, the pre-auth,
+// admitted today, a deposit due. The server lists them (list_awaiting_deposit: a doctor sees own only). Information only -- orders
+// never wait for the deposit (D9). The MS also gets the monthly deposit-waiver report (owner addition 8, read-only).
+async function loadDepositBox() {
+  if (_isTrainee) return;
+  await loadAwaitingDeposit({ supabase, box: document.getElementById('dep-wait-box'), list: document.getElementById('dep-wait-list'),
+    filter: r => r.doctor_id === userId });
+}
+if (!_isTrainee && profile.designation === 'medical_superintendent') {
+  const rep = document.getElementById('dep-waiver-report');
+  if (rep) {
+    rep.hidden = false;
+    rep.addEventListener('toggle', () => { if (rep.open) loadDepositWaivers({ supabase, container: document.getElementById('dep-waiver-body') }); });
+  }
+}
+
 window.confirmEmergencyAdmission = async function(admissionId) {
   const { data, error } = await supabase.rpc('confirm_emergency_admission', { p_admission_id: admissionId });
   if (error || !data) { _toast(safeErrorMessage(error, 'Could not confirm the admission.'), 'error'); return; }
@@ -1404,6 +1422,7 @@ function subscribeRealtime() {
     }, payload => {
       loadAlerts();
       loadEmergencyConfirmations();   // Session 356: an emergency admission under this doctor arrives as an alert
+      loadDepositBox();               // Session 357: admitted / deposit paid / pre-auth rejected / advice expired arrive as alerts
       _toast(`New on-request: ${payload.new.patient_name} — ${payload.new.message}`, 'alert');
     })
     .subscribe();
@@ -2023,9 +2042,13 @@ window.saveAdmissionAdvice = async function() {
   const roomType     = document.getElementById('adm-room-type').value;
   const payer        = document.getElementById('adm-payer').value;
 
-  if (!deptId)     { _admStatus('Select a target department.', 'error'); return false; }
-  if (!indication) { _admStatus('Enter the clinical indication for admission.', 'error'); return false; }
-  if (!days)       { _admStatus('Enter the expected duration (days).', 'error'); return false; }
+  // Session 357 (TODO §275): each missing field is named, focused and highlighted -- the same wording as the server
+  // (_advice_values_check / create_admission_advice), checked in the order of the form
+  _admClearInvalid();
+  if (!deptId)     return _admFieldError('adm-dept', 'Select the department for the admission.');
+  if (!indication) return _admFieldError('adm-indication', 'Enter the clinical indication for admission.');
+  if (!days || days < 1 || days > 365) return _admFieldError('adm-duration-days', 'Enter the expected duration (1 to 365 days).');
+  if (!roomType)   return _admFieldError('adm-room-type', 'Choose a room type preference.');
   await recomputeAdviceEstimate();
   if (!_admLastEstimate) { _admStatus('Fix the room-tariff issue shown above before sending this advice.', 'error'); return false; }
 
@@ -2064,11 +2087,32 @@ window.saveAdmissionAdvice = async function() {
   _admAdviceId = adviceId;
   _admAdviceSaved = true;
   _admSetMode();
+  loadDepositBox();   // Session 357
   _admStatus(wasUpdate
     ? `✓ Updated — Reception's Admission Requests queue shows the new advice for ${_activePatient?.name}.`
     : `✓ Sent — ${_activePatient?.name} will now appear in Reception's Admission Requests queue.`);
   return true;
 };
+
+// Session 357 (TODO §275): mark one Admission-tab field as the missing one (focus + red border + aria-invalid + the message)
+const _ADM_REQUIRED = ['adm-dept', 'adm-indication', 'adm-duration-days', 'adm-room-type'];
+function _admClearInvalid() {
+  for (const id of _ADM_REQUIRED) {
+    const f = document.getElementById(id);
+    if (f) { f.removeAttribute('aria-invalid'); f.style.borderColor = ''; f.style.boxShadow = ''; }
+  }
+}
+function _admFieldError(id, msg) {
+  const f = document.getElementById(id);
+  if (f) {
+    f.setAttribute('aria-invalid', 'true');
+    f.style.borderColor = 'var(--red, #a01a1a)';
+    f.style.boxShadow = '0 0 0 2px rgba(160,26,26,.18)';
+    f.focus();
+  }
+  _admStatus(msg, 'error');
+  return false;
+}
 
 // Cancel this doctor's own pending advice -- an in-page panel with a required reason (no native confirm)
 window.openCancelAdvice = function() {
@@ -8063,13 +8107,9 @@ function _clearForm() {
 }
 
 // ── Alert button ──────────────────────────────────
-document.getElementById('btn-alerts').addEventListener('click', async () => {
-  await supabase.from('doctor_alerts')
-    .update({ is_read: true })
-    .eq('doctor_id', userId).eq('is_read', false);
-  loadAlerts();
-  _toast('All alerts marked as read', 'info');
-});
+// Session 357 (TODO §276): the bell opens the list of this doctor's own alerts (each marked read when opened; "Mark all read"
+// separately) -- it used to mark every alert read in one update and show only a toast, so the text was never seen.
+initAlertBell({ supabase, userId, button: document.getElementById('btn-alerts'), badge: document.getElementById('alert-dot') });
 
 // ── Toast ─────────────────────────────────────────
 // Session 322: shared top-layer notify(); this page's own 'alert' (bell) type maps to warning.
@@ -8306,7 +8346,7 @@ window.saveVishaCase = async function() {
 // ── Boot ──────────────────────────────────────────
 _initNamaste();
 _initIcd10();
-await Promise.all([loadQueue(), loadAlerts(), loadEmergencyConfirmations(), loadInventory(), _loadOpdAttendanceBanner(), loadOpdList(), loadDoctorOpds(), renderPromoBanner('promo-banner', { supabase, tenantId })]);
+await Promise.all([loadQueue(), loadAlerts(), loadEmergencyConfirmations(), loadDepositBox(), loadInventory(), _loadOpdAttendanceBanner(), loadOpdList(), loadDoctorOpds(), renderPromoBanner('promo-banner', { supabase, tenantId })]);
 
 async function _loadOpdAttendanceBanner() {
   const { data: t } = await supabase.from('tenants').select('ug_intake,opd_daily_target,type').eq('id', tenantId).single();

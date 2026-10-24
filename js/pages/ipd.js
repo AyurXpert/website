@@ -133,6 +133,7 @@ const _isEmergencyAdmitter = ['resident_medical_officer', 'cmo'].includes(myProf
   && !['trainee_doctor', 'student'].includes(myRole) && !['trainee_doctor', 'student'].includes(myProfile.secondary_role);
 let _admitMode = 'advice';   // 'advice' | 'direct' (Super Admin, reason) | 'emergency' (RMO / CMO)
 let _currentAdvice = null;   // the doctor's advice this admission comes from (declared here: read by the drawer code above its old place)
+let _counterCase = null;     // Session 357 (D6): the insurance case the admission counter opened on that advice (linked by the server)
 document.getElementById('btn-admit-patient').style.display = _isSuperAdmin ? '' : 'none';
 document.getElementById('btn-emergency-admit').style.display = _isEmergencyAdmitter ? '' : 'none';
 document.getElementById('admit-from-advice-note').style.display = ADMIT_ROLES.includes(myRole) && !_isSuperAdmin ? '' : 'none';
@@ -198,7 +199,7 @@ window.loadAll = async function loadAll() {
       .select(`
         id, tenant_id, admission_date, admitted_at, discharged_at, charges_locked_at,
         status, disposition, diagnosis_primary, diet_type, notes, advance_amount_collected, payer_type,
-        admission_route, emergency_confirmed_at, consultant_not_on_roster,
+        admission_route, emergency_confirmed_at, consultant_not_on_roster, deposit_status,
         discharge_diagnosis_ayurveda, discharge_diagnosis_icd10, discharge_medications,
         discharge_pathya_apathya, discharge_pk_procedures, discharge_followup_date, discharge_condition,
         discharge_course, discharge_treatment_given, discharge_investigations, discharge_advice,
@@ -553,6 +554,7 @@ function renderTable(rows) {
         <div class="pt-name">${_esc(pt.name || '—')}</div>
         <div class="pt-meta">${_esc(pt.phone || '')}${genderAge ? ' · ' + genderAge : ''}</div>
         ${a.admission_route === 'emergency' ? `<div style="font-size:10px;font-weight:700;margin-top:3px;color:#a01a1a">🚑 Emergency${a.emergency_confirmed_at ? ' · confirmed' : ' · awaiting confirmation by the consultant'}${a.consultant_not_on_roster ? ' · consultant not on roster' : ''}</div>` : ''}
+        ${a.deposit_status === 'due' ? `<div style="font-size:10px;font-weight:700;margin-top:3px;color:#a01a1a">💰 Deposit due (orders do not wait for it)</div>` : ''}
       </td>
       <td>
         <span class="bed-chip">${_esc(bed.bed_number || '—')}</span>
@@ -640,6 +642,9 @@ window.openAdmitDrawer = async function(mode = 'advice') {
   // Session 205 (cont.) -- advance payment + advice-reference reset. _currentAdvice
   // is only ever set again by the ?advice_id= boot block, AFTER this function returns.
   _currentAdvice = null;
+  _counterCase = null;                                                    // Session 357
+  document.getElementById('adm-payer-type').disabled = false;
+  document.getElementById('adm-counter-note')?.remove();
   document.getElementById('adm-advance-amount').value = '';
   document.getElementById('adm-advance-mode').value   = '';
   document.getElementById('adm-advance-reference').value = '';
@@ -1080,13 +1085,19 @@ window.saveAdmission = async function() {
   if (!payerType) { _alert('error','Select a payer type.'); return; }
   // Session 313 -- a scheme payer never asks this (server forces cashless=true); only
   // insurance/corporate genuinely need the explicit choice.
-  if (payerType !== 'self_pay' && !isSchemePayer && !cashlessValue) { _alert('error','Choose Cashless or Reimbursement.'); return; }
+  if (payerType !== 'self_pay' && !isSchemePayer && !cashlessValue && !_counterCase) { _alert('error','Choose Cashless or Reimbursement.'); return; }
 
   // Session 312 -- advance is required only for self_pay; optional for insurance/corporate
   // (blank/zero allowed); not asked at all (forced ₹0) for pmjay/cghs/echs/esi.
   const effectiveAdvance = isSchemePayer ? 0 : (advanceAmount === '' ? 0 : Number(advanceAmount));
   if (payerType === 'self_pay' && (advanceAmount === '' || Number(advanceAmount) < 0)) {
     _alert('error','Enter the advance amount collected.'); return;
+  }
+  // Session 357 (D5): from an advice, a self-pay deposit must be more than ₹0 unless it was waived (the server decides the same);
+  // the Super Admin's own admission without an advice with ₹0 counts as the Super Admin's waiver, with the reason above
+  if (payerType === 'self_pay' && _admitMode === 'advice' && effectiveAdvance <= 0 && !_currentAdvice?.deposit_waived_at) {
+    _alert('error', 'A self-pay admission needs a deposit of more than ₹0. Only the Finance Manager, the Medical Superintendent or the Super Admin can waive it, with a reason (Reception → 🛏️ Admission Requests → Waive deposit).');
+    return;
   }
   if (!isSchemePayer && effectiveAdvance < 0) { _alert('error','Advance amount cannot be negative.'); return; }
   if (effectiveAdvance > 0) {
@@ -1106,14 +1117,15 @@ window.saveAdmission = async function() {
     p_admitting_doctor_id:   doctorId,
     p_admission_date:        admDate,
     p_payer_type:            payerType,
-    p_insurer_name:          payerType !== 'self_pay' ? (insurerName || null) : null,
-    p_tpa_name:              payerType !== 'self_pay' ? (tpaName || null) : null,
-    p_policy_number:         payerType !== 'self_pay' ? (policyNumber || null) : null,
-    p_member_id:             payerType !== 'self_pay' ? (memberId || null) : null,
-    p_pmjay_package_code:    payerType === 'pmjay' ? (pmjayCode || null) : null,
+    // Session 357 (D6): with the counter's case the server links that case -- the details are not sent again
+    p_insurer_name:          payerType !== 'self_pay' && !_counterCase ? (insurerName || null) : null,
+    p_tpa_name:              payerType !== 'self_pay' && !_counterCase ? (tpaName || null) : null,
+    p_policy_number:         payerType !== 'self_pay' && !_counterCase ? (policyNumber || null) : null,
+    p_member_id:             payerType !== 'self_pay' && !_counterCase ? (memberId || null) : null,
+    p_pmjay_package_code:    payerType === 'pmjay' && !_counterCase ? (pmjayCode || null) : null,
     // Session 313 -- for a scheme payer this is sent null; the server ignores it and forces
     // true regardless (cashless by definition), so this is never trusted for that decision.
-    p_is_cashless:           (payerType !== 'self_pay' && !isSchemePayer) ? (cashlessValue === 'cashless') : null,
+    p_is_cashless:           (payerType !== 'self_pay' && !isSchemePayer && !_counterCase) ? (cashlessValue === 'cashless') : null,
     p_advance_amount:        effectiveAdvance,
     p_advance_payment_mode:  effectiveAdvance > 0 ? advanceMode : null,
     p_advance_reference:     effectiveAdvance > 0 ? (advanceRef || null) : null,
@@ -2888,6 +2900,45 @@ window.saveOtProcedure = async function() {
 _loadCarePlanIds();
 await loadAll();
 
+// Session 357 (TODO §265-C, D5 / D6): the admission counter (reception → 🛏️ Admission Requests) may already have set the payer,
+// opened the insurance case on the advice (pre-auth before the bed) or recorded a deposit waiver. The payer chosen there is the
+// admission's (read-only here); the counter's case is linked by the server (its details are not typed again); a waiver lets a
+// self-pay patient be admitted with ₹0. A note built from DOM nodes says which.
+async function _applyCounterStep(advice) {
+  const lines = [];
+  if (advice.counter_payer_type) {
+    const sel = document.getElementById('adm-payer-type');
+    sel.value = advice.counter_payer_type;
+    onPayerTypeChange(advice.counter_payer_type);
+    sel.disabled = true;
+    lines.push(`Payer set at the admission counter: ${sel.options[sel.selectedIndex]?.textContent || advice.counter_payer_type} (change it there).`);
+    if (advice.counter_payer_type !== 'self_pay') {
+      const { data: c } = await supabase.from('ipd_insurance_cases')
+        .select('id, insurer_name, tpa_name, policy_number, is_cashless, pre_auth_status, pre_auth_approved_amount')
+        .eq('tenant_id', tenantId).eq('admission_advice_id', advice.id).eq('status', 'open').maybeSingle();
+      if (c) {
+        _counterCase = c;
+        document.getElementById('adm-payer-insurer-fields').style.display = 'none';
+        document.getElementById('adm-cashless-field').style.display = 'none';
+        lines.push(`Insurance case from the counter: ${c.insurer_name || '—'}${c.tpa_name ? ' · TPA ' + c.tpa_name : ''} · policy ${c.policy_number || '—'} · `
+          + `${c.is_cashless ? 'cashless' : 'reimbursement'} · pre-auth ${c.pre_auth_status || 'not requested yet'}`
+          + (c.pre_auth_status === 'approved' ? ` (₹${Number(c.pre_auth_approved_amount || 0).toLocaleString('en-IN')})` : '')
+          + ' — the patient may be admitted while the insurer decides.');
+      }
+    }
+  }
+  if (advice.deposit_waived_at && (advice.counter_payer_type || advice.payer_type || 'self_pay') === 'self_pay') {
+    lines.push(`Deposit waived by ${advice.waiver?.full_name || '—'}: ${advice.deposit_waiver_reason || ''} — the patient can be admitted with ₹0.`);
+    document.getElementById('adm-advance-required-note').textContent = '(waived)';
+  }
+  if (!lines.length) return;
+  const note = document.createElement('div');
+  note.id = 'adm-counter-note';
+  note.style.cssText = 'font-size:12px;color:var(--green-deep);background:#f0f7f2;border:1px solid var(--green-mid);border-radius:6px;padding:6px 8px;margin-bottom:8px';
+  for (const l of lines) { const d = document.createElement('div'); d.textContent = l; note.append(d); }
+  document.getElementById('adm-payer-suggestion').after(note);
+}
+
 // Auto-open admit drawer when arriving from doctor.html via "Open IPD Admission"
 const _qp        = new URLSearchParams(window.location.search);
 const _qPatientId = _qp.get('patient_id');
@@ -2913,7 +2964,7 @@ const _qAdviceId = _qp.get('advice_id');
 if (_qAdviceId) {
   const { data: advice } = await supabase
     .from('admission_advice')
-    .select('id, patient_id, visit_id, doctor_id, department_id, clinical_indication, diet_type, nursing_care_notes, room_type_preference, payer_type, estimated_total, advance_amount_suggested, status, patients(id,name,phone,gender,age,abha_number), profiles!doctor_id(full_name)')
+    .select('id, patient_id, visit_id, doctor_id, department_id, clinical_indication, diet_type, nursing_care_notes, room_type_preference, payer_type, estimated_total, advance_amount_suggested, status, counter_payer_type, deposit_waived_at, deposit_waiver_reason, patients(id,name,phone,gender,age,abha_number), profiles!doctor_id(full_name), waiver:profiles!admission_advice_deposit_waived_by_fkey(full_name)')
     .eq('id', _qAdviceId).eq('tenant_id', tenantId).maybeSingle();
   if (advice && advice.status === 'pending' && advice.patients) {
     await openAdmitDrawer('advice');  // resets _currentAdvice to null first -- set it AFTER, not before (Session 356: awaited -- its
@@ -2943,6 +2994,7 @@ if (_qAdviceId) {
       sugg.style.display = '';
       sugg.innerHTML = `💡 Doctor's advice suggested: <strong>${_esc(advice.payer_type === 'self_pay' ? 'Self-Pay' : advice.payer_type.toUpperCase())}</strong> — confirm the payer below, it is not applied automatically.`;
     }
+    await _applyCounterStep(advice);   // Session 357: the payer / insurance case / deposit waiver from the admission counter
   } else if (advice) {
     // Session 356: no native alert; the stored 'declined' = "refused admission against medical advice"
     const word = advice.status === 'declined' ? 'refused by the patient (against medical advice)' : advice.status;
