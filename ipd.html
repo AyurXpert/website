@@ -407,6 +407,12 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
         </div>
         <input type="hidden" id="adm-bed-id"/>
         <div id="bed-rate-warning" style="display:none;background:#fff6e5;border:1px solid #f0c36d;border-radius:6px;padding:8px 10px;margin:-6px 0 12px;font-size:12px;color:#8a5a00;font-weight:600"></div>
+        <!-- Session 357c (b, Q3): a bed of another type than the doctor's room type preference needs a reason (recorded, audited, sent to the doctor) -->
+        <div class="field" id="adm-bed-mismatch-field" style="display:none;background:#fff6e5;border:1px solid #f0c36d;border-radius:6px;padding:8px 10px;margin:-6px 0 12px">
+          <div id="adm-bed-mismatch-note" role="status" style="font-size:12px;color:#8a5a00;font-weight:600;margin-bottom:6px"></div>
+          <label for="adm-bed-mismatch-reason">Reason for the different bed <span class="req">*</span></label>
+          <textarea id="adm-bed-mismatch-reason" rows="2" maxlength="500" placeholder="e.g. no General Ward bed vacant; the patient asked for a private room"></textarea>
+        </div>
 
         <div class="field">
           <label>Admitting Doctor <span class="req">*</span></label>

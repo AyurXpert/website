@@ -10,7 +10,7 @@ export const PAYERS = [
   ['self_pay', 'Self-pay'], ['insurance', 'Private insurance'], ['corporate', 'Corporate'],
   ['pmjay', 'PM-JAY'], ['cghs', 'CGHS'], ['echs', 'ECHS'], ['esi', 'ESI'],
 ];
-const SCHEMES = ['pmjay', 'cghs', 'echs', 'esi'];
+export const SCHEMES = ['pmjay', 'cghs', 'echs', 'esi'];
 export const payerLabel = p => (PAYERS.find(x => x[0] === p) || [p, p || '—'])[1];
 
 export const STAGES = {
@@ -23,6 +23,7 @@ export const STAGES = {
   pre_auth_rejected: ['Insurance — pre-auth rejected', '#fdecea', '#a01a1a'],
   deposit_due: ['Admitted — deposit due', '#fdecea', '#a01a1a'],
   admitted: ['Admitted today', '#e8f5ee', '#1a4a2e'],
+  admitted_pre_auth_not_requested: ['⚠ Admitted — pre-auth not requested', '#fff1e0', '#8a3a00'],   // Session 357c (Q1)
 };
 const _rs = n => '₹' + Number(n || 0).toLocaleString('en-IN');
 const _date = ts => ts ? new Date(ts).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', year: 'numeric' }) : '—';
@@ -97,8 +98,8 @@ export async function loadAwaitingDeposit({ supabase, box, list, onAccount, filt
   return error ? null : (data || []);
 }
 
-// ── the waiver report (owner addition 8): the MS / Super Admin, read-only, one month ──
-export async function loadDepositWaivers({ supabase, container }) {
+// ── the waiver report (owner addition 8): the MS / Super Admin (+ the finance manager, 357c B5), read-only, one month ──
+export async function loadDepositWaivers({ supabase, container, countEl }) {
   if (!container) return;
   container.replaceChildren();
   const head = el('div', 'display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end;margin-bottom:8px');
@@ -117,6 +118,10 @@ export async function loadDepositWaivers({ supabase, container }) {
     out.replaceChildren();
     if (error) { status(msg, safeErrorMessage(error, 'Could not load the deposit waivers.'), false); return; }
     status(msg, data?.length ? `${data.length} waiver${data.length > 1 ? 's' : ''}` : 'No deposit was waived in this month.', true);
+    if (countEl) {   // Session 357c (f): the month's count in the card header
+      const label = new Date(`${m.value}-01T00:00:00`).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
+      countEl.textContent = `${data?.length || 0} in ${label}`;
+    }
     if (!data?.length) return;
     const t = el('table', 'width:100%;border-collapse:collapse;font-size:12px');
     const hr = document.createElement('tr');
@@ -200,7 +205,8 @@ export function buildCounterPanel({ supabase, tenantId, advice, mode, caseRow, o
       });
       if (error) { status(msg, safeErrorMessage(error, 'Could not save the payer.'), false); return; }
       status(msg, p === 'self_pay' ? '✓ Saved: self-pay — collect the deposit when admitting.'
-        : '✓ Saved — the insurance case is open on this advice. Request the pre-authorization next.', true);
+        : SCHEMES.includes(p) ? '✓ Saved — the case is open on this advice. Request the pre-authorization next.'
+        : '✓ Saved — the insurance case is open on this advice. Request the pre-authorization next; a deposit of more than ₹0 is collected when admitting.', true);
       onDone?.();
     }));
     actions.append(save);
@@ -254,7 +260,7 @@ export function buildCounterPanel({ supabase, tenantId, advice, mode, caseRow, o
     const reason = input('textarea', { maxLength: 500 });
     reason.placeholder = 'e.g. below poverty line, approved by the Medical Superintendent';
     panel.append(el('div', 'font-size:12px;color:var(--text-mid);margin-bottom:6px',
-      `Suggested deposit ${_rs(advice.suggested_deposit)}. Only the Finance Manager, the Medical Superintendent or the Super Admin can waive it; the waiver is in the monthly waiver report.`),
+      `Suggested deposit ${_rs(advice.suggested_deposit)} (${payerLabel(advice.payer_type || 'self_pay')}). Only the Finance Manager, the Medical Superintendent or the Super Admin can waive it; the waiver is in the monthly waiver report.`),
       field('Reason (required, 5 to 500 characters)', reason));
     const go = btn('Waive the deposit', 'var(--gold)');
     go.addEventListener('click', () => guard(go, async () => {
@@ -278,3 +284,6 @@ export function buildCounterPanel({ supabase, tenantId, advice, mode, caseRow, o
 export const canWaiveDeposit = p => !!p && p.status === 'active' && (p.role === 'super_admin' || p.role === 'finance_manager'
   || p.secondary_role === 'finance_manager' || p.designation === 'medical_superintendent');
 export const isAdmissionOverseer = p => !!p && p.status === 'active' && (p.role === 'super_admin' || p.designation === 'medical_superintendent');
+// Session 357c (B5, owner 25 Oct 2026): who may read the deposit-waiver report (the button only -- list_deposit_waivers decides)
+export const canSeeWaiverReport = p => isAdmissionOverseer(p) || (!!p && p.status === 'active'
+  && (p.role === 'finance_manager' || p.secondary_role === 'finance_manager'));

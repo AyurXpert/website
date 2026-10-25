@@ -24,6 +24,7 @@
 // they just call w.print() from script, never an inline onload (blocked by our CSP).
 
 import { setPrintPageSize, clearPrintPageSize } from './printPageSize.js';
+import './versionCheck.js';   // Session 357c (TODO §108 (c)): pages that print also offer "Reload" after a deploy (the banner never prints)
 
 const ROOT_CLASS = 'ax-print-root';
 const TEMP_CLASS = 'ax-print-root--temp';

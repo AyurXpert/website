@@ -11,6 +11,7 @@ import { computeIpdChargesToDate } from '../modules/billing/ipdChargesToDate.js'
 import { todayLocalStr, localDateStr, todayISTStr } from '../utils/dateUtils.js';
 import { fetchSamsarjanaHomeChart, buildDischargeSummaryHtml, printDischargeHtml, loadDischargeSigner } from '../modules/ipd/dischargePrint.js';
 import { bedTypeLabel } from '../config/bedTypes.js';
+import { bedMatchesRoomPref, roomTypeLabel } from '../config/roomTypes.js';   // Session 357c (Q3)
 import { notify } from '../components/notify.js';
 // Session 345h (GST Stage 6c): credit notes against the final bill -- the list, the cash refund due (paid out here, D4), and the ask panel
 import { canAskCreditNote, openCreditNoteAsk, canStillCredit } from '../modules/billing/creditNoteAsk.js';
@@ -157,6 +158,7 @@ let _ratedBedTypes = new Set();
 // before the script's top-level execution ever reaches a later `const` for it (TDZ ReferenceError
 // once a real admission exists to render -- silent before that since .map() never ran the callback).
 const _carePlanAdmIds = new Set();
+const _preAuthNotRequested = new Set();   // Session 357c (Q1): admissions whose open insurance case has no pre-auth request yet
 async function _loadCarePlanIds() {
   const { data } = await supabase.from('ipd_care_plans')
     .select('ipd_admission_id').eq('tenant_id', tenantId);
@@ -231,6 +233,12 @@ window.loadAll = async function loadAll() {
   // Session 294 -- refreshed on every loadAll(), not just at page init, so a
   // just-admitted PK Care Plan patient shows the 🌸 icon without a full page reload.
   await _loadPkCarePlanIds();
+  // Session 357c (Q1): "⚠ Pre-auth not requested" stays on an insurance admission until the counter requests it (non-fatal: a role
+  // that cannot read insurance cases simply sees no label)
+  _preAuthNotRequested.clear();
+  const { data: npa } = await supabase.from('ipd_insurance_cases').select('ipd_admission_id')
+    .eq('tenant_id', tenantId).eq('status', 'open').is('pre_auth_status', null).not('ipd_admission_id', 'is', null);
+  (npa || []).forEach(c => _preAuthNotRequested.add(c.ipd_admission_id));
 
   _populateDeptFilters();
   _populateDoctorSelect();
@@ -555,6 +563,7 @@ function renderTable(rows) {
         <div class="pt-meta">${_esc(pt.phone || '')}${genderAge ? ' · ' + genderAge : ''}</div>
         ${a.admission_route === 'emergency' ? `<div style="font-size:10px;font-weight:700;margin-top:3px;color:#a01a1a">🚑 Emergency${a.emergency_confirmed_at ? ' · confirmed' : ' · awaiting confirmation by the consultant'}${a.consultant_not_on_roster ? ' · consultant not on roster' : ''}</div>` : ''}
         ${a.deposit_status === 'due' ? `<div style="font-size:10px;font-weight:700;margin-top:3px;color:#a01a1a">💰 Deposit due (orders do not wait for it)</div>` : ''}
+        ${_preAuthNotRequested.has(a.id) && a.status === 'admitted' ? `<div style="font-size:10px;font-weight:700;margin-top:3px;color:var(--orange)">⚠ Pre-auth not requested</div>` : ''}
       </td>
       <td>
         <span class="bed-chip">${_esc(bed.bed_number || '—')}</span>
@@ -643,6 +652,8 @@ window.openAdmitDrawer = async function(mode = 'advice') {
   // is only ever set again by the ?advice_id= boot block, AFTER this function returns.
   _currentAdvice = null;
   _counterCase = null;                                                    // Session 357
+  document.getElementById('adm-bed-mismatch-field').style.display = 'none';   // Session 357c (b)
+  document.getElementById('adm-bed-mismatch-reason').value = '';
   document.getElementById('adm-payer-type').disabled = false;
   document.getElementById('adm-counter-note')?.remove();
   document.getElementById('adm-advance-amount').value = '';
@@ -689,7 +700,9 @@ window.onAdvanceModeChange = function(mode) {
 };
 
 const ADVANCE_SCHEME_PAYERS = ['pmjay','cghs','echs','esi']; // never asked, always ₹0
-const ADVANCE_OPTIONAL_PAYERS = ['insurance','corporate'];   // optional, tenant default hint
+// Session 357c (a, owner decision 24 Oct 2026): insurance / corporate need a deposit > ₹0 too (or a waiver); the tenant's flat amount
+// (if set) is pre-filled, as before
+const ADVANCE_INSURANCE_PAYERS = ['insurance','corporate'];
 
 // Session 311/312 -- shows the insurer/scheme fields for any non-self-pay payer, the
 // PM-JAY package field only for that one scheme, and (312) adjusts the Advance block's
@@ -715,20 +728,18 @@ window.onPayerTypeChange = function(val) {
   if (!showInsurer || isScheme) document.querySelectorAll('input[name="adm-cashless"]').forEach(r => r.checked = false);
 
 
-  const isOptional = ADVANCE_OPTIONAL_PAYERS.includes(val);
+  const isInsurance = ADVANCE_INSURANCE_PAYERS.includes(val);
   document.getElementById('adm-advance-fields').style.display = isScheme ? 'none' : '';
   document.getElementById('adm-advance-scheme-note').style.display = isScheme ? '' : 'none';
   document.getElementById('adm-advance-required-note').textContent = isScheme
-    ? '(not applicable)' : isOptional ? '(optional for this payer)' : '(required to admit)';
-  document.getElementById('adm-advance-amount-label').innerHTML = isOptional
-    ? 'Advance Collected' : 'Advance Collected <span class="req">*</span>';
-  document.getElementById('adm-advance-mode-label').innerHTML = isOptional
-    ? 'Payment Mode' : 'Payment Mode <span class="req">*</span>';
+    ? '(not applicable)' : isInsurance ? '(required to admit — the insurance deposit, or a waiver)' : '(required to admit)';
+  document.getElementById('adm-advance-amount-label').innerHTML = 'Advance Collected <span class="req">*</span>';
+  document.getElementById('adm-advance-mode-label').innerHTML = 'Payment Mode <span class="req">*</span>';
   if (isScheme) {
     document.getElementById('adm-advance-amount').value = '';
     document.getElementById('adm-advance-mode').value = '';
     onAdvanceModeChange('');
-  } else if (isOptional && !document.getElementById('adm-advance-amount').value && _tenantDefaultInsuranceAdvance) {
+  } else if (isInsurance && !document.getElementById('adm-advance-amount').value && _tenantDefaultInsuranceAdvance) {
     document.getElementById('adm-advance-amount').value = _tenantDefaultInsuranceAdvance;
   }
 };
@@ -876,10 +887,27 @@ window.clearPatientSelection = function() {
 };
 
 // ── Bed picker ────────────────────────────────────────────────────────────────
+// Session 357c (b, Q3): does the bed fit the doctor's room type preference (js/config/roomTypes.js = the server's mapping)?
+function _bedMismatch(bedId) {
+  const pref = _admitMode === 'advice' ? (_currentAdvice?.room_type_preference || '') : '';
+  const bed = _allBeds.find(b => b.id === bedId);
+  if (!pref || !bed || bedMatchesRoomPref(bed.bed_type, pref)) return null;
+  return { advised: roomTypeLabel(pref), bed: bedTypeLabel(bed.bed_type) };
+}
+function _showBedMismatch(bedId) {
+  const field = document.getElementById('adm-bed-mismatch-field');
+  const m = bedId ? _bedMismatch(bedId) : null;
+  field.style.display = m ? '' : 'none';
+  if (!m) { document.getElementById('adm-bed-mismatch-reason').value = ''; return; }
+  document.getElementById('adm-bed-mismatch-note').textContent =
+    `⚠ The doctor advised ${m.advised} — this is a ${m.bed} bed. Give the reason for the different bed (required; it is recorded and sent to the doctor).`;
+}
+
 window.loadVacantBeds = function() {
   const deptId  = document.getElementById('adm-dept').value;
   const picker  = document.getElementById('bed-picker');
   document.getElementById('adm-bed-id').value = '';
+  _showBedMismatch(null);   // Session 357c (b)
 
   // Filter doctors by department (NCISM §7 authorised consultants)
   _filterDoctorsByDept(deptId);
@@ -978,12 +1006,15 @@ window.loadVacantBeds = function() {
     const typeLabel  = bedTypeLabel(b.bed_type);
     const ownerName  = isOverflow ? (deptNameById[b.department_id] || 'another department') : '';
     const flagClass  = crossZone ? ' crosszone' : (isOverflow ? ' overflow' : '');
+    const advisedPref = _admitMode === 'advice' ? (_currentAdvice?.room_type_preference || '') : '';   // Session 357c (b)
+    const mismatch   = !!advisedPref && !bedMatchesRoomPref(b.bed_type, advisedPref);
     return `<div class="bed-option${isPk ? ' pk' : ''}${flagClass}" data-id="${b.id}"
       data-onclick="pickBed" data-onclick-a0="@this" data-onclick-a1="${b.id}" data-onclick-a2="${isOverflow ? '1' : '0'}" data-onclick-a3="${_esc(ownerName)}" data-onclick-a4="${crossZone ? '1' : '0'}"
       title="${_esc(b.bed_number)}${b.ward_name ? ' — ' + _esc(b.ward_name) : ''} — ${_esc(typeLabel)}${isOverflow ? ' — allocated to ' + _esc(ownerName) : ''}${crossZone ? ' — cross-zone overflow' : ''}">
       ${b.ward_name ? '<span style="font-size:9px;font-weight:400;display:block">'+_esc(b.ward_name)+'</span>' : ''}
       ${_esc(b.bed_number)}
       <span style="font-size:8.5px;font-weight:500;display:block;opacity:.8">${_esc(typeLabel)}</span>
+      ${mismatch ? `<span class="bed-mismatch" style="font-size:8.5px;font-weight:700;display:block;color:var(--orange)">⚠ Advised: ${_esc(roomTypeLabel(advisedPref))}</span>` : ''}
       ${crossZone ? `<span style="font-size:8.5px;font-weight:700;display:block;color:var(--purple)">🔷 ${_esc(ownerName)}'s bed — other zone</span>`
         : isOverflow ? `<span style="font-size:8.5px;font-weight:700;display:block;color:var(--orange)">🔶 ${_esc(ownerName)}'s bed</span>` : ''}
     </div>`;
@@ -1011,6 +1042,7 @@ window.pickBed = function(el, bedId, isOverflow, ownerName, crossZone) {
   document.querySelectorAll('.bed-option').forEach(o => o.classList.remove('selected'));
   el.classList.add('selected');
   document.getElementById('adm-bed-id').value = bedId;
+  _showBedMismatch(bedId);   // Session 357c (b)
 
   // Session 319 -- non-blocking heads-up only; admission proceeds either way. The real
   // gate is at Generate Bill time (computeRoomTariff()'s own hard error), same as today.
@@ -1087,8 +1119,8 @@ window.saveAdmission = async function() {
   // insurance/corporate genuinely need the explicit choice.
   if (payerType !== 'self_pay' && !isSchemePayer && !cashlessValue && !_counterCase) { _alert('error','Choose Cashless or Reimbursement.'); return; }
 
-  // Session 312 -- advance is required only for self_pay; optional for insurance/corporate
-  // (blank/zero allowed); not asked at all (forced ₹0) for pmjay/cghs/echs/esi.
+  // Session 312 -- not asked at all (forced ₹0) for pmjay/cghs/echs/esi. Session 357c (a): self-pay, insurance and corporate need a
+  // deposit > ₹0 from an advice (or a waiver) -- checked below; the server decides the same.
   const effectiveAdvance = isSchemePayer ? 0 : (advanceAmount === '' ? 0 : Number(advanceAmount));
   if (payerType === 'self_pay' && (advanceAmount === '' || Number(advanceAmount) < 0)) {
     _alert('error','Enter the advance amount collected.'); return;
@@ -1097,6 +1129,19 @@ window.saveAdmission = async function() {
   // the Super Admin's own admission without an advice with ₹0 counts as the Super Admin's waiver, with the reason above
   if (payerType === 'self_pay' && _admitMode === 'advice' && effectiveAdvance <= 0 && !_currentAdvice?.deposit_waived_at) {
     _alert('error', 'A self-pay admission needs a deposit of more than ₹0. Only the Finance Manager, the Medical Superintendent or the Super Admin can waive it, with a reason (Reception → 🛏️ Admission Requests → Waive deposit).');
+    return;
+  }
+  // Session 357c (a): insurance / corporate the same (owner decision 24 Oct 2026)
+  if (ADVANCE_INSURANCE_PAYERS.includes(payerType) && _admitMode === 'advice' && effectiveAdvance <= 0 && !_currentAdvice?.deposit_waived_at) {
+    _alert('error', 'An admission needs a deposit of more than ₹0, or a waiver by the Finance Manager / Medical Superintendent / Super Admin (Reception → 🛏️ Admission Requests → Waive deposit).');
+    return;
+  }
+  // Session 357c (b, Q3): a bed of another type than the doctor's room type preference needs a reason (the server checks the same)
+  const bedMismatch = _bedMismatch(bedId);
+  const mismatchReason = document.getElementById('adm-bed-mismatch-reason').value.trim();
+  if (bedMismatch && mismatchReason.length < 5) {
+    _alert('error', `The doctor advised ${bedMismatch.advised} but this is a ${bedMismatch.bed} bed. Give the reason for the different bed (at least 5 characters).`);
+    document.getElementById('adm-bed-mismatch-reason').focus();
     return;
   }
   if (!isSchemePayer && effectiveAdvance < 0) { _alert('error','Advance amount cannot be negative.'); return; }
@@ -1157,6 +1202,8 @@ window.saveAdmission = async function() {
     ...(lateReason ? { p_late_entry_reason: lateReason } : {}),
     // Session 356 (D2 (b)): the Super Admin's reason for an admission without a doctor's advice
     ...(_admitMode === 'direct' ? { p_direct_reason: routeReason } : {}),
+    // Session 357c (b): sent only when the bed does not match the advice
+    ...(bedMismatch ? { p_bed_mismatch_reason: mismatchReason } : {}),
   });
 
   if (admErr) {
@@ -2924,6 +2971,8 @@ async function _applyCounterStep(advice) {
           + `${c.is_cashless ? 'cashless' : 'reimbursement'} · pre-auth ${c.pre_auth_status || 'not requested yet'}`
           + (c.pre_auth_status === 'approved' ? ` (₹${Number(c.pre_auth_approved_amount || 0).toLocaleString('en-IN')})` : '')
           + ' — the patient may be admitted while the insurer decides.');
+        // Session 357c (Q1): not blocking, but visible until it is requested
+        if (!c.pre_auth_status) lines.push('⚠ Pre-auth not requested yet — request it at the counter (Reception → 🛏️ Admission Requests → 📨 Request pre-auth). The admission shows "Pre-auth not requested" until then.');
       }
     }
   }
@@ -2985,7 +3034,8 @@ if (_qAdviceId) {
     banner.innerHTML = `<strong>From doctor's admission advice</strong> — ` +
       `${advice.payer_type === 'self_pay' ? 'Self-pay' : advice.payer_type} · ` +
       `Estimated total: ₹${Number(advice.estimated_total||0).toLocaleString('en-IN')} · ` +
-      `Suggested advance: ₹${Number(advice.advance_amount_suggested||0).toLocaleString('en-IN')}`;
+      `Suggested deposit: <span id="adm-advice-suggested">₹${Number(advice.advance_amount_suggested||0).toLocaleString('en-IN')}</span>` +
+      (advice.room_type_preference ? ` · Advised room: ${_esc(roomTypeLabel(advice.room_type_preference))}` : '');   // Session 357c
     // Session 311 -- a SUGGESTION only, shown next to the Payer field; the actual
     // dropdown is never auto-set from it (Dr. Venkatesh's decision -- the payer must
     // be reception/admin's own explicit choice at admission time, not inherited).
@@ -2995,6 +3045,14 @@ if (_qAdviceId) {
       sugg.innerHTML = `💡 Doctor's advice suggested: <strong>${_esc(advice.payer_type === 'self_pay' ? 'Self-Pay' : advice.payer_type.toUpperCase())}</strong> — confirm the payer below, it is not applied automatically.`;
     }
     await _applyCounterStep(advice);   // Session 357: the payer / insurance case / deposit waiver from the admission counter
+    // Session 357c (a): the suggested deposit for the CURRENT payer (the server's rule -- insurance % / flat amount, self-pay %)
+    const { data: sugg, error: suggErr } = await supabase.rpc('suggested_admission_deposit', { p_advice_id: advice.id });
+    const suggested = !suggErr && sugg != null ? Number(sugg) : Number(advice.advance_amount_suggested || 0);
+    if (!advice.deposit_waived_at && !ADVANCE_SCHEME_PAYERS.includes(advice.counter_payer_type || '')) {
+      document.getElementById('adm-advance-amount').value = suggested > 0 ? suggested : '';
+    }
+    const sEl = document.getElementById('adm-advice-suggested');
+    if (sEl) sEl.textContent = `₹${suggested.toLocaleString('en-IN')}`;
   } else if (advice) {
     // Session 356: no native alert; the stored 'declined' = "refused admission against medical advice"
     const word = advice.status === 'declined' ? 'refused by the patient (against medical advice)' : advice.status;

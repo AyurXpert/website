@@ -67,6 +67,14 @@ function _bootMasterControl() {
       .catch(()=>_toast('Code: '+(tenant?.tenant_code||'')));
   });
 
+  // Session 357c (f): the "Deposit waivers" sidebar entry -- the Super Admin / the MS only (the report's server rule decides the data)
+  const _sbWaivers = document.getElementById('sb-deposit-waivers');
+  if (_sbWaivers) {
+    _sbWaivers.hidden = !isAdmissionOverseer(profile);
+    _sbWaivers.style.display = _sbWaivers.hidden ? 'none' : '';   // .sb-item sets display:flex, which would win over [hidden]
+    _sbWaivers.addEventListener('click', () => setTimeout(() => document.getElementById('deposit-waivers-card')?.scrollIntoView({ block: 'start' }), 300));
+  }
+
   // ── Sidebar navigation (section switching) ──────────────────────────────────
   document.querySelectorAll('.sb-item[data-target],.sb-sub[data-target]').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -301,7 +309,10 @@ window.loadAccounts = async function() {
   // Session 357 (owner addition 8): the monthly deposit-waiver report -- the Super Admin / the MS only (the server decides)
   if (isAdmissionOverseer(profile)) {
     const card = document.getElementById('deposit-waivers-card');
-    if (card) { card.hidden = false; loadDepositWaivers({ supabase, container: document.getElementById('deposit-waivers-body') }); }
+    if (card) {
+      card.hidden = false;
+      loadDepositWaivers({ supabase, container: document.getElementById('deposit-waivers-body'), countEl: document.getElementById('deposit-waivers-count') });
+    }
   }
   const monthStart   = istDayStartUTC(istMonthStr() + '-01');   // IST month start (TODO §59)
   const thirtyDaysAgo = new Date(Date.now() - 30*24*60*60*1000).toISOString();

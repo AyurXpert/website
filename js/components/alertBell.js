@@ -38,9 +38,29 @@ export function initAlertBell({ supabase, userId, button, badge, onChange }) {
     if (typeof onChange === 'function') onChange(count || 0);
   }
 
+  // Session 357c (d): the panel always lies INSIDE the window -- right-aligned to the bell when there is room, otherwise moved in
+  // (doctor.html's bell is in the LEFT queue panel); above the bell when there is no room below; re-placed on resize / scroll
+  function place() {
+    if (!panel) return;
+    const r = button.getBoundingClientRect();
+    const vw = document.documentElement.clientWidth || window.innerWidth;
+    const vh = window.innerHeight;
+    const w = panel.offsetWidth, h = panel.offsetHeight;
+    const left = Math.max(16, Math.min(Math.round(r.right - w), vw - w - 16));
+    let top = Math.round(r.bottom + 6);
+    if (top + h > vh - 8 && r.top - 6 - h >= 8) top = Math.round(r.top - 6 - h);
+    top = Math.max(8, Math.min(top, vh - h - 8));
+    panel.style.left = `${left}px`;
+    panel.style.top = `${top}px`;
+    panel.style.right = 'auto';
+  }
+  const onMove = () => place();
+
   function close() {
     open = false;
     panel?.remove();
+    window.removeEventListener('resize', onMove);
+    window.removeEventListener('scroll', onMove, true);
     button.setAttribute('aria-expanded', 'false');
   }
 
@@ -116,11 +136,15 @@ export function initAlertBell({ supabase, userId, button, badge, onChange }) {
       .eq('doctor_id', userId).gte('created_at', since).order('created_at', { ascending: false }).limit(LIMIT);
     if (error) { notify('Could not load your alerts.', 'error'); return; }
     panel?.remove();
+    window.removeEventListener('resize', onMove);
+    window.removeEventListener('scroll', onMove, true);
     panel = build(data || []);
-    const r = button.getBoundingClientRect();
-    panel.style.top = `${Math.round(r.bottom + 6)}px`;
-    panel.style.right = `${Math.max(16, Math.round(window.innerWidth - r.right))}px`;
+    panel.style.visibility = 'hidden';
     document.body.append(panel);
+    place();
+    panel.style.visibility = '';
+    window.addEventListener('resize', onMove);
+    window.addEventListener('scroll', onMove, true);
     open = true;
     button.setAttribute('aria-expanded', 'true');
     panel.querySelector('button')?.focus();

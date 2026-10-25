@@ -218,6 +218,8 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--green-mi
       <button class="sub-tab" id="tab-taxsettings" hidden data-onclick="switchSub" data-onclick-a0="revenue" data-onclick-a1="taxsettings" data-onclick-a2="@this">🧾 Tax settings <span id="taxsettings-badge" class="pr-badge" hidden></span></button>
       <!-- Session 345m (GST Stage 7a): 🧾 GST returns -- super_admin / finance_manager / accountant (primary or secondary), shown by finance.js -->
       <button class="sub-tab" id="tab-gstreturns" hidden data-onclick="switchSub" data-onclick-a0="revenue" data-onclick-a1="gstreturns" data-onclick-a2="@this">📑 GST returns</button>
+      <!-- Session 357c (B5, owner 25 Oct 2026): the admission deposit-waiver report, read-only -- the finance manager / MS / Super Admin -->
+      <button class="sub-tab" id="tab-depwaivers" hidden data-onclick="switchSub" data-onclick-a0="revenue" data-onclick-a1="depwaivers" data-onclick-a2="@this">🛏️ Deposit waivers</button>
       <a class="sub-tab" href="shift-close.html?tab=review" style="text-decoration:none;display:inline-flex;align-items:center">🤝 Shift handovers</a>
     </div>
 
@@ -295,6 +297,13 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--green-mi
     <!-- GST returns sub-panel (Session 345m, GST Stage 7a): js/modules/tax/gstReturns.js -->
     <div class="sub-panel" id="sub-gstreturns">
       <div id="gstreturns-root"></div>
+    </div>
+
+    <!-- Session 357c (B5): admission deposit waivers by month (read-only; the server decides who may read it) -->
+    <div class="sub-panel" id="sub-depwaivers">
+      <div class="cc-hd" style="display:flex;gap:10px;align-items:baseline;margin-bottom:8px"><span style="font-family:'Cormorant Garamond',serif;font-size:20px;font-weight:700;color:var(--green-deep)">🛏️ Admission deposit waivers</span>
+        <span id="depwaivers-count" role="status" style="font-size:12px;color:var(--text-mid)"></span></div>
+      <div id="depwaivers-root"></div>
     </div>
 
     <!-- Credit notes sub-panel (Session 345h, GST Stage 6c) -->

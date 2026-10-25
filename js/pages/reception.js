@@ -21,7 +21,7 @@ import { canCorrectPatient, openCorrectPatientDetails } from '../modules/patient
 import { notify, dismissNotify } from '../components/notify.js';
 import { printDocument } from '../utils/printDocument.js';
 import { mountAlertBell } from '../components/alertBell.js';
-import { stageChip, awaitingRows, buildCounterPanel, canWaiveDeposit } from '../modules/ipd/admissionCounter.js';
+import { stageChip, awaitingRows, buildCounterPanel, canWaiveDeposit, SCHEMES } from '../modules/ipd/admissionCounter.js';
 import {
   requestABHAOtp, enrollABHA,
   checkAndGenerateMobileOTP, verifyCommMobileOtp, finalizeAbhaEnrollment,
@@ -4776,8 +4776,9 @@ let _ctr = null;   // { id, panel }
 async function _openCounterPanel(r, mode) {
   let caseRow = null;
   if (mode === 'preauth_request' || mode === 'preauth_decision') {
+    // Session 357c (Q1): an admitted patient's case is found by its admission, an advice's by the advice
     const { data } = await supabase.from('ipd_insurance_cases').select('id, insurer_name, policy_number, pre_auth_status')
-      .eq('tenant_id', tenantId).eq('admission_advice_id', r.id).eq('status', 'open').maybeSingle();
+      .eq('tenant_id', tenantId).eq(r.kind === 'admission' ? 'ipd_admission_id' : 'admission_advice_id', r.id).eq('status', 'open').maybeSingle();
     caseRow = data;
   }
   _ctr?.panel.remove();
@@ -4816,14 +4817,34 @@ async function _decorateAdmissionRows(list) {
     right.append(_ctrBtn('💳 Payer & insurance', null, () => _openCounterPanel(r, 'payer')));
     if (r.stage === 'pre_auth_not_requested') right.append(_ctrBtn('📨 Request pre-auth', null, () => _openCounterPanel(r, 'preauth_request')));
     if (r.stage === 'pre_auth_pending') right.append(_ctrBtn("📄 Insurer's decision", null, () => _openCounterPanel(r, 'preauth_decision')));
-    if (canWaive && (r.stage === 'awaiting_deposit' || (r.stage === 'at_counter' && (r.payer_type || 'self_pay') === 'self_pay'))) {
+    // Session 357c (a): insurance / corporate need a deposit too -- the waiver is offered for every payer but a government scheme
+    if (canWaive && !r.waived && !SCHEMES.includes(r.payer_type || 'self_pay') && r.stage !== 'deposit_waived') {
       right.append(_ctrBtn('Waive deposit', 'var(--gold)', () => _openCounterPanel(r, 'waive')));
     }
   }
   if (_ctr && !list.contains(_ctr.panel)) list.prepend(_ctr.panel);
   // admitted patients whose deposit is due (an emergency admission, or a pre-auth rejected after admission) -> the Account drawer
   list.querySelector('[data-part="due"]')?.remove();
+  list.querySelector('[data-part="npa"]')?.remove();
   const due = rows.filter(r => r.kind === 'admission' && r.stage === 'deposit_due');
+  // Session 357c (c): the tab's count = the pending advices + the admitted patients whose deposit is due
+  const pendingCount = rows.filter(r => r.kind === 'advice').length;
+  document.getElementById('admreq-count').textContent = pendingCount + due.length ? `(${pendingCount + due.length})` : '';
+  // Session 357c (Q1): admitted insurance patients whose pre-auth is not requested yet -- shown until it is requested
+  const npa = rows.filter(r => r.kind === 'admission' && r.stage === 'admitted_pre_auth_not_requested');
+  if (npa.length) {
+    const nbox = document.createElement('div');
+    nbox.dataset.part = 'npa';
+    nbox.style.cssText = 'margin:8px;padding:8px 10px;border:1.5px solid var(--orange);border-radius:8px;background:#fff8f0';
+    const nh = document.createElement('div');
+    nh.style.cssText = 'font-size:12px;font-weight:700;color:#8a3a00';
+    nh.textContent = `⚠ Admitted — pre-auth not requested (${npa.length})`;
+    nbox.append(nh, ...awaitingRows(npa));
+    for (const [i, r] of npa.entries()) {
+      nbox.children[i + 1].append(_ctrBtn('📨 Request pre-auth', null, () => _openCounterPanel(r, 'preauth_request')));
+    }
+    list.prepend(nbox);
+  }
   if (!due.length) return;
   const box = document.createElement('div');
   box.dataset.part = 'due';

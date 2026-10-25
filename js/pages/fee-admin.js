@@ -76,6 +76,13 @@ if (role === 'super_admin') {
 if (role === 'accountant') {
   document.getElementById('advance-policy-card').style.display = 'none';
 }
+// Session 357c (Q6): the advance policy now decides the insurance deposit too -- only the (active) Super Admin changes it (server-checked,
+// audited); others see it read-only
+if (role !== 'super_admin') {
+  document.getElementById('advpol-save').style.display = 'none';
+  document.getElementById('advpol-readonly-note').style.display = '';
+  ['advpol-self-pay', 'advpol-insurance', 'advpol-default-insurance-advance'].forEach(id => { document.getElementById(id).readOnly = true; });
+}
 
 // ── NCISM/Ayush benchmark-rate catalog (Session 207) ──────────────────────
 // Full citation shown wherever a catalog-derived fee's benchmark rate is displayed --

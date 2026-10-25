@@ -4,7 +4,10 @@
 //   - Local assets (JS/CSS/images) → Cache first → network → cache update
 //   - External APIs (Supabase, Google Fonts, CDN) → Network only, no caching
 
-const CACHE      = 'ayurxpert-v12';
+// Session 357c (TODO §108 (c)): the cache is named after the build (sw-build.js, written by scripts/sync-website.ps1 on every website
+// sync), so each deploy installs a new worker and clears the old cache. A missing sw-build.js never stops the worker installing.
+try { importScripts('./sw-build.js'); } catch (_) { /* no build stamp: the fixed name below */ }
+const CACHE      = 'ayurxpert-' + (self.AX_BUILD || 'v12');
 const OFFLINE    = './offline.html';
 
 // Security headers injected on every navigation response
@@ -58,7 +61,8 @@ function isExternal(url) {
 self.addEventListener('install', event => {
   event.waitUntil(
     caches.open(CACHE)
-      .then(cache => cache.addAll(PRECACHE))
+      // Session 357c: 'reload' -- the app shell is fetched fresh from the network, never from the browser's HTTP cache
+      .then(cache => cache.addAll(PRECACHE.map(u => new Request(u, { cache: 'reload' }))))
       .then(() => self.skipWaiting())
   );
 });
@@ -79,6 +83,9 @@ self.addEventListener('fetch', event => {
   const req = event.request;
   if (req.method !== 'GET') return;
   if (isExternal(req.url))  return;
+  // Session 357c: the build stamp is never answered from a cache (the "updated -- Reload" check reads it; cache-first below would
+  // freeze it and store one copy per check)
+  if (new URL(req.url).pathname.endsWith('/version.json')) return;
 
   // Navigation requests → network first + security headers. `cache:'no-store'` is
   // required here for the exact same reason the JS/CSS handler below needs it: without

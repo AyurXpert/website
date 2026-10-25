@@ -442,6 +442,14 @@ export function safeErrorMessage(error, fallback = 'Something went wrong. Please
   if (['P0001','42501','22023','P0002'].includes(error?.code) && COUNTER_MSGS.some(m => error?.message?.startsWith(m))) {
     return error.message;
   }
+  // Session 357c (TODO §282): the insurance / corporate deposit, the bed type against the advice, the suggested deposit, the advance policy
+  const S357C_MSGS = ['An admission needs a deposit of more than', 'The doctor advised ', 'A government scheme admission',
+    'Your role cannot see the suggested deposit', 'Admission advice not found in your organisation',
+    'Only the Super Admin can change the admission advance policy', 'Advance percentages must be between', 'The default advance amount cannot be',
+    'The admission advance policy is changed only in Fee Admin'];
+  if (['42501','22023','P0002'].includes(error?.code) && S357C_MSGS.some(m => error?.message?.startsWith(m))) {
+    return error.message;
+  }
   if (error?.code === '42501' && /^permission denied for (table|column) doctor_alerts/.test(error?.message || '')) {
     return 'Only your own alerts can be opened or marked read.';
   }

@@ -3,6 +3,7 @@
 
 import { getCurrentProfile, getCurrentTenant, getCurrentRole, getCurrentSecondaryRole, getCurrentHasMonitoringAccess, logout, hasModule, isPageDeniedForDesignation } from '../core/auth.js';
 import { DESIG_MAP, ROLE_DUTY_FALLBACK } from '../config/designations.js';
+import '../utils/versionCheck.js';   // Session 357c (TODO §108 (c)): "AyurXpert has been updated — Reload" on every app page
 import { escapeHtml } from '../utils/validators.js';
 import { isRuleDHod } from '../utils/hodAccess.js';   // Session 350 (TODO §231): "My Department" = rule D
 import { tenantTypeLabel } from '../utils/tenantTypeLabel.js';   // TODO §140: shared with admin.js
@@ -393,6 +394,8 @@ function _injectAdminSidebarOverlay(tenant, profile, role) {
     { group:'Operations' },
     { ico:'📊', label:'Statistics',       href:'admin.html#stats' },
     { ico:'💰', label:'Accounts',         href:'admin.html#accounts' },
+    // Session 357c (f): the admission deposit-waiver report (the top card of Accounts) -- the Super Admin / the Medical Superintendent
+    { ico:'🛏️', label:'Deposit waivers',  href:'admin.html#accounts', overseer:true },
     { group:'Organisation' },
     { ico:'👥', label:'Human Resources',  href:'admin.html#hr' },
     // Session 337 (TODO §132): hr.html (Credentials = Reg. No. verification) had no rail link -- the two
@@ -415,7 +418,8 @@ function _injectAdminSidebarOverlay(tenant, profile, role) {
     { ico:'🏠', label:'Dashboard',        href:'admin.html' },
   ];
 
-  const navHTML = ITEMS.filter(it => !it.module || hasModule(it.module)).map(it => {
+  const isOverseer = profile?.status === 'active' && (role === 'super_admin' || profile?.designation === 'medical_superintendent');
+  const navHTML = ITEMS.filter(it => (!it.module || hasModule(it.module)) && (!it.overseer || isOverseer)).map(it => {
     if (it.group) return `<div class="axsb-group">${it.group}</div>`;
     const isActive = it.href === currentPage || (it.href.startsWith(currentPage) && currentPage !== '');
     return `<a class="axsb-lnk${isActive ? ' active' : ''}" href="${it.href}">

@@ -380,6 +380,11 @@ tr:hover td{background:#fafff8}
         <span class="sb-icon">💰</span>
         <span class="sb-label">Accounts</span>
       </button>
+      <!-- Session 357c (f): the waiver report, for the Super Admin / the Medical Superintendent only (admin.js shows it) -->
+      <button class="sb-item" data-target="accounts" id="sb-deposit-waivers" hidden style="display:none">
+        <span class="sb-icon">🛏️</span>
+        <span class="sb-label">Deposit waivers</span>
+      </button>
 
       <div class="sb-group-label">Organisation</div>
       <button class="sb-item" data-target="hr">
@@ -511,6 +516,14 @@ tr:hover td{background:#fafff8}
         <button class="btn-outline" data-onclick="loadAccounts">↻ Refresh</button>
       </div>
 
+      <!-- Session 357 (owner addition 8): deposit waivers by month -- read-only, the Super Admin / the Medical Superintendent (server-checked).
+           Session 357c (f): at the TOP of Accounts, with this month's count (the owner's browser check did not find it at the bottom). -->
+      <div class="cc" id="deposit-waivers-card" hidden style="margin-bottom:16px">
+        <div class="cc-hd"><span class="cc-title">🛏️ Admission deposit waivers</span>
+          <span class="badge-count" id="deposit-waivers-count" role="status"></span></div>
+        <div id="deposit-waivers-body" style="padding:14px 20px"></div>
+      </div>
+
       <!-- Financial summary cards (5 KPIs) -->
       <div class="stats6" id="accounts-stats" style="grid-template-columns:repeat(auto-fit,minmax(140px,1fr));margin-bottom:20px"></div>
 
@@ -546,11 +559,6 @@ tr:hover td{background:#fafff8}
         </div>
       </div>
 
-      <!-- Session 357 (owner addition 8): deposit waivers by month -- read-only, the Super Admin / the Medical Superintendent (server-checked) -->
-      <div class="cc" id="deposit-waivers-card" hidden style="margin-top:16px">
-        <div class="cc-hd"><span class="cc-title">Admission deposit waivers</span></div>
-        <div id="deposit-waivers-body" style="padding:14px 20px"></div>
-      </div>
     </div>
 
     <!-- ── SECTION: HUMAN RESOURCES ── -->
