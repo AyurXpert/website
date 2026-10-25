@@ -1,3 +1,4 @@
+import { noAutofill } from '../utils/noAutofill.js';   // Session 358 (§285)
 import { requireAuth, getCurrentTenantId, getCurrentProfile, getCurrentRole, getCurrentSecondaryRole } from '../core/auth.js';
 import { initNavbar } from '../components/navbar.js';
 import { supabase } from '../core/db/supabaseClient.js';
@@ -130,13 +131,20 @@ const ADMIT_ROLES = ['receptionist','super_admin','dept_admin'];
 // the RMO / CMO (designation) under the on-call consultant ("🚑 Emergency admission"). The server decides
 // (create_ipd_admission / create_emergency_admission); these buttons are the display copy.
 const _isSuperAdmin = myRole === 'super_admin';
-const _isEmergencyAdmitter = ['resident_medical_officer', 'cmo'].includes(myProfile.designation)
+const _isEmergencyAdmitter = ['resident_medical_officer', 'cmo', 'emergency_medical_officer'].includes(myProfile.designation)   // Session 358 B1: + EMO
   && !['trainee_doctor', 'student'].includes(myRole) && !['trainee_doctor', 'student'].includes(myProfile.secondary_role);
+// Session 358 (TODO §274, owner Q9): the casualty quick registration -- the RMO / CMO / EMO (designation) or the Super Admin
+// (display copy of the server's _casualty_registrar_ok). Owner B1 (25 Oct 2026): the EMO also makes the emergency admission.
+const _isCasualtyRegistrar = _isSuperAdmin || (['resident_medical_officer', 'cmo', 'emergency_medical_officer'].includes(myProfile.designation)
+  && !['trainee_doctor', 'student'].includes(myRole) && !['trainee_doctor', 'student'].includes(myProfile.secondary_role));
+let _emergencyCaseId = null;
+noAutofill(document.getElementById('adm-payer-section'), 'axi');   // Session 358 (§285): the IPD payer / insurer fields
+noAutofill(document.getElementById('er-quick-form'), 'axe');       // ... and the casualty quick registration   // the casualty / MLC register entry of a quick-registered patient (its MLC is used, not the form's)
 let _admitMode = 'advice';   // 'advice' | 'direct' (Super Admin, reason) | 'emergency' (RMO / CMO)
 let _currentAdvice = null;   // the doctor's advice this admission comes from (declared here: read by the drawer code above its old place)
 let _counterCase = null;     // Session 357 (D6): the insurance case the admission counter opened on that advice (linked by the server)
 document.getElementById('btn-admit-patient').style.display = _isSuperAdmin ? '' : 'none';
-document.getElementById('btn-emergency-admit').style.display = _isEmergencyAdmitter ? '' : 'none';
+document.getElementById('btn-emergency-admit').style.display = (_isEmergencyAdmitter || _isCasualtyRegistrar) ? '' : 'none';
 document.getElementById('admit-from-advice-note').style.display = ADMIT_ROLES.includes(myRole) && !_isSuperAdmin ? '' : 'none';
 const _canSaveInMode = () => _admitMode === 'emergency' ? _isEmergencyAdmitter
   : _admitMode === 'direct' ? _isSuperAdmin : ADMIT_ROLES.includes(myRole);
@@ -622,6 +630,8 @@ window.openAdmitDrawer = async function(mode = 'advice') {
   document.getElementById('btn-admit-save').textContent = _admitMode === 'emergency' ? 'Admit (emergency)' : 'Admit Patient';
   _selectedPatient = null;
   _selectedVisitId = null;
+  _resetErQuick(_admitMode === 'emergency' && _isCasualtyRegistrar);   // Session 358 (§274)
+  _placeMlcBox(_admitMode === 'emergency');
   document.getElementById('pt-search').value = '';
   document.getElementById('patient-results').innerHTML = '';
   document.getElementById('patient-results').classList.remove('show');
@@ -762,6 +772,9 @@ window.goStep = function(n) {
   const canAdmit = n === 2 && _canSaveInMode();   // Session 356: per admission route
   document.getElementById('btn-admit-save').style.display  = canAdmit ? '' : 'none';
   document.getElementById('admit-role-note').style.display = (n === 2 && !canAdmit) ? '' : 'none';
+  document.getElementById('admit-role-note').textContent = _admitMode === 'emergency'   // Session 358: the EMO registers, the RMO / CMO admits
+    ? 'The emergency admission is made by the RMO / CMO / EMO on duty — they find the registered patient by UHID or name.'
+    : 'Only reception or admin can complete an admission.';
 
   if (n === 2 && _selectedPatient) {
     document.getElementById('spt2-name').textContent = _selectedPatient.name;
@@ -785,7 +798,7 @@ let _ptSearchResults = [];
 
 async function _doSearch(val) {
   const isPhone = /^\d+$/.test(val.trim());
-  let query = supabase.from('patients').select('id,name,phone,abha_number,age,gender').eq('tenant_id', tenantId).limit(8);
+  let query = supabase.from('patients').select('id,name,uhid,phone,abha_number,age,gender,is_unidentified,registration_incomplete').eq('tenant_id', tenantId).limit(8);
   if (isPhone) query = query.ilike('phone', val + '%');
   else         query = query.ilike('name', '%' + val + '%');
 
@@ -801,7 +814,8 @@ async function _doSearch(val) {
 
   _ptSearchResults = data;
   res.innerHTML = data.map(p => {
-    const meta = [p.phone, p.gender, p.age ? p.age+'y' : '', p.abha_number ? 'ABHA' : ''].filter(Boolean).join(' · ');
+    const meta = [p.uhid, p.phone, p.gender, p.age ? p.age+'y' : '', p.abha_number ? 'ABHA' : '',
+      p.is_unidentified ? 'Unidentified patient' : '', p.registration_incomplete ? 'Registration incomplete' : ''].filter(Boolean).join(' · ');   // Session 358
     return `<div class="patient-result-item" data-onclick="selectPatientById" data-onclick-a0="${p.id}">
       <div class="pr-name">${_esc(p.name)}</div>
       <div class="pr-meta">${_esc(meta)}</div>
@@ -815,8 +829,9 @@ window.selectPatientById = function(id) {
   if (p) selectPatient(p);
 };
 
-window.selectPatient = function(p, visitId) {
+window.selectPatient = function(p, visitId, emergencyCaseId) {
   _selectedPatient = p;
+  _setEmergencyCase(emergencyCaseId || null);   // Session 358: a searched patient has no casualty register entry yet
   _selectedVisitId = visitId || null; // only the explicit doctor.html handoff visit -- never a guessed one
   document.getElementById('spt-name').textContent = p.name;
   const meta = [p.phone, p.gender, p.age ? p.age+'y' : ''].filter(Boolean).join(' · ');
@@ -827,7 +842,17 @@ window.selectPatient = function(p, visitId) {
   document.getElementById('btn-step1-next').disabled = false;
   _prefillAdmissionDiagnosis(p.id, visitId);
   _checkOpenAdmissionWarning(p.id);
+  if (_admitMode === 'emergency' && !emergencyCaseId) _findOpenCasualtyEntry(p.id);   // Session 358 (§274)
 };
+
+// Session 358 (§274, Q11): a patient registered in casualty (e.g. by the EMO) and found by search -- the admission uses that open
+// register entry (and its MLC) instead of making a second one. The server checks it again (create_emergency_admission).
+async function _findOpenCasualtyEntry(patientId) {
+  const since = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
+  const { data } = await supabase.from('emergency_cases').select('id').eq('tenant_id', tenantId).eq('patient_id', patientId)
+    .eq('status', 'active').is('superseded_by', null).gte('arrival_time', since).order('arrival_time', { ascending: false }).limit(1);
+  if (_selectedPatient?.id === patientId && data?.length) _setEmergencyCase(data[0].id);
+}
 
 // Surfaces the same open-admission check saveAdmission() enforces, but at patient-selection
 // time -- so front-desk staff learn a patient is already admitted before filling in the whole
@@ -878,12 +903,95 @@ async function _prefillAdmissionDiagnosis(patientId, visitId) {
 window.clearPatientSelection = function() {
   _selectedPatient = null;
   _selectedVisitId = null;
+  _setEmergencyCase(null);
   document.getElementById('spt').classList.remove('show');
   document.getElementById('spt-open-adm-warn').style.display = 'none';
   document.getElementById('search-area').style.display = '';
   document.getElementById('pt-search').value = '';
   document.getElementById('patient-results').classList.remove('show');
   document.getElementById('btn-step1-next').disabled = true;
+};
+
+// ── Session 358 (TODO §274): casualty quick registration in the emergency panel ──────────────────────────────
+// The SERVER registers (quick_register_emergency_patient: UHID, the "Unknown Male ~40 y (DD-MM HH:MM arrival)" name, the casualty /
+// MLC register entry); the page only collects the minimum (owner Q10) and names the missing field first.
+const _erqVal = id => document.getElementById(id).value.trim();
+function _resetErQuick(show) {
+  document.getElementById('er-quick-wrap').hidden = !show;
+  document.getElementById('er-quick-form').hidden = true;
+  document.getElementById('btn-er-quick-toggle').setAttribute('aria-expanded', 'false');
+  document.getElementById('pt-search-note').textContent = show
+    ? 'Not registered yet? Use "+ New casualty patient" below.' : 'New patients should be registered at Reception first.';
+  ['erq-f1', 'erq-f3', 'erq-f4', 'erq-f5', 'erq-f6', 'erq-f7', 'erq-f8', 'erq-m1', 'erq-m2', 'erq-m5'].forEach(id => { document.getElementById(id).value = ''; });
+  ['erq-f2', 'erq-m3', 'erq-m4'].forEach(id => { document.getElementById(id).value = ''; });
+  document.getElementById('erq-u0').checked = false;
+  document.getElementById('erq-m0').checked = false;
+  window.toggleErqUnid(false); window.toggleErqMlc(false); window.toggleErqPoliceTime('');
+  document.getElementById('erq-status').textContent = '';
+  _setEmergencyCase(null);
+}
+window.toggleErQuick = function() {
+  const form = document.getElementById('er-quick-form');
+  form.hidden = !form.hidden;
+  document.getElementById('btn-er-quick-toggle').setAttribute('aria-expanded', String(!form.hidden));
+  if (!form.hidden) document.getElementById('erq-m0').focus();
+};
+window.toggleErqUnid = function(on) {
+  document.getElementById('erq-f1-row').hidden = !!on;
+  if (on) document.getElementById('erq-f1').value = '';
+};
+window.toggleErqMlc = function(on) {
+  document.getElementById('erq-mlc-fields').style.display = on ? 'grid' : 'none';
+  document.getElementById('erq-f6-req').hidden = !on;
+};
+window.toggleErqPoliceTime = function(v) { document.getElementById('erq-m5-row').hidden = v !== 'yes'; };
+// the MLC block at the top of step 2 in an emergency admission (owner §274), in its old place otherwise
+function _placeMlcBox(top) {
+  const box = document.getElementById('mlc-box'), note = document.getElementById('mlc-from-case-note');
+  if (top) { const anchor = document.getElementById('adm-advice-banner'); anchor.before(note, box); }
+  else { document.getElementById('mlc-home').after(note, box); }
+}
+function _setEmergencyCase(caseId) {
+  _emergencyCaseId = caseId;
+  document.getElementById('mlc-box').hidden = !!caseId;
+  const note = document.getElementById('mlc-from-case-note');
+  note.hidden = !caseId;
+  note.textContent = caseId ? '⚖ The MLC details were recorded at the casualty registration — they come from that register entry.' : '';
+}
+window.saveErQuick = async function() {
+  const status = document.getElementById('erq-status');
+  const unid = document.getElementById('erq-u0').checked, mlc = document.getElementById('erq-m0').checked;
+  const age = _erqVal('erq-f3'), police = document.getElementById('erq-m4').value;
+  const miss = (id, msg) => { status.textContent = msg; const el = document.getElementById(id); el.setAttribute('aria-invalid', 'true'); el.focus(); return false; };
+  ['erq-f1', 'erq-f2', 'erq-f3', 'erq-f4', 'erq-f6', 'erq-m4', 'erq-m5'].forEach(id => document.getElementById(id).removeAttribute('aria-invalid'));
+  if (!unid && _erqVal('erq-f1').length < 2) return miss('erq-f1', 'Enter the patient\'s name, or tick "Unidentified patient".');
+  if (!document.getElementById('erq-f2').value) return miss('erq-f2', 'Choose the sex.');
+  if (age === '' || Number(age) < 0 || Number(age) > 120) return miss('erq-f3', 'Enter the approximate age (0 to 120 years).');
+  if (_erqVal('erq-f4').length < 2) return miss('erq-f4', 'Enter the chief complaint.');
+  if (mlc && _erqVal('erq-f6').length < 2) return miss('erq-f6', 'A medico-legal case needs the name of the person who brought the patient.');
+  if (mlc && !police) return miss('erq-m4', 'A medico-legal case: record whether the police were informed (yes / no).');
+  if (mlc && police === 'yes' && !document.getElementById('erq-m5').value) return miss('erq-m5', 'Enter the time the police were informed.');
+  status.textContent = '';
+  const btn = document.getElementById('btn-erq-save');
+  btn.disabled = true; btn.textContent = 'Registering…';
+  const { data, error } = await supabase.rpc('quick_register_emergency_patient', {
+    p_unidentified: unid, p_name: unid ? null : _erqVal('erq-f1'), p_gender: document.getElementById('erq-f2').value,
+    p_age_years: Number(age), p_chief_complaint: _erqVal('erq-f4'), p_phone: _erqVal('erq-f5') || null,
+    p_brought_by: _erqVal('erq-f6') || null, p_brought_by_phone: _erqVal('erq-f8') || null, p_brought_by_relation: _erqVal('erq-f7') || null,
+    p_is_mlc: mlc, p_mlc_number: mlc ? (_erqVal('erq-m1') || null) : null, p_mlc_police_station: mlc ? (_erqVal('erq-m2') || null) : null,
+    p_mlc_nature: mlc ? (document.getElementById('erq-m3').value || null) : null,
+    p_mlc_police_intimated: mlc ? police === 'yes' : null,
+    p_mlc_intimation_at: mlc && police === 'yes' ? new Date(document.getElementById('erq-m5').value).toISOString() : null,
+  });
+  btn.disabled = false; btn.textContent = 'Register → UHID';
+  if (error || !data?.patient_id) { status.textContent = safeErrorMessage(error, 'The patient could not be registered.'); return; }
+  document.getElementById('er-quick-form').hidden = true;
+  document.getElementById('btn-er-quick-toggle').setAttribute('aria-expanded', 'false');
+  window.selectPatient({ id: data.patient_id, name: data.name, uhid: data.uhid, gender: document.getElementById('erq-f2').value, age: Number(age),
+                         phone: _erqVal('erq-f5') || null }, null, data.emergency_case_id);
+  document.getElementById('spt-meta').textContent = `UHID ${data.uhid} · registration incomplete (reception completes it later)`;
+  if (!document.getElementById('adm-route-reason').value) document.getElementById('adm-route-reason').value = _erqVal('erq-f4');
+  _alert('success', `Registered: ${data.name} — UHID ${data.uhid}. Casualty register entry No. ${data.entry_no}.`);
 };
 
 // ── Bed picker ────────────────────────────────────────────────────────────────
@@ -1224,7 +1332,7 @@ async function _saveEmergencyAdmission() {
   const bedId  = document.getElementById('adm-bed-id').value;
   const consultantId = document.getElementById('adm-doctor').value;
   const reason = document.getElementById('adm-route-reason').value.trim();
-  const isMlc  = document.getElementById('adm-is-mlc').checked;
+  const isMlc  = !_emergencyCaseId && document.getElementById('adm-is-mlc').checked;   // Session 358: from a case, its own MLC
   if (!deptId)       { _alert('error','Select a department.'); return; }
   if (!bedId)        { _alert('error','Select a bed.'); return; }
   if (!consultantId) { _alert('error','Select the consultant the patient is admitted under.'); return; }
@@ -1246,6 +1354,7 @@ async function _saveEmergencyAdmission() {
     p_consent_risks:         document.getElementById('adm-consent-risks').checked,
     p_consent_alternatives:  document.getElementById('adm-consent-alts').checked,
     p_consent_questions:     document.getElementById('adm-consent-questions').checked,
+    p_emergency_case_id:     _emergencyCaseId,   // Session 358 (§274, Q11): the casualty register entry (the server makes one otherwise)
   });
   btn.disabled = false; btn.textContent = 'Admit (emergency)';
   if (error || !newId) { _alert('error', safeErrorMessage(error, 'Emergency admission failed.')); return; }

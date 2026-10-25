@@ -65,9 +65,11 @@ const roleLabels = {
   dept_admin:  { text: 'Dept. Admin — Can approve fees', cls: 'dept_admin' },
   super_admin: { text: 'Super Admin — Full control', cls: 'super_admin' }
 };
-const rl = roleLabels[role] || { text: role, cls: '' };
+// Session 358 (TODO §292): a secondary-role dept_admin (MS / MD / Principal ...) has a primary role with no label -- the label comes
+// from the second role then, and an empty class is never added (classList.add('') throws and stopped the whole page)
+const rl = roleLabels[role] || roleLabels[getCurrentSecondaryRole()] || { text: role || 'Staff', cls: '' };
 roleBadge.textContent = rl.text;
-roleBadge.classList.add(rl.cls);
+if (rl.cls) roleBadge.classList.add(rl.cls);
 
 if (role === 'super_admin') {
   document.getElementById('bypass-banner').style.display = 'flex';

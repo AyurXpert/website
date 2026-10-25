@@ -23,7 +23,7 @@ import { creditNoteExclusions, creditNoteOfPayment } from './creditNotePrint.js'
 const CERTIFICATE_ROLES = ['doctor', 'trainee_doctor', 'mrd_staff', 'dept_admin', 'super_admin', 'receptionist']
 
 const BILL_LABEL = { consultation: 'Visit bill', opd: 'Visit bill', investigation: 'Lab bill', pharmacy: 'Pharmacy bill' }
-const STATUS_LABEL = { waiting: 'Waiting', in_progress: 'With doctor', completed: 'Completed', incomplete: 'Incomplete' }
+const STATUS_LABEL = { waiting: 'Waiting', in_progress: 'With doctor', completed: 'Completed', incomplete: 'Incomplete', awaiting_reports: 'Awaiting reports' }
 const MODE_LABEL = { cash: 'Cash', upi: 'UPI', card: 'Card', cheque: 'Cheque', neft: 'NEFT' }
 const BTN = 'min-height:44px;min-width:44px;padding:0 12px;font-size:12px;font-weight:600;border:1px solid var(--border);border-radius:6px;cursor:pointer;background:#fff;color:var(--green-deep)'
 const INPUT = 'min-height:44px;font-size:13px;border:1px solid var(--border);border-radius:6px;padding:0 10px;background:#fff'

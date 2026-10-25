@@ -73,7 +73,7 @@ export async function loadVisitTimeline({ supabase, esc, tenantId, patientId, cu
 
   const sameDept = v => ncismCode ? v.opds?.ncism_code === ncismCode : v.opd_id === opdId;
   const visits = (vRes.data || []).filter(v =>
-    !v.is_deleted && ['completed', 'incomplete', 'in_progress'].includes(v.status) && sameDept(v));
+    !v.is_deleted && ['completed', 'incomplete', 'in_progress', 'awaiting_reports'].includes(v.status) && sameDept(v));   // Session 358
   const adms = ncismCode ? (aRes.data || []).filter(a => a.departments?.ncism_code === ncismCode) : [];
 
   // Small 🌸/🧪 markers on the rail -- one cheap query each, not per visit.
@@ -128,6 +128,7 @@ function _visitItem(e, isFirst) {
     e.lab ? '<span class="vh-tag" title="Investigations ordered">🧪 Lab</span>' : '',
     e.prog !== null && e.prog !== undefined ? `<span class="vh-tag vh-tag-prog" title="Improvement vs the visit before">${_pctIcon(e.prog)} ${_pctText(e.prog)}</span>` : '',
     v.status === 'incomplete' ? '<span class="vh-tag vh-tag-warn">Incomplete</span>' : '',
+    v.status === 'awaiting_reports' ? '<span class="vh-tag vh-tag-warn">🔬 Awaiting reports</span>' : '',   // Session 358
   ].join('');
   return `<button type="button" class="vh-item" data-vh-id="${v.id}" data-onclick="openVhVisit" data-onclick-a0="${v.id}">
     <span class="vh-date">${_fmtD(v.created_at)}</span>

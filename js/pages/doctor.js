@@ -105,6 +105,8 @@ if (_isTrainee) {   // Session 305: trainees cannot send admission advice (docto
 // hospital / college, OFF otherwise). OFF -> no "Submit for Review" for a trainee and no Pending Review tab.
 const _opdWf          = await getOpdWorkflow(supabase);
 const _traineeVerify  = !!_opdWf.trainee_verification;
+// Session 358 (§290 / §274): the casualty staff by designation (display copy of the server's _casualty_registrar_ok)
+const _isCasualtyStaff = !_isTrainee && ['resident_medical_officer', 'cmo', 'emergency_medical_officer'].includes(profile.designation);
 let _activeDraftId    = null;  // consultation_notes.id of the draft being reviewed, if any
 let _activeDraftedBy  = null;  // that draft's original trainee author (profile.id) -- credited on finalize
 
@@ -133,6 +135,11 @@ let _activeDraftedBy  = null;  // that draft's original trainee author (profile.
 let _draftDirty       = false;
 let _draftSaving       = false;
 let _pendingDraftNotes = null;  // fetched draft's form_data, held while the resume banner is up
+// Session 358 (TODO §265-D): the open visit came back with the reports (visits.awaiting_reports_since) -> the final note; whether
+// it already has an (interim) prescription from the first consultation
+let _finalMode = false;
+let _awaitHasRx = false;
+let _progressRemindOk = false;   // the progress reminder panel's "Complete anyway"
 
 document.getElementById('c-active').addEventListener('input',  () => { _draftDirty = true; });
 document.getElementById('c-active').addEventListener('change', () => { _draftDirty = true; });
@@ -684,7 +691,9 @@ async function loadQueue() {
     // with "No preference" (no doctor) is visible to all of them (never the Screening OPD's triage visits); opening one claims it
     const { data: duty } = await supabase.from('opd_doctors').select('opd_id')
       .eq('tenant_id', tenantId).eq('doctor_id', userId).eq('is_active_today', true);
-    const shared = [...new Set((duty || []).map(d => d.opd_id).filter(id => id && id !== screeningOpdId(_opdWf)))];
+    // Session 358 (TODO §290): the RMO / CMO / EMO also see the organisation's marked Emergency OPD (its visits have no doctor)
+    const emOpd = _isCasualtyStaff && _opdWf?.emergency_opd_active ? _opdWf.emergency_opd_id : null;
+    const shared = [...new Set([...(duty || []).map(d => d.opd_id), emOpd].filter(id => id && id !== screeningOpdId(_opdWf)))];
     query = shared.length ? query.or(`doctor_id.eq.${userId},and(doctor_id.is.null,opd_id.in.(${shared.join(',')}))`)
                           : query.eq('doctor_id', userId);
   }
@@ -1290,6 +1299,79 @@ async function loadDepositBox() {
   await loadAwaitingDeposit({ supabase, box: document.getElementById('dep-wait-box'), list: document.getElementById('dep-wait-list'),
     filter: r => r.doctor_id === userId });
 }
+// Session 358 (TODO §265-D): own visits waiting for reports (list_awaiting_reports: own only; the Super Admin sees every one, to
+// re-assign -- Q5). "Open with reports" re-opens the visit on the server (only its own doctor) and opens the consultation.
+let _awRows = [];
+async function loadAwaitingReports() {
+  const box = document.getElementById('aw-rep-box');
+  const list = document.getElementById('aw-rep-list');
+  if (!box || !list || _isTrainee) return;
+  const { data, error } = await supabase.rpc('list_awaiting_reports');
+  _awRows = error ? [] : (data || []);
+  if (!_awRows.length) { box.hidden = true; list.replaceChildren(); return; }
+  const today = todayISTStr();
+  const day = iso => new Date(iso).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short' });
+  const istDay = iso => new Date(iso).toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+  list.replaceChildren(..._awRows.map(r => {
+    const row = document.createElement('div');
+    row.style.cssText = 'padding:6px 0;border-top:1px dashed var(--border);font-size:11.5px;line-height:1.45';
+    const name = document.createElement('div');
+    name.style.fontWeight = '600';
+    name.textContent = `${r.patient_name || '—'} · ${r.uhid || '—'}${r.doctor_id !== userId ? ' · ' + (r.doctor_name || '—') : ''}`;
+    const meta = document.createElement('div');
+    meta.style.color = 'var(--text-mid)';
+    meta.textContent = `Since ${day(r.awaiting_since)} · reports ready ${r.orders_ready} of ${r.orders_ready + r.orders_open} · closes ${new Date(r.closes_on + 'T00:00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })} if not back`;
+    row.append(name, meta);
+    const tags = document.createElement('div');
+    const tag = (txt, css) => { const t = document.createElement('span'); t.className = 'badge'; t.style.cssText = css + ';margin-right:4px'; t.textContent = txt; tags.append(t); };
+    if (r.returned_at && istDay(r.returned_at) === today) tag('🔬 Back today with reports', 'background:var(--blue-light);color:var(--blue)');
+    if (r.orders_open === 0) tag('✓ All reports ready', 'background:var(--green-light);color:var(--green-deep)');
+    if (r.status === 'in_progress') tag('Open — not finished', 'background:#fff4e5;color:#7a4a00');
+    if (r.is_unidentified) tag('Unidentified patient', 'background:#fdecea;color:#a01a1a');
+    if (tags.childElementCount) row.append(tags);
+    const btn = (label, fn) => { const b = document.createElement('button'); b.type = 'button'; b.dataset.onclick = fn; b.dataset.onclickA0 = r.visit_id;
+      b.style.cssText = 'margin:4px 6px 0 0;min-height:44px;padding:0 12px;background:var(--green-deep);color:#fff;border:none;border-radius:6px;font-family:\'DM Sans\',sans-serif;font-size:12px;font-weight:600;cursor:pointer';
+      b.textContent = label; row.append(b); };
+    if (r.doctor_id === userId) btn('Open with reports', 'openAwaitingVisit');
+    if (profile.role === 'super_admin') btn('Re-assign', 'openAwaitingReassign');
+    return row;
+  }));
+  box.hidden = false;
+}
+window.openAwaitingVisit = async function(visitId) {
+  const r = _awRows.find(x => x.visit_id === visitId);
+  if (!r) return;
+  if (r.status === 'awaiting_reports') {
+    const { error } = await supabase.rpc('reopen_visit_for_reports', { p_visit_id: visitId });
+    if (error) { _toast(safeErrorMessage(error, 'The visit could not be re-opened.'), 'error'); loadAwaitingReports(); return; }
+  }
+  await window.startConsultation(visitId);
+  loadAwaitingReports();
+};
+let _awReassignVisit = null;
+window.openAwaitingReassign = async function(visitId) {
+  _awReassignVisit = visitId;
+  const sel = document.getElementById('aw-reassign-doctor');
+  const { data } = await supabase.from('profiles').select('id, full_name, role, secondary_role, designation, status, is_active')
+    .eq('tenant_id', tenantId).or('role.eq.doctor,secondary_role.eq.doctor').eq('status', 'active').order('full_name');
+  sel.replaceChildren(...(data || []).filter(d => d.is_active && !['pg_scholar', 'intern'].includes(d.designation)).map(d => {
+    const o = document.createElement('option'); o.value = d.id; o.textContent = d.full_name || '—'; return o; }));
+  document.getElementById('aw-reassign-reason').value = '';
+  document.getElementById('aw-reassign-panel').hidden = false;
+  sel.focus();
+};
+window.closeAwaitingReassign = function() { _awReassignVisit = null; document.getElementById('aw-reassign-panel').hidden = true; };
+window.saveAwaitingReassign = async function() {
+  if (!_awReassignVisit) return;
+  const { error } = await supabase.rpc('reassign_awaiting_visit', { p_visit_id: _awReassignVisit,
+    p_doctor_id: document.getElementById('aw-reassign-doctor').value || null,
+    p_reason: document.getElementById('aw-reassign-reason').value.trim() || null });
+  if (error) { _toast(safeErrorMessage(error, 'The visit could not be re-assigned.'), 'error'); return; }
+  _toast('Visit re-assigned — the doctor has been alerted.', 'info');
+  window.closeAwaitingReassign();
+  loadAwaitingReports();
+};
+
 if (!_isTrainee && profile.designation === 'medical_superintendent') {
   const rep = document.getElementById('dep-waiver-report');
   if (rep) {
@@ -1423,6 +1505,7 @@ function subscribeRealtime() {
       loadAlerts();
       loadEmergencyConfirmations();   // Session 356: an emergency admission under this doctor arrives as an alert
       loadDepositBox();               // Session 357: admitted / deposit paid / pre-auth rejected / advice expired arrive as alerts
+      loadAwaitingReports();          // Session 358: reports ready / back with reports / re-assigned / did not return
       _toast(`New on-request: ${payload.new.patient_name} — ${payload.new.message}`, 'alert');
     })
     .subscribe();
@@ -1498,6 +1581,7 @@ window.startConsultation = async function(visitId) {
   document.getElementById('btn-complete').textContent = _isTrainee ? '📝 Submit for Review' : '✓ Complete & Send to Pharmacy';
   // Session 347 (TODO §198): intern / PG verification OFF -> a trainee cannot send anything for verification
   document.getElementById('btn-complete').style.display = (_isTrainee && !_traineeVerify) ? 'none' : '';
+  document.getElementById('opd-outcome-section').hidden = _isTrainee;   // Session 358: a trainee's draft has no OPD outcome
   if (_isTrainee && !_traineeVerify) notify('Intern / PG verification is switched off for this organisation — a consultant completes this consultation.', 'warning');
 
   // Session 347: a visit from the shared OPD queue (no doctor chosen at reception) is claimed by the doctor who opens it -- the
@@ -1524,13 +1608,17 @@ window.startConsultation = async function(visitId) {
 
   const { data: visit } = await supabase
     .from('visits')
-    .select('*, patients(id, uhid, name, phone, abha_number, abha_address, prakriti_data, prakriti_assessed_at, gender, age, date_of_birth), opds(ncism_code, name, allows_prescription, specialty_proforma_key)')
+    .select('*, patients(id, uhid, name, phone, abha_number, abha_address, prakriti_data, prakriti_assessed_at, gender, age, date_of_birth, is_unidentified, registration_incomplete), opds(ncism_code, name, allows_prescription, specialty_proforma_key)')
     .eq('id', visitId)
     .single();
 
   _activeVisit     = visit;
   _activePatient   = visit?.patients;
   _activeNcismCode = visit?.opds?.ncism_code || null;
+  _finalMode       = !!visit?.awaiting_reports_since;   // Session 358
+  document.getElementById('final-mode-banner').hidden = !_finalMode;
+  document.body.classList.toggle('final-mode', _finalMode);
+  _awaitHasRx = false;
 
   // Session 295 -- follow-up Visit History rail (this department's previous visits +
   // admissions, newest first). Not blocking; shows for any patient with a prior visit
@@ -1769,12 +1857,28 @@ window.startConsultation = async function(visitId) {
   if (imgBtn) imgBtn.disabled = false;
   loadLabResults();
 
+  // Session 358 (TODO §265-D): back with the reports -- the latest saved note fills the form (the final note is a NEW row; the
+  // medicines are NOT copied -- an interim prescription already went to the pharmacy)
+  if (_finalMode) await _prefillFromProvisional(visitId);
+
   // Session 185 — offer to resume an autosaved draft, if one exists for this
   // visit under this doctor's own login. Runs last: proforma/eye/ENT/obsgyn
   // sections above are already rendered by now, so a Restore click has real
   // DOM nodes to write into.
   _checkForConsultationDraft(visitId);
 };
+
+async function _prefillFromProvisional(visitId) {
+  const [{ data: note }, { count: rxCount }] = await Promise.all([
+    supabase.from('consultation_notes').select('*').eq('visit_id', visitId).eq('review_status', 'finalized')
+      .order('created_at', { ascending: false }).limit(1).maybeSingle(),
+    supabase.from('prescriptions').select('id', { count: 'exact', head: true }).eq('visit_id', visitId),
+  ]);
+  _awaitHasRx = (rxCount || 0) > 0;
+  if (note) _applyDraftToForm({ ...note, prescription_json: [] });
+  _updateCompleteBtn();
+  window.onDispChange(document.querySelector('input[name=disposition]:checked')?.value || 'opd');
+}
 
 // ── Tabs ──────────────────────────────────────────
 const ALL_TABS = ['hist','exam','proforma','assess','diag','rx','advice','disp','pk','adm','visha','abdm'];
@@ -2089,6 +2193,7 @@ window.saveAdmissionAdvice = async function() {
   _admAdviceSaved = true;
   _admSetMode();
   loadDepositBox();   // Session 357
+  loadAwaitingReports();   // Session 358
   _admStatus(wasUpdate
     ? `✓ Updated — Reception's Admission Requests queue shows the new advice for ${_activePatient?.name}.`
     : `✓ Sent — ${_activePatient?.name} will now appear in Reception's Admission Requests queue.`);
@@ -5115,17 +5220,37 @@ window.onDispChange = function(val) {
   document.getElementById('referral-section').style.display = val === 'referral' ? '' : 'none';
 
   const completeBtn = document.getElementById('btn-complete');
+  // Session 358 (§243 / §265-D): how an OPD visit finishes (with / without a prescription, awaiting reports) -- not for a trainee
+  document.getElementById('opd-outcome-section').hidden = val !== 'opd' || _isTrainee;
   // Session 294 -- 'pk' dropped as a disposition value entirely (see _gateFeatures()'s
   // comment above); the Panchakarma tab is reachable directly from the tab bar now,
   // not triggered by picking a disposition.
-  if (val === 'admission') {
-    completeBtn.textContent = '✓ Complete & Initiate Admission';
-    if (_hasAdm) _switchTab('adm');
-  } else if (val === 'referral') {
-    completeBtn.textContent = '✓ Complete & Generate Referral';
-  } else {
-    completeBtn.textContent = '✓ Complete & Send to Pharmacy';
-  }
+  completeBtn.textContent = _completeLabel(val);
+  if (val === 'admission' && _hasAdm) _switchTab('adm');
+  _updateCompleteBtn();
+};
+
+// Session 358: the OPD outcome radio (the server checks each one in finish_consultation)
+function _opdOutcome() { return document.querySelector('input[name="opd-outcome"]:checked')?.value || 'prescription'; }
+function _completeLabel(disp) {
+  if (_isTrainee) return '📝 Submit for Review';
+  if (disp === 'admission') return '✓ Complete & Initiate Admission';
+  if (disp === 'referral') return '✓ Complete & Generate Referral';
+  const out = _opdOutcome();
+  if (out === 'awaiting_reports') return '🔬 Save — awaiting reports';
+  if (out === 'no_prescription') return '✓ Complete without prescription';
+  return '✓ Complete & Send to Pharmacy';
+}
+window.onOpdOutcomeChange = function(val) {
+  document.querySelectorAll('#opd-outcome-section .disp-opt').forEach(el => el.classList.remove('selected'));
+  const radio = document.querySelector(`input[name="opd-outcome"][value="${val}"]`);
+  if (radio) radio.closest('.disp-opt').classList.add('selected');
+  document.getElementById('opd-outcome-note-wrap').hidden = val !== 'no_prescription';
+  document.getElementById('opd-outcome-hint').textContent = val === 'awaiting_reports'
+    ? 'Order the investigations first (Investigations tab) and record the provisional diagnosis (Assessment & Diagnosis tab). Medicines for now are allowed.'
+    : val === 'no_prescription' ? 'Remove any medicine rows — a visit completed without a prescription gets no prescription afterwards.' : '';
+  document.getElementById('btn-complete').textContent = _completeLabel('opd');
+  _updateCompleteBtn();
 };
 
 // ── NAMASTE + ICD-10 dual-coding search ──────────
@@ -5498,11 +5623,14 @@ window._copyRxFromHistory = function(items) {
   return { added, skipped };
 };
 
-// Enable Complete button only when at least one named medicine row exists
+// Enable Complete button only when at least one named medicine row exists -- Session 358 (§243): only for "with a prescription"
+// (an Admission / Referral, "without a prescription", "awaiting reports" or a final note after an interim prescription needs none)
 function _updateCompleteBtn() {
   const hasRx = [...document.querySelectorAll('#rx-rows .rx-name')]
     .some(inp => inp.value.trim().length > 0);
-  document.getElementById('btn-complete').disabled = !hasRx;
+  const disp = document.querySelector('input[name=disposition]:checked')?.value || 'opd';
+  const needsRx = disp === 'opd' && _opdOutcome() === 'prescription' && !(_finalMode && _awaitHasRx);
+  document.getElementById('btn-complete').disabled = needsRx && !hasRx;
 }
 
 // ── Drug-Drug Interaction (DDI) Check — MOM.4 ────────────────────
@@ -5807,21 +5935,32 @@ async function _collectConsultationFields() {
   return { notes, disposition };
 }
 
+// Session 358: the progress reminder is an in-page panel (no native confirm in a clinical flow) -- _progressRemindOk at the top
 document.getElementById('btn-complete').addEventListener('click', () => {
   // Session 295 -- improvement % is optional (Dr. Venkatesh's choice), but a follow-up
   // visit gets one reminder if the overall figure was never recorded.
-  if (isProgressMissing() && !confirm(
-    'Progress since the last visit (overall improvement %) has not been recorded.\n\n' +
-    'OK = complete anyway    Cancel = go back and record it')) {
-    _switchTab('hist');
-    window.focusProgressCard?.();
+  if (isProgressMissing() && !_progressRemindOk && !_finalMode) {   // Session 358: once per visit (not again after the reports)
+    const panel = document.getElementById('progress-remind-panel');
+    panel.hidden = false;
+    panel.querySelector('button')?.focus();
     return;
   }
+  _progressRemindOk = false;
   // Session 127 -- a trainee never has finalize authority, regardless of
   // whether this visit came from their own department queue or (in principle)
   // anywhere else; everyone else keeps the exact existing behaviour.
   (_isTrainee ? submitForReview() : completeConsultation());
 });
+window.progressRemindAnyway = function() {
+  document.getElementById('progress-remind-panel').hidden = true;
+  _progressRemindOk = true;
+  document.getElementById('btn-complete').click();
+};
+window.progressRemindRecord = function() {
+  document.getElementById('progress-remind-panel').hidden = true;
+  _switchTab('hist');
+  window.focusProgressCard?.();
+};
 
 async function completeConsultation() {
   if (!_activeVisitId) return;
@@ -5832,6 +5971,23 @@ async function completeConsultation() {
 
   try {
     const { notes, disposition } = await _collectConsultationFields();
+
+    // Session 358 (§243 / §265-D): the OPD outcome; a visit back with the reports finishes with the FINAL note (server-checked
+    // in finish_consultation -- these page checks only name the missing piece first)
+    const outcome = disposition === 'opd' ? _opdOutcome() : disposition;
+    const outcomeNote = document.getElementById('opd-outcome-note').value.trim();
+    const _stop = (msg, tab) => { _toast(msg, 'error'); if (tab) _switchTab(tab); btn.disabled = false; onDispChange(disposition); };
+    if (outcome === 'no_prescription') {
+      if (_getRxData().length) return _stop('Remove the medicine rows, or choose "With a prescription".', 'rx');
+      if (outcomeNote.length < 5) { document.getElementById('opd-outcome-note').focus(); return _stop('Write a short note — the reason / the advice given (at least 5 characters).', 'disp'); }
+    }
+    if (outcome === 'awaiting_reports' && !notes.provisional_modern && !notes.provisional_ayurveda) {
+      return _stop('Record the provisional diagnosis before saving the visit as awaiting reports.', 'assess');
+    }
+    if (_finalMode && outcome !== 'awaiting_reports' && !notes.modern_diagnosis && !notes.ayurveda_diagnosis && !notes.diagnosis_namc_code && !notes.diagnosis_icd10_code) {
+      return _stop('Record the final diagnosis.', 'diag');
+    }
+    if (outcome === 'awaiting_reports') notes.note_stage = 'provisional';   // the server keeps it only on a first note
 
     // Session 356 (TODO §265-A, D1): under the Admission disposition, Complete sends the advice in the
     // SAME click, before the consultation is saved -- if the advice cannot be saved, nothing is saved and
@@ -5926,8 +6082,25 @@ async function completeConsultation() {
       });
     }
 
+    // Session 358 (§243 / §265-D): without a prescription, awaiting reports and the final note after the reports are finished by
+    // the SERVER (finish_consultation); the other ways keep the direct Complete below (owner Q3)
+    if (_finalMode || outcome === 'no_prescription' || outcome === 'awaiting_reports') {
+      const params = _finalMode && outcome !== 'awaiting_reports'
+        ? { p_visit_id: _activeVisitId, p_outcome: 'final', p_note: outcomeNote || null, p_final_disposition: outcome }
+        : { p_visit_id: _activeVisitId, p_outcome: outcome, p_note: outcomeNote || null };
+      const { error: fErr } = await supabase.rpc('finish_consultation', params);
+      if (fErr) {
+        _toast(safeErrorMessage(fErr, 'The visit could not be completed.') + ' The consultation note is saved.', 'error');
+        btn.disabled = false;
+        onDispChange(disposition);
+        return;
+      }
+    }
+
     // Mark visit completed -- Session 356: checked (a refused or zero-row update is an error, never a false "complete")
-    const { data: doneRows, error: vErr } = await supabase.from('visits').update({ status: 'completed' }).eq('id', _activeVisitId).select('id');
+    const { data: doneRows, error: vErr } = (_finalMode || outcome === 'no_prescription' || outcome === 'awaiting_reports')
+      ? { data: [{ id: _activeVisitId }], error: null }
+      : await supabase.from('visits').update({ status: 'completed' }).eq('id', _activeVisitId).select('id');
     if (vErr || !doneRows?.length) {
       _toast(vErr ? safeErrorMessage(vErr, 'The visit could not be marked completed.') + ' The consultation note is saved.'
                   : 'The consultation note is saved, but the visit could not be marked completed. Please try again.', 'error');
@@ -5991,7 +6164,9 @@ async function completeConsultation() {
     // though the Admission tab's fields were never saved anywhere at all.
     const dispMsg = disposition === 'admission' ? 'admission advice sent to reception'
       : disposition === 'referral'  ? (refSaved ? 'Referral sent — target OPD alerted' : 'Referral noted')
-      : 'sent to pharmacy';
+      : outcome === 'awaiting_reports' ? 'saved as awaiting reports — in your 🔬 Awaiting reports list'   // Session 358
+      : outcome === 'no_prescription' ? 'completed without a prescription'
+      : rx.length ? 'sent to pharmacy' : 'completed';
     // Session 294 -- 'pk' is no longer a disposition value (the Panchakarma tab is
     // reachable independently of Disposition now), so its own honesty check runs
     // separately -- only mentioned at all if the doctor actually engaged the tab this
@@ -6007,6 +6182,7 @@ async function completeConsultation() {
     if (_savedRxId) _toastWithPrintAction(`${_activePatient?.name} — consultation complete, ${dispMsg}${pkMsg}`, _savedRxId);
     else _toast(`${_activePatient?.name} — consultation complete, ${dispMsg}${pkMsg}`, 'info');
     await _clearConsultationDraft(_activeVisitId);  // Session 185 — real note saved, autosave copy no longer needed
+    const _wasUnidentified = !!_activePatient?.is_unidentified;   // Session 358 (read before _closeConsult clears it)
     _closeConsult();
     loadQueue();
 
@@ -6024,7 +6200,9 @@ async function completeConsultation() {
     // live: Bharathi's own registration-time care context already exists with
     // abha_address=null). Removed the gate -- always fire this now, matching
     // reception.js's Scenario 2 (no ABHA) design intent.
-    _abdmCreateCareContext(_activeVisitId, _activePatient, notes, disposition, rx.length > 0);
+    // Session 358 (§274, Q12): no ABDM care context for an unidentified patient (page-level; the server block comes with ABDM)
+    if (!_wasUnidentified) _abdmCreateCareContext(_activeVisitId, _activePatient, notes, disposition, rx.length > 0);
+    loadAwaitingReports();
 
   } catch (err) {
     console.error('completeConsultation caught:', err?.message, err?.details, err?.hint);
@@ -8048,6 +8226,14 @@ function _closeConsult() {
 
 function _clearForm() {
   resetVisitTimeline();
+  // Session 358: the OPD outcome back to "with a prescription", the note / panels / final banner cleared
+  const outRx = document.querySelector('input[name="opd-outcome"][value="prescription"]');
+  if (outRx) { outRx.checked = true; window.onOpdOutcomeChange('prescription'); }
+  document.getElementById('opd-outcome-note').value = '';
+  document.getElementById('final-mode-banner').hidden = true;
+  document.body.classList.remove('final-mode');
+  document.getElementById('progress-remind-panel').hidden = true;
+  _finalMode = false; _awaitHasRx = false; _progressRemindOk = false;
   const textInputs = [
     'h-complaint','h-duration','h-aggravating','h-relieving','h-associated','h-history',
     'np-purvarupa','np-rupa','np-samprapti','np-upashaya',
@@ -8353,7 +8539,7 @@ window.saveVishaCase = async function() {
 // ── Boot ──────────────────────────────────────────
 _initNamaste();
 _initIcd10();
-await Promise.all([loadQueue(), loadAlerts(), loadEmergencyConfirmations(), loadDepositBox(), loadInventory(), _loadOpdAttendanceBanner(), loadOpdList(), loadDoctorOpds(), renderPromoBanner('promo-banner', { supabase, tenantId })]);
+await Promise.all([loadQueue(), loadAlerts(), loadEmergencyConfirmations(), loadDepositBox(), loadAwaitingReports(), loadInventory(), _loadOpdAttendanceBanner(), loadOpdList(), loadDoctorOpds(), renderPromoBanner('promo-banner', { supabase, tenantId })]);
 
 async function _loadOpdAttendanceBanner() {
   const { data: t } = await supabase.from('tenants').select('ug_intake,opd_daily_target,type').eq('id', tenantId).single();

@@ -372,7 +372,54 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
             </div>
           </div>
           <div class="patient-results" id="patient-results"></div>
-          <div class="field-note" style="margin-top:2px">New patients should be registered at Reception first.</div>
+          <div class="field-note" style="margin-top:2px" id="pt-search-note">New patients should be registered at Reception first.</div>
+        </div>
+
+        <!-- Session 358 (TODO §274): casualty quick registration -- the RMO / CMO / EMO (or the Super Admin) registers an unregistered
+             or unidentified patient here (UHID at once + the casualty / MLC register entry); reception completes the rest later.
+             Autofill is off on every field (§285: non-standard autocomplete tokens, neutral ids). -->
+        <div id="er-quick-wrap" hidden>
+          <button type="button" class="btn btn-secondary" id="btn-er-quick-toggle" data-onclick="toggleErQuick" aria-expanded="false" aria-controls="er-quick-form" style="min-height:44px;margin-top:10px">+ New casualty patient (not registered)</button>
+          <div id="er-quick-form" hidden style="margin-top:10px;padding:12px 14px;border:1.5px solid #f5c6c6;border-radius:8px;background:var(--white,#fff)">
+            <div style="padding:10px 12px;background:#fdecea;border-radius:6px;margin-bottom:12px">
+              <label for="erq-m0" style="display:flex;gap:8px;align-items:center;font-size:13px;font-weight:700;color:#8b1a1a;cursor:pointer;min-height:32px">
+                <input type="checkbox" id="erq-m0" data-onchange="toggleErqMlc" data-onchange-a0="@checked" style="width:18px;height:18px;accent-color:#c0392b"/> ⚖ Medico-Legal Case (MLC)
+              </label>
+              <div id="erq-mlc-fields" style="display:none;grid-template-columns:1fr 1fr;gap:10px;margin-top:8px">
+                <div class="field"><label for="erq-m1" style="color:#8b1a1a">MLC Number</label><input id="erq-m1" type="text" maxlength="60" autocomplete="ax-erq-m1" placeholder="can be added later"/></div>
+                <div class="field"><label for="erq-m2" style="color:#8b1a1a">Police Station</label><input id="erq-m2" type="text" maxlength="120" autocomplete="ax-erq-m2"/></div>
+                <div class="field" style="grid-column:span 2"><label for="erq-m3" style="color:#8b1a1a">Nature of MLC</label>
+                  <select id="erq-m3" autocomplete="ax-erq-m3">
+                    <option value="">— Select —</option>
+                    <option>Road Traffic Accident</option><option>Assault</option><option>Poisoning</option><option>Burns</option>
+                    <option>Fall from Height</option><option>Sexual Assault</option><option>Unknown / Unidentified</option><option>Other</option>
+                  </select></div>
+                <div class="field"><label for="erq-m4" style="color:#8b1a1a">Police informed? <span class="req">*</span></label>
+                  <select id="erq-m4" data-onchange="toggleErqPoliceTime" data-onchange-a0="@value" autocomplete="ax-erq-m4">
+                    <option value="">— Select —</option><option value="yes">Yes — informed</option><option value="no">No — not yet</option>
+                  </select></div>
+                <div class="field" id="erq-m5-row" hidden><label for="erq-m5" style="color:#8b1a1a">Time informed <span class="req">*</span></label><input id="erq-m5" type="datetime-local" autocomplete="ax-erq-m5"/></div>
+              </div>
+            </div>
+            <label for="erq-u0" style="display:flex;gap:8px;align-items:center;font-size:13px;font-weight:600;cursor:pointer;min-height:44px">
+              <input type="checkbox" id="erq-u0" data-onchange="toggleErqUnid" data-onchange-a0="@checked" style="width:18px;height:18px"/> Unidentified patient (name not known)
+            </label>
+            <div class="field" id="erq-f1-row"><label for="erq-f1">Patient's name <span class="req">*</span></label><input id="erq-f1" type="text" maxlength="100" autocomplete="ax-erq-f1"/></div>
+            <div class="field-row">
+              <div class="field"><label for="erq-f2">Sex <span class="req">*</span></label>
+                <select id="erq-f2" autocomplete="ax-erq-f2"><option value="">— Select —</option><option value="male">Male</option><option value="female">Female</option><option value="other">Other</option></select></div>
+              <div class="field"><label for="erq-f3">Approx. age (years) <span class="req">*</span></label><input id="erq-f3" type="number" min="0" max="120" inputmode="numeric" autocomplete="ax-erq-f3"/></div>
+            </div>
+            <div class="field"><label for="erq-f4">Chief complaint <span class="req">*</span></label><input id="erq-f4" type="text" maxlength="500" autocomplete="ax-erq-f4"/></div>
+            <div class="field"><label for="erq-f5">Patient's phone (optional)</label><input id="erq-f5" type="text" inputmode="tel" maxlength="15" autocomplete="ax-erq-f5"/></div>
+            <div class="field-row">
+              <div class="field"><label for="erq-f6">Brought by <span id="erq-f6-req" class="req" hidden>*</span></label><input id="erq-f6" type="text" maxlength="100" autocomplete="ax-erq-f6"/></div>
+              <div class="field"><label for="erq-f7">Relation</label><input id="erq-f7" type="text" maxlength="60" autocomplete="ax-erq-f7" placeholder="e.g. son, bystander, police"/></div>
+            </div>
+            <div class="field"><label for="erq-f8">Brought-by phone (optional)</label><input id="erq-f8" type="text" inputmode="tel" maxlength="15" autocomplete="ax-erq-f8"/></div>
+            <div id="erq-status" role="status" aria-live="polite" style="font-size:12px;color:var(--red,#a01a1a);min-height:16px;margin:4px 0"></div>
+            <button type="button" class="btn btn-primary" id="btn-erq-save" data-onclick="saveErQuick" style="min-height:44px">Register → UHID</button>
+          </div>
         </div>
 
         <div style="display:flex;justify-content:flex-end;margin-top:20px">
@@ -581,8 +628,11 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
           </div>
         </div>
 
-        <!-- MLC — Medico-Legal Case (NCISM §7.5) -->
-        <div style="margin-top:12px;padding:12px 14px;background:#fdecea;border:1.5px solid #f5c6c6;border-radius:8px">
+        <!-- MLC — Medico-Legal Case (NCISM §7.5). Session 358 (§274): moved to the top of step 2 in an emergency admission;
+             hidden when the patient came from the casualty quick registration (the MLC comes from that register entry) -->
+        <div id="mlc-home"></div>
+        <div id="mlc-from-case-note" hidden style="margin-top:12px;padding:10px 14px;background:#fdecea;border:1.5px solid #f5c6c6;border-radius:8px;font-size:12.5px;color:#8b1a1a"></div>
+        <div id="mlc-box" style="margin-top:12px;padding:12px 14px;background:#fdecea;border:1.5px solid #f5c6c6;border-radius:8px">
           <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
             <input type="checkbox" id="adm-is-mlc" style="width:16px;height:16px;accent-color:#c0392b" data-onchange="toggleMlcFields" data-onchange-a0="@checked"/>
             <label for="adm-is-mlc" style="font-size:13px;font-weight:700;color:#8b1a1a;cursor:pointer">⚖ Medico-Legal Case (MLC)</label>

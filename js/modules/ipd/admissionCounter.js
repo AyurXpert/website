@@ -4,6 +4,7 @@
 // the advice), request_pre_auth / record_pre_auth_decision (unchanged, on the advice's case), waive_admission_deposit
 // (finance_manager / MS / super_admin, reason), list_awaiting_deposit, list_deposit_waivers. Built from DOM nodes + textContent
 // only; every refusal is the server's message (errors.js); a write counts as saved only when the server confirms it.
+import { noAutofill } from '../../utils/noAutofill.js';   // Session 358 (§285)
 import { safeErrorMessage } from '../../utils/errors.js';
 
 export const PAYERS = [
@@ -277,6 +278,7 @@ export function buildCounterPanel({ supabase, tenantId, advice, mode, caseRow, o
   }
   actions.append(btn('Close', null, () => onClose?.()));
   panel.append(msg, actions);
+  noAutofill(panel, 'axp');   // Session 358 (§285): Payer & insurance -- no browser autofill (company, policy, member id)
   return panel;
 }
 

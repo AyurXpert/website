@@ -450,6 +450,27 @@ export function safeErrorMessage(error, fallback = 'Something went wrong. Please
   if (['42501','22023','P0002'].includes(error?.code) && S357C_MSGS.some(m => error?.message?.startsWith(m))) {
     return error.message;
   }
+  // Session 358 (TODO §265-D / §243 / §274 / §290): finishing a visit, awaiting reports, the casualty registration, the Emergency OPD
+  const S358_MSGS = ['Only an active doctor', 'Unknown way to finish the consultation', 'Visit not found in your organisation',
+    'Open the visit from Awaiting reports first', 'Only the doctor of this visit', 'Choose the disposition after the reports',
+    'This visit is already closed', 'This visit is waiting for reports', 'Save the consultation note first', 'Save the final consultation note first',
+    'Record the provisional diagnosis', 'Awaiting reports needs at least one investigation', 'There is no prescription for this visit',
+    'This visit has a prescription', 'Write a short note', 'Record the final diagnosis', 'This visit was completed without a prescription',
+    'This visit is not waiting for reports', 'Only the Super Admin re-assigns', 'Only a visit waiting for reports is re-assigned',
+    'The new doctor must be an active', 'Give the reason for the re-assignment', "Your role cannot record the patient's return",
+    'Your role cannot see this list', 'Only the RMO / CMO / EMO on duty', 'Choose the sex', 'Enter the approximate age', 'Enter the chief complaint',
+    'The phone number is not valid', 'The brought-by phone number is not valid', "Enter the patient's name, or tick", 'A medico-legal case',
+    'Enter the time the police were informed', 'A field is too long', 'Only reception, MRD or the Super Admin completes', 'Patient not found in your organisation',
+    'Nothing to save', 'The address is too long', 'The date of birth is', 'The blood group is not valid', "An unidentified patient's identity",
+    'The casualty register entry', 'This casualty register entry', 'Only the Super Admin marks the Emergency OPD', 'OPD not found in your organisation',
+    'Activate the OPD first', 'The Screening OPD cannot be the Emergency OPD', 'The Emergency OPD is marked by the Super Admin',
+    'This is the Emergency OPD', 'An emergency visit stays in the Emergency OPD'];
+  if (['P0001','42501','22023','P0002','23505','23514'].includes(error?.code) && S358_MSGS.some(m => error?.message?.startsWith(m))) {
+    return error.message;
+  }
+  if (['42501','22023'].includes(error?.code) && /^The (phone|address|date of birth|blood group) is already recorded|^The \w[\w ]* is not completed here/.test(error?.message || '')) {
+    return error.message;
+  }
   if (error?.code === '42501' && /^permission denied for (table|column) doctor_alerts/.test(error?.message || '')) {
     return 'Only your own alerts can be opened or marked read.';
   }

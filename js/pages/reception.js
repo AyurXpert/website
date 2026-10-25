@@ -21,6 +21,8 @@ import { canCorrectPatient, openCorrectPatientDetails } from '../modules/patient
 import { notify, dismissNotify } from '../components/notify.js';
 import { printDocument } from '../utils/printDocument.js';
 import { mountAlertBell } from '../components/alertBell.js';
+import { loadPendingFollowups } from '../modules/patient/pendingFollowups.js';   // Session 358
+import { noAutofill } from '../utils/noAutofill.js';                               // Session 358 (§285)
 import { stageChip, awaitingRows, buildCounterPanel, canWaiveDeposit, SCHEMES } from '../modules/ipd/admissionCounter.js';
 import {
   requestABHAOtp, enrollABHA,
@@ -52,6 +54,7 @@ wireDelegatedEvents();
 
 const profile  = getCurrentProfile();
 const tenantId = getCurrentTenantId();
+noAutofill(document.getElementById('reg-form-body'), 'axr');   // Session 358 (§285): registration + family-member form, no autofill
 // Session 357 (owner addition 6 / §276): the counter's own alerts (e.g. "advice expires ... pre-auth not decided") in a bell list
 mountAlertBell({ supabase, userId: profile.id });
 const tenant   = getCurrentTenant();
@@ -493,9 +496,15 @@ function _waitTime(createdAt) {
 // (get_opd_workflow: not set = ON for a teaching hospital / college, OFF otherwise), and the Screening OPD is the explicitly
 // marked one (opds.is_screening) -- no code / name guessing. OFF -> reception chooses the OPD / department and the doctor.
 let _screeningOn = true;
+// Session 358 (TODO §290): the organisation's marked Emergency OPD (opds.is_emergency, set by its Super Admin in OPD Management) --
+// an Emergency visit goes there with no doctor (the RMO / CMO / EMO on duty take it), never through Screening. The SERVER routes it
+// (trg_visits_e358_emergency_route); this is the display copy. Not marked = today's route.
+let _emergencyOpdId = null, _emergencyOpdName = '';
 async function loadOPDs() {
   const wf = await getOpdWorkflow(supabase);
   _screeningOn = !!wf.screening_opd;
+  _emergencyOpdId = wf.emergency_opd_active ? (wf.emergency_opd_id || null) : null;
+  _emergencyOpdName = wf.emergency_opd_name || 'the Emergency OPD';
   const { data } = await supabase
     .from('opds')
     .select('id, name, ncism_code')
@@ -681,6 +690,20 @@ function _applyOpdRule() {
   const docSel = document.getElementById('doctor');
   const cat    = document.getElementById('visit-category').value;
   const hint   = document.getElementById('opd-routing-hint');
+
+  // Session 358 (§290): Emergency -> the marked Emergency OPD, no doctor, no Screening (decided again by the server)
+  if (cat === 'emergency' && _emergencyOpdId) {
+    sel.value = _emergencyOpdId;
+    sel.disabled = true;
+    docSel.value = '';
+    docSel.disabled = true;
+    loadFees(_emergencyOpdId);
+    if (hint) {
+      hint.textContent = `🚑 Emergency → ${_emergencyOpdName} — straight to the RMO / CMO on duty, Screening skipped`;
+      hint.style.cssText = 'display:block;color:#a01a1a;font-size:11px;margin-top:4px;font-weight:600';
+    }
+    return;
+  }
 
   // OPD/Department is ALWAYS locked at reception.
   // Specialty OPD is assigned only at Screening OPD (screening.html).
@@ -950,8 +973,18 @@ async function _renderPatientBills(patientId) {
       </div>`).join('');
 }
 
+// Session 358 (TODO §265-D): a patient back with the reports keeps the SAME visit -- tell reception before it registers a new one
+async function _notifyAwaitingVisit(patientId) {
+  const { data } = await supabase.from('visits').select('id, awaiting_reports_since, doctor:profiles!visits_doctor_id_fkey(full_name)')
+    .eq('tenant_id', tenantId).eq('patient_id', patientId).eq('status', 'awaiting_reports').eq('is_deleted', false).limit(1);
+  if (_patient?.id !== patientId || !data?.length) return;
+  const since = new Date(data[0].awaiting_reports_since).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short' });
+  notify(`🔬 This patient has a visit waiting for reports with Dr ${data[0].doctor?.full_name || '—'} (since ${since}). If they are back with the reports, use 🔬 Reports & Registrations → "Back with reports" — no new visit, token or fee.`, 'warning');
+}
+
 async function _selectPatient(patient, chosenCombo) {
   _patient = patient;
+  _notifyAwaitingVisit(patient.id);   // Session 358
   _newFamilyMember = false;
   _confirmNewDespiteName = false;
   _activeScanSessionId = null;  // Session 173: search-selected a patient — decouple from any open Reg. Queue entry
@@ -4414,8 +4447,8 @@ function _setMode(mode) {
 }
 
 // ── Queue / Appointments / Lab Bills / Reg. Queue / Admission Requests tabs ──
-const _allTabs   = ['tab-queue', 'tab-appts', 'tab-labbills', 'tab-regqueue', 'tab-admreq', 'tab-pkplans', 'tab-vbsearch'];
-const _allPanels = ['queue-list', 'appt-list', 'lab-bills-list', 'reg-queue-list', 'admission-requests-list', 'pk-plans-list', 'vb-search-panel'];
+const _allTabs   = ['tab-queue', 'tab-appts', 'tab-labbills', 'tab-regqueue', 'tab-admreq', 'tab-pkplans', 'tab-vbsearch', 'tab-pending'];
+const _allPanels = ['queue-list', 'appt-list', 'lab-bills-list', 'reg-queue-list', 'admission-requests-list', 'pk-plans-list', 'vb-search-panel', 'pending-list'];
 function _activateTab(tabId, panelId) {
   _allTabs.forEach(id => document.getElementById(id).classList.toggle('active', id === tabId));
   _allPanels.forEach(id => document.getElementById(id).style.display = (id === panelId) ? '' : 'none');
@@ -4453,6 +4486,14 @@ document.getElementById('tab-pkplans').addEventListener('click', () => {
   _activateTab('tab-pkplans', 'pk-plans-list');
   loadPkCarePlanRequests();
 });
+// Session 358 (TODO §265-D / §274): visits waiting for reports + casualty registrations to complete
+const _loadPending = () => loadPendingFollowups({ supabase, tenantId, container: document.getElementById('pending-list'),
+  countEl: document.getElementById('pending-count') });
+document.getElementById('tab-pending').addEventListener('click', () => {
+  _activateTab('tab-pending', 'pending-list');
+  _loadPending();
+});
+_loadPending();
 
 // ── Pending Lab/Investigation Bills (Session 126) ──
 // Shows lab_orders whose charge hasn't actually been collected yet (payment_status

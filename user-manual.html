@@ -558,6 +558,18 @@ p:last-child{margin-bottom:0}
     </div>
 
     <div class="subsection">
+      <div class="subsection-title">Emergency visits (Visit Category = Emergency)</div>
+      <p>When the organisation's Super Admin has marked an <strong>Emergency OPD</strong> (OPD Management → <em>Mark as Emergency OPD</em>), choosing <strong>Emergency</strong> sends the visit straight to that OPD — no doctor is chosen, the RMO / CMO / EMO on duty take it from their queue, and it never waits behind Screening. The server decides this even if another OPD was chosen. Without a marked Emergency OPD, emergency visits follow the usual route.</p>
+    </div>
+
+    <div class="subsection">
+      <div class="subsection-title">🔬 Reports &amp; Registrations tab</div>
+      <p><strong>Waiting for reports:</strong> visits a doctor saved as "awaiting reports". When the patient comes back with the reports, press <strong>Back with reports</strong> — the doctor is told; <strong>no new visit, token or fee</strong> (the same consultation, up to 7 days). Selecting such a patient for a new visit also shows a reminder.</p>
+      <p><strong>Registration incomplete:</strong> patients registered in casualty by the RMO / CMO / EMO. Press <strong>Complete registration</strong> and fill the blank fields (phone, address, date of birth, blood group) — a recorded value cannot be changed here (use Correct patient details). An <strong>unidentified patient's</strong> real name and age are entered only by MRD or the Super Admin through <em>Correct patient details</em>, with a reason; until then no ABDM record is created for that patient.</p>
+      <p>Browser autofill is switched off on the registration, correction and payer / insurance forms, so the browser never fills in another patient's details.</p>
+    </div>
+
+    <div class="subsection">
       <div class="subsection-title">Editing a queue entry (✎)</div>
       <p>The ✎ button on a queue card changes the doctor, visit type and complaint <strong>before the consultation starts</strong>. Only doctors <strong>on duty today in that visit's OPD</strong> are listed — a visit in the Screening OPD gets its specialty doctor at the Screening desk, not here. Once the doctor has started the consultation, only the complaint can be changed.</p>
     </div>
@@ -647,6 +659,19 @@ p:last-child{margin-bottom:0}
       <div class="subsection-title">Sending to Dispensary</div>
       <p>When the prescription is complete, click <strong>"Send to Dispensary"</strong>. This creates a prescription record that immediately appears in the Dispensary POS queue. The visit status changes to "completed".</p>
     </div>
+
+    <div class="subsection">
+      <div class="subsection-title">How an OPD visit finishes (Disposition tab)</div>
+      <p>Under <strong>OPD — Home with Prescription</strong>, choose <strong>How does this OPD visit finish?</strong>:</p>
+      <table class="feature-table">
+        <tr><th>Choice</th><th>Button</th><th>What happens</th></tr>
+        <tr><td>With a prescription</td><td>✓ Complete &amp; Send to Pharmacy</td><td>As before — needs at least one medicine row; the medicines go to the pharmacy.</td></tr>
+        <tr><td>Without a prescription</td><td>✓ Complete without prescription</td><td>Advice, diet, review or Panchakarma review only. A short note (the reason / the advice given, 5 to 500 characters) is required. Nothing goes to the pharmacy, and no prescription can be added to that visit afterwards.</td></tr>
+        <tr><td>Investigations ordered — awaiting reports</td><td>🔬 Save — awaiting reports</td><td>Order the investigations first and record the <strong>provisional diagnosis</strong>. The visit stays open in your <strong>🔬 Awaiting reports</strong> list (above the queue) for up to 7 days. Medicines for now are allowed.</td></tr>
+      </table>
+      <p><strong>When the reports come back:</strong> the 🔬 Awaiting reports list shows "reports ready 2 of 2" and you get a 🔔 alert when the last report is released; reception marks the patient <strong>Back with reports</strong> (no new visit, token or fee) and you are alerted again. Press <strong>Open with reports</strong> — only the visit's own doctor can. The form is filled from the first note (the medicines are not copied); record the <strong>final diagnosis</strong> and the disposition, then complete. The first note stays as the provisional note; the final note is a new note on the same visit.</p>
+      <p>If the patient does not come back within <strong>7 days</strong>, the visit is closed automatically as <strong>Incomplete — did not return with the reports</strong> and you are alerted. If the doctor is away, the Super Admin can <strong>Re-assign</strong> the visit to another doctor (with a reason) from the same list.</p>
+    </div>
   </div>
 
   <!-- ══════════════════════════════════════════════
@@ -711,9 +736,9 @@ p:last-child{margin-bottom:0}
     </div>
 
     <div class="subsection">
-      <div class="subsection-title">Emergency Admission (RMO / CMO)</div>
+      <div class="subsection-title">Emergency Admission (RMO / CMO / EMO)</div>
       <div class="steps">
-        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">ipd.html → "🚑 Emergency admission"</div><div class="step-desc">Shown only to the Resident Medical Officer and the CMO. Search the registered patient, choose the department and the bed.</div></div></div>
+        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">ipd.html → "🚑 Emergency admission"</div><div class="step-desc">Shown to the Resident Medical Officer, the CMO and the EMO (and the Super Admin). Search the registered patient — or, if the patient is not registered, press <strong>+ New casualty patient (not registered)</strong>: tick <strong>⚖ Medico-Legal Case</strong> at the top if it is one (then "Brought by" and "Police informed? yes / no" — and the time when yes — are required), tick <strong>Unidentified patient</strong> if the name is not known, enter the sex, the approximate age and the chief complaint (phone and brought-by optional), and press <strong>Register → UHID</strong>. The UHID is given at once and the casualty register entry is made; an unidentified patient is named like <em>"Unknown Male ~40 y (25-10 23:40 arrival)"</em>. The MLC details are then taken from that register entry. Choose the department and the bed.</div></div></div>
         <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Choose the consultant</div><div class="step-desc">Today's <strong>on-call consultant</strong> of that department (from the duty roster) is listed first and chosen for you. If nobody is on call, choose a consultant of the department or the Medical Superintendent — the admission is marked <strong>"consultant not on roster"</strong> and the Medical Superintendent and the department's HOD are alerted.</div></div></div>
         <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Give the reason and press "Admit (emergency)"</div><div class="step-desc">The reason is required and recorded. No deposit is needed: Reception adds the payer and the advance later on the open admission (💳 Account drawer / Switch payer). The consultant is alerted.</div></div></div>
         <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">The consultant confirms within 24 hours</div><div class="step-desc">doctor.html shows "🚑 Emergency admissions to confirm" above the queue; the consultant presses <strong>✓ I have seen the patient — confirm</strong>. Over 24 hours unconfirmed is marked <strong>⚠ Over 24 h</strong>; the Medical Superintendent and the Super Admin see every unconfirmed one. The IPD list shows "🚑 Emergency · awaiting confirmation" until it is confirmed.</div></div></div>

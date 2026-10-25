@@ -18,6 +18,7 @@ function _esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;'
 // request_approval(), reviewed in admin.js's HR > Approvals tab.
 const GATED_APPROVAL_DESIGS = ['medical_director','principal','medical_superintendent'];
 const _profile = getCurrentProfile();
+const _isSuperAdmin = _profile?.role === 'super_admin';   // Session 358: display copy -- the server (set_emergency_opd) decides
 function _isGatedForApproval(){ return GATED_APPROVAL_DESIGS.includes(_profile?.designation); }
 async function _submitApproval(actionType, payload, reason){
   const { error } = await supabase.rpc('request_approval', { p_action_type: actionType, p_payload: payload, p_reason: reason || null });
@@ -192,7 +193,7 @@ function checkNcismCompliance() {
 async function loadOpds() {
   const { data, error } = await supabase
     .from('opds')
-    .select('id, name, description, is_active, ncism_code, is_specialty_clinic, parent_department_id')
+    .select('id, name, description, is_active, ncism_code, is_specialty_clinic, parent_department_id, is_screening, is_emergency')
     .eq('tenant_id', tenantId)
     .order('name');
 
@@ -214,6 +215,8 @@ function renderOpdList() {
         <div class="opd-item-name">${_esc(o.name)}</div>
         ${o.ncism_code ? `<span class="badge badge-ncism" style="margin-top:4px;display:inline-block">NCISM</span>` : ''}
         ${o.is_specialty_clinic ? `<span class="badge badge-specialty" style="margin-top:4px;margin-left:4px;display:inline-block">Specialty Clinic</span>` : ''}
+        ${o.is_screening ? `<span class="badge badge-ncism" style="margin-top:4px;margin-left:4px;display:inline-block">Screening OPD</span>` : ''}
+        ${o.is_emergency ? `<span class="badge badge-inactive" style="margin-top:4px;margin-left:4px;display:inline-block">🚑 Emergency OPD</span>` : ''}
         ${o.description ? `<div class="opd-item-desc" style="margin-top:3px">${_esc(o.description)}</div>` : ''}
       </div>
       <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0">
@@ -222,6 +225,8 @@ function renderOpdList() {
           data-id="${o.id}" data-active="${o.is_active}" style="height:26px;padding:0 8px;font-size:11px">
           ${o.is_active ? 'Deactivate' : 'Activate'}
         </button>
+        ${_isSuperAdmin && o.is_active && !o.is_screening ? `<button class="btn btn-sm btn-secondary btn-emergency-opd" data-id="${o.id}" data-on="${o.is_emergency ? '1' : '0'}"
+          style="min-height:26px;padding:0 8px;font-size:11px">${o.is_emergency ? 'Unmark Emergency OPD' : 'Mark as Emergency OPD'}</button>` : ''}
       </div>
     </div>
   `).join('');
@@ -229,9 +234,23 @@ function renderOpdList() {
   // Click to select
   el.querySelectorAll('.opd-item').forEach(item => {
     item.addEventListener('click', e => {
-      if (e.target.closest('.btn-toggle-opd')) return;
+      if (e.target.closest('.btn-toggle-opd') || e.target.closest('.btn-emergency-opd')) return;
       const opd = _opds.find(o => o.id === item.dataset.id);
       if (opd) selectOpd(opd);
+    });
+  });
+
+  // Session 358 (TODO §290): the Super Admin marks the Emergency OPD (set_emergency_opd -- one per organisation, audited); an
+  // Emergency visit at reception then goes straight there (the RMO / CMO / EMO on duty), never through Screening
+  el.querySelectorAll('.btn-emergency-opd').forEach(btn => {
+    btn.addEventListener('click', async e => {
+      e.stopPropagation();
+      btn.disabled = true;
+      const { error } = await supabase.rpc('set_emergency_opd', { p_opd_id: btn.dataset.on === '1' ? null : btn.dataset.id });
+      if (error) { _alert('error', safeErrorMessage(error, 'The Emergency OPD could not be set.')); btn.disabled = false; return; }
+      _alert('success', btn.dataset.on === '1' ? 'No Emergency OPD now — emergency visits follow the usual route.'
+        : 'Emergency OPD set — reception sends Emergency visits here, to the RMO / CMO / EMO on duty.');
+      loadOpds();
     });
   });
 

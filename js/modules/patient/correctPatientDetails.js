@@ -8,6 +8,7 @@
 //
 // Used by reception.html (the patient card) and mrd.html (the patient file).
 
+import { noAutofill } from '../../utils/noAutofill.js';   // Session 358 (§285)
 import { safeErrorMessage } from '../../utils/errors.js';
 import { istDateStr, todayISTStr } from '../../utils/dateUtils.js';
 
@@ -52,6 +53,7 @@ export function openCorrectPatientDetails({ supabase, patient, uhidText, onSaved
   const overlay = _el('div', { id: 'cpd-overlay', class: 'cpd-overlay', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'cpd-title' });
   const panel = _el('div', { class: 'cpd-panel' });
   overlay.appendChild(panel);
+  noAutofill(panel, 'axc');   // Session 358 (§285): no browser autofill of another patient's details
 
   panel.appendChild(_el('h2', { id: 'cpd-title', class: 'cpd-title' }, 'Correct patient details'));
   panel.appendChild(_el('p', { class: 'cpd-sub' }, `${patient.name || '—'} · UHID ${uhidText || patient.uhid || '—'}`));

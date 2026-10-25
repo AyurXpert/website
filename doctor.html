@@ -93,6 +93,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
     overflow-y:auto;flex:1;min-height:0;padding-bottom:80px
   }
   .action-bar{left:0!important}
+  .action-bar-panel{left:0!important}
   /* back button — !important needed: base display:none comes later in file */
   .btn-mobile-back{
     display:flex!important;align-items:center;gap:8px;flex-shrink:0;
@@ -508,6 +509,7 @@ button.vh-item:focus-visible{outline:2px solid var(--green-deep);outline-offset:
 .action-bar{transition:right .25s ease}
 body.vh-split .page{right:480px}
 body.vh-split .action-bar{right:480px}
+body.vh-split .action-bar-panel{right:480px}
 body.vh-split .vh-panel{width:480px;box-shadow:none}
 @media print{.vh-rail,.vh-panel{display:none!important}.c-work,.c-main{display:block}}
 
@@ -545,6 +547,9 @@ body.vh-split .vh-panel{width:480px;box-shadow:none}
 .cs-chip.rx{background:#e8eaf6;color:var(--blue);border-color:#c5cae9}
 .cs-chip.al{background:#fde8e8;color:#c0392b;border-color:#fbbaba}
 
+/* Session 358: the final-step banner and the progress reminder sit just above the fixed action bar (never under it) */
+.action-bar-panel{position:fixed;left:320px;right:0;bottom:71px;z-index:101;box-shadow:0 -2px 6px rgba(0,0,0,.06)}
+body.final-mode .tab-body{padding-bottom:130px}   /* the banner's height on top of the action bar */
 /* Action bar — fixed at viewport bottom, inside right panel */
 .action-bar{
   position:fixed;bottom:0;left:320px;right:0;
@@ -1190,6 +1195,24 @@ body.vh-split .vh-panel{width:480px;box-shadow:none}
     <div id="dep-wait-box" hidden style="padding:8px 10px;border-bottom:1px solid var(--border);background:#fffbf0;flex-shrink:0;max-height:220px;overflow:auto">
       <div style="font-size:11.5px;font-weight:700;color:#7a5200;margin-bottom:4px">💰 Admissions: awaiting the deposit / the counter</div>
       <div id="dep-wait-list"></div>
+    </div>
+    <!-- Session 358 (TODO §265-D): own visits waiting for reports (the server list: list_awaiting_reports; the Super Admin sees all
+         to re-assign). Kept up to 7 days, then closed by the daily job as "did not return". -->
+    <div id="aw-rep-box" hidden style="padding:8px 10px;border-bottom:1px solid var(--border);background:var(--cream);border-left:3px solid var(--blue,#1a4080);flex-shrink:0;max-height:240px;overflow:auto">
+      <div style="font-size:11.5px;font-weight:700;color:var(--blue,#1a4080);margin-bottom:4px">🔬 Awaiting reports</div>
+      <div id="aw-rep-list"></div>
+    </div>
+    <!-- Session 358 (Q5): the Super Admin re-assigns a visit waiting for reports -->
+    <div id="aw-reassign-panel" hidden role="dialog" aria-labelledby="aw-reassign-title" style="padding:10px;border-bottom:1px solid var(--border);background:#fff;flex-shrink:0">
+      <div id="aw-reassign-title" style="font-size:12px;font-weight:700;margin-bottom:6px">Re-assign the visit</div>
+      <label for="aw-reassign-doctor" style="font-size:11.5px">New doctor</label>
+      <select id="aw-reassign-doctor" style="width:100%;min-height:44px;margin:2px 0 6px"></select>
+      <label for="aw-reassign-reason" style="font-size:11.5px">Reason (5 to 500 characters)</label>
+      <textarea id="aw-reassign-reason" maxlength="500" style="width:100%;box-sizing:border-box;min-height:56px"></textarea>
+      <div style="display:flex;gap:6px;margin-top:6px">
+        <button type="button" data-onclick="saveAwaitingReassign" style="min-height:44px;padding:0 14px;background:var(--green-deep);color:#fff;border:none;border-radius:6px;font-weight:600;cursor:pointer">Re-assign</button>
+        <button type="button" data-onclick="closeAwaitingReassign" style="min-height:44px;padding:0 14px;background:#fff;border:1px solid var(--border);border-radius:6px;cursor:pointer">Cancel</button>
+      </div>
     </div>
     <!-- Session 357 (owner addition 8): the Medical Superintendent's monthly deposit-waiver report (read-only) -->
     <details id="dep-waiver-report" hidden style="padding:6px 10px;border-bottom:1px solid var(--border);flex-shrink:0">
@@ -3624,6 +3647,39 @@ body.vh-split .vh-panel{width:480px;box-shadow:none}
             </div>
           </div>
 
+          <!-- Session 358 (TODO §243 / §265-D): how an OPD visit finishes -- the server checks each one (finish_consultation) -->
+          <div class="section" id="opd-outcome-section">
+            <div class="section-title">How does this OPD visit finish?</div>
+            <div class="disposition-options" role="radiogroup" aria-label="How does this OPD visit finish?">
+              <label class="disp-opt selected" id="opd-out-rx">
+                <input type="radio" name="opd-outcome" value="prescription" checked data-onchange="onOpdOutcomeChange" data-onchange-a0="@value"/>
+                <div class="disp-opt-text">
+                  <div class="disp-opt-label">With a prescription</div>
+                  <div class="disp-opt-desc">Medicines go to the pharmacy.</div>
+                </div>
+              </label>
+              <label class="disp-opt" id="opd-out-norx">
+                <input type="radio" name="opd-outcome" value="no_prescription" data-onchange="onOpdOutcomeChange" data-onchange-a0="@value"/>
+                <div class="disp-opt-text">
+                  <div class="disp-opt-label">Without a prescription</div>
+                  <div class="disp-opt-desc">Advice, diet, review or Panchakarma review only — nothing goes to the pharmacy. A short note is required.</div>
+                </div>
+              </label>
+              <label class="disp-opt" id="opd-out-aw">
+                <input type="radio" name="opd-outcome" value="awaiting_reports" data-onchange="onOpdOutcomeChange" data-onchange-a0="@value"/>
+                <div class="disp-opt-text">
+                  <div class="disp-opt-label">Investigations ordered — awaiting reports</div>
+                  <div class="disp-opt-desc">The visit stays open in your 🔬 Awaiting reports list for up to 7 days; the patient comes back to you with the reports. Record the provisional diagnosis now.</div>
+                </div>
+              </label>
+            </div>
+            <div id="opd-outcome-note-wrap" hidden style="margin-top:8px">
+              <label for="opd-outcome-note">Note — the reason / the advice given <span style="color:var(--red)">*</span></label>
+              <textarea id="opd-outcome-note" maxlength="500" placeholder="e.g. Diet and yoga advice given; review after 2 weeks"></textarea>
+            </div>
+            <div id="opd-outcome-hint" style="font-size:12px;color:var(--text-muted);margin-top:6px"></div>
+          </div>
+
           <!-- Referral details — shown only when Referral is selected -->
           <div class="section" id="referral-section" style="display:none">
             <div class="section-title">Referral Details</div>
@@ -4185,6 +4241,16 @@ body.vh-split .vh-panel{width:480px;box-shadow:none}
       <!-- §12d — Medical Certificate print area -->
       <div id="mc-print"></div>
 
+      <!-- Session 358 (TODO §265-D): the visit came back with the reports -- the final note -->
+      <div id="final-mode-banner" class="action-bar-panel" hidden role="status" style="padding:8px 14px;background:var(--cream);border-top:3px solid var(--blue,#1a4080);font-size:12.5px;color:var(--blue,#1a4080)">
+        🔬 <strong>After the reports</strong> — the provisional note is filled in below. Record the <strong>final diagnosis</strong> and the disposition, then complete.
+      </div>
+      <!-- Session 358: the progress reminder as an in-page panel (no native confirm in a clinical flow) -->
+      <div id="progress-remind-panel" class="action-bar-panel" hidden role="alertdialog" aria-labelledby="progress-remind-text" style="padding:10px 14px;background:#fffbf0;border-top:1px solid #f0dca0">
+        <div id="progress-remind-text" style="font-size:12.5px;margin-bottom:6px">Progress since the last visit (overall improvement %) has not been recorded.</div>
+        <button type="button" data-onclick="progressRemindAnyway" style="min-height:44px;padding:0 14px;background:var(--green-deep);color:#fff;border:none;border-radius:6px;font-weight:600;cursor:pointer">Complete anyway</button>
+        <button type="button" data-onclick="progressRemindRecord" style="min-height:44px;padding:0 14px;background:#fff;border:1px solid var(--border);border-radius:6px;cursor:pointer">Go back and record it</button>
+      </div>
       <!-- Action bar -->
       <div class="action-bar" id="c-active-action-bar">
         <button class="btn-complete" id="btn-complete">✓ Complete &amp; Send to Pharmacy</button>

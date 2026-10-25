@@ -818,7 +818,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
       <button class="mode-btn active" id="btn-walkin" type="button">🚶 Walk-in</button>
       <button class="mode-btn" id="btn-appt" type="button">📅 Book Appointment</button>
     </div>
-    <div class="form-body">
+    <div class="form-body" id="reg-form-body">
 
       <!-- Appointment date/time (appointment mode only) -->
       <div id="appt-when-row" class="field-row" style="display:none">
@@ -1569,6 +1569,9 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
            plans reuse the Admission Requests queue above unchanged). See
            sql/session209_pk_care_plan_activation.sql. -->
       <button class="q-tab" id="tab-pkplans" type="button">🌸 PK Care Plans <span id="pkplans-count"></span></button>
+      <!-- Session 358 (TODO §265-D / §274): visits waiting for reports ("Back with reports" -- no new visit, token or fee) and casualty
+           registrations reception completes (address, phone, date of birth, blood group) -->
+      <button class="q-tab" id="tab-pending" type="button">🔬 Reports &amp; Registrations <span id="pending-count"></span></button>
       <button class="q-tab" id="tab-vbsearch" type="button" style="display:none">🔎 Visits &amp; Bills</button>
       <a class="q-tab" id="tab-shiftclose" href="shift-close.html" style="text-decoration:none;display:inline-flex;align-items:center">🤝 Close my shift</a>
     </div>
@@ -1587,6 +1590,9 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
     <div class="queue-body" id="vb-search-panel" style="display:none"></div>
     <div class="queue-body" id="pk-plans-list" style="display:none">
       <div class="q-empty"><div class="q-empty-icon">🌸</div><div class="q-empty-text">Loading…</div></div>
+    </div>
+    <div class="queue-body" id="pending-list" style="display:none">
+      <div class="q-empty"><div class="q-empty-icon">🔬</div><div class="q-empty-text">Loading…</div></div>
     </div>
     <!-- Session 173: lightweight Registration-duty toggle for any plain receptionist
          (no NCISM registration_clerk/billing_clerk designation needed) -- mirrors
