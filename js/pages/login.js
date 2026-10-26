@@ -27,12 +27,9 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') overlay.clas
   const code   = (params.get('t') || params.get('org') || sessionStorage.getItem('pending_tenant_code') || '').toUpperCase().trim();
   if (!code) return;
 
-  const { data: tenant } = await supabase
-    .from('tenants')
-    .select('name, logo_url, tagline, tenant_code')
-    .eq('tenant_code', code)
-    .eq('is_active', true)
-    .maybeSingle();
+  // Session 361: signed-out pages cannot read the tenants table -- one active organisation's branding, by its code, through the RPC
+  const { data: rows } = await supabase.rpc('get_tenant_branding', { p_code: code });
+  const tenant = rows?.[0] || null;
 
   if (!tenant) return;
 

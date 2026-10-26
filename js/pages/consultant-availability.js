@@ -108,14 +108,11 @@ async function init() {
     return;
   }
 
-  // Load tenant (anon access already granted on tenants table)
-  const { data: tenant } = await supabase
-    .from('tenants')
-    .select('name, type, tagline, is_active')
-    .eq('tenant_code', code)
-    .single();
+  // Session 361: a public page cannot read the tenants table -- the branding of one ACTIVE organisation, by its code, through the RPC
+  const { data: rows } = await supabase.rpc('get_tenant_branding', { p_code: code });
+  const tenant = rows?.[0] || null;
 
-  if (!tenant || !tenant.is_active) {
+  if (!tenant) {
     showError('Organisation Not Found',
       `No active organisation found with code "${code}". Please check the link or contact AyurXpert support.`);
     return;
