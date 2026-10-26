@@ -1,4 +1,5 @@
 import { requireAuth, getCurrentProfile, getCurrentTenantId } from '../core/auth.js';
+import { canRequestWriteOff, canApproveWriteOff } from '../utils/staffPowers.js';   // Session 359 (§293, owner Q8)
 import { supabase } from '../core/db/supabaseClient.js';
 import { initNavbar } from '../components/navbar.js';
 import { logAudit } from '../core/auditLogger.js';
@@ -482,7 +483,7 @@ function renderAgingDetail() {
       <td>${fmt(b.final_amount)}</td>
       <td><strong style="color:${d>60?'var(--red)':d>30?'#f97316':'inherit'}">${d} days</strong></td>
       <td>${statusBadge(b.insurance_claim_status)}</td>
-      <td><button class="btn-sm btn-outline" data-onclick="prefillWriteoff" data-onclick-a0="${b.id}">Request Write-off</button></td>
+      <td>${canRequestWriteOff(currentUser) ? `<button class="btn-sm btn-outline" data-onclick="prefillWriteoff" data-onclick-a0="${b.id}">Request Write-off</button>` : ''}</td>
     </tr>`;
   }).join('');
 }
@@ -532,7 +533,8 @@ function renderWriteoffTables() {
 
 function renderWriteoffTable(status) {
   const list  = writeoffs.filter(w => w.status === status);
-  const isSA  = currentRole === 'super_admin' || currentRole === 'finance_manager';
+  // Session 359 (owner Q8): the finance_manager role (primary OR second) or the Super Admin, active -- = _write_off_approver_ok; never the requester
+  const isSA  = canApproveWriteOff(currentUser);
 
   if (status === 'pending') {
     const tbody = document.getElementById('wo-pending-tbody');
@@ -548,7 +550,7 @@ function renderWriteoffTable(status) {
       <td style="font-size:.82rem;">${_esc(w.requested_by || '—')}</td>
       <td>${fmtD(w.requested_at)}</td>
       <td style="white-space:nowrap;">
-        ${isSA
+        ${isSA && w.requested_by !== currentUser?.id
           ? `<button class="btn-sm btn-green" style="margin-right:4px;" data-onclick="approveWriteoff" data-onclick-a0="${w.id}" data-onclick-a1="${w.bill_id}">Approve</button>
              <button class="btn-sm btn-red" data-onclick="rejectWriteoff" data-onclick-a0="${w.id}">Reject</button>`
           : '<span style="color:var(--text-mid);font-size:.8rem;">Awaiting approval</span>'}

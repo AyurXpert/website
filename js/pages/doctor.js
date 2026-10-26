@@ -423,6 +423,11 @@ document.getElementById('q-date').textContent = new Date().toLocaleDateString('e
 function _fmtDate(d) { if (!d) return '—'; return new Date(d+'T00:00:00').toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}); }
 
 // ── Wait time ─────────────────────────────────────
+// Semgrep coverage review (26 Oct 2026): visits.meeting_url is free text -- only an https: link is used, else the generated Jitsi room
+function _meetUrl(v) {
+  const fallback = `https://meet.jit.si/AyurXpert-${tenant?.tenant_code||''}-${v.id.slice(0,8)}`;
+  try { return v.meeting_url && new URL(v.meeting_url).protocol === 'https:' ? v.meeting_url : fallback; } catch { return fallback; }
+}
 function _wait(createdAt) {
   const m = Math.floor((Date.now() - new Date(createdAt)) / 60000);
   if (m < 1) return 'Just arrived';
@@ -750,7 +755,7 @@ async function loadQueue() {
     const tokenClass  = isEmergency ? 'red' : inProgress ? 'gold' : isTele ? 'blue' : '';
     const cardClass   = isActive ? 'q-card active' : inProgress ? 'q-card in-progress' : 'q-card';
     const cat         = catLabel[v.visit_category] || 'OPD';
-    const meetUrl     = v.meeting_url || `https://meet.jit.si/AyurXpert-${tenant?.tenant_code||''}-${v.id.slice(0,8)}`;
+    const meetUrl     = _meetUrl(v);
     return `<div class="${cardClass}" data-onclick="startConsultation" data-onclick-a0="${_esc(v.id)}">
       <div class="q-card-top">
         <div class="q-token ${tokenClass}">${v.token_number}</div>
@@ -765,7 +770,7 @@ async function loadQueue() {
         ${isTele ? '<span class="badge" style="background:#dbeafe;color:#1d4ed8">🎥 TELE</span>' : ''}
       </div>
       <div class="q-complaint">${_esc(v.chief_complaint || '—')}</div>
-      ${isTele ? `<div style="margin-top:6px"><a href="${meetUrl}" target="_blank" rel="noopener" data-onclick="_stopProp" data-onclick-a0="@event" style="display:inline-flex;align-items:center;gap:5px;background:#2563eb;color:#fff;border-radius:7px;padding:5px 12px;font-size:12px;font-weight:600;text-decoration:none">🎥 Join Call</a></div>` : ''}
+      ${isTele ? `<div style="margin-top:6px"><a href="${_esc(meetUrl)}" target="_blank" rel="noopener" data-onclick="_stopProp" data-onclick-a0="@event" style="display:inline-flex;align-items:center;gap:5px;background:#2563eb;color:#fff;border-radius:7px;padding:5px 12px;font-size:12px;font-weight:600;text-decoration:none">🎥 Join Call</a></div>` : ''}
     </div>`;
   }).join('');
 }
@@ -1731,7 +1736,7 @@ window.startConsultation = async function(visitId) {
   // Tele visit — show Join Call button
   const joinBtn = document.getElementById('btn-join-call');
   if (visit.is_teleconsultation) {
-    const meetUrl = visit.meeting_url || `https://meet.jit.si/AyurXpert-${tenant?.tenant_code||''}-${visit.id.slice(0,8)}`;
+    const meetUrl = _meetUrl(visit);
     joinBtn.href = meetUrl;
     joinBtn.style.display = '';
   } else {
@@ -5724,10 +5729,10 @@ async function refreshRxSuggestions() {
       const ref      = m.classical_reference || '';
       const nameEsc  = m.name.replace(/'/g, "\\'").replace(/"/g, '&quot;');
       const tip      = [m.anupana && `Anupana: ${m.anupana}`, m.dosage_text && `Dosage: ${m.dosage_text}`, ref && `Ref: ${ref}`].filter(Boolean).join(' · ');
-      return `<div class="rx-sugg-card" data-onclick="_addRxRowFromAttr" data-onclick-a0="${_esc(nameEsc)}" data-onclick-a1="${_esc(anupana)}" data-onclick-a2="${_esc(dose)}" title="${tip}">
-        <div class="rx-sugg-card-name">${m.name}</div>
-        <div class="rx-sugg-card-meta"><span class="stock-badge ${stockCls}" style="font-size:10px">${stockLbl}</span>${m.anupana ? ` · ${m.anupana}` : ''}</div>
-        ${m.dosage_text || ref ? `<div class="rx-sugg-card-meta" style="font-style:italic">${[m.dosage_text, ref].filter(Boolean).join(' · ')}</div>` : ''}
+      return `<div class="rx-sugg-card" data-onclick="_addRxRowFromAttr" data-onclick-a0="${_esc(nameEsc)}" data-onclick-a1="${_esc(anupana)}" data-onclick-a2="${_esc(dose)}" title="${_esc(tip)}">
+        <div class="rx-sugg-card-name">${_esc(m.name)}</div>
+        <div class="rx-sugg-card-meta"><span class="stock-badge ${stockCls}" style="font-size:10px">${stockLbl}</span>${m.anupana ? ` · ${_esc(m.anupana)}` : ''}</div>
+        ${m.dosage_text || ref ? `<div class="rx-sugg-card-meta" style="font-style:italic">${_esc([m.dosage_text, ref].filter(Boolean).join(' · '))}</div>` : ''}
         <div class="rx-sugg-card-add">+ Add to prescription</div>
       </div>`;
     }).join('');
@@ -5741,11 +5746,11 @@ async function refreshRxSuggestions() {
       const dose    = `${f.standard_dosage || ''} ${f.dosage_unit || ''}`.trim().replace(/'/g, "\\'");
       const anupana = (f.anupana || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
       const ingr    = (f.ingredients || []).slice(0, 4).join(', ') + ((f.ingredients?.length > 4) ? ` +${f.ingredients.length - 4} more` : '');
-      return `<div class="rx-sugg-card rx-sugg-classical" data-onclick="_addRxRowFromAttr" data-onclick-a0="${_esc(nameEsc)}" data-onclick-a1="${_esc(anupana)}" data-onclick-a2="${_esc(dose)}" title="${f.publication_ref || ''}">
-        <div class="rx-sugg-card-name">${f.name_common} <span style="font-size:10px;font-weight:400;opacity:.7">${f.name_sanskrit || ''}</span></div>
-        ${ingr ? `<div class="rx-sugg-card-meta">${ingr}</div>` : ''}
-        ${dose ? `<div class="rx-sugg-card-meta">Dose: ${dose}${f.anupana ? ` · ${f.anupana}` : ''}</div>` : ''}
-        <div class="rx-sugg-card-meta" style="font-style:italic">📖 ${f.classical_source || 'AFI'}</div>
+      return `<div class="rx-sugg-card rx-sugg-classical" data-onclick="_addRxRowFromAttr" data-onclick-a0="${_esc(nameEsc)}" data-onclick-a1="${_esc(anupana)}" data-onclick-a2="${_esc(dose)}" title="${_esc(f.publication_ref || '')}">
+        <div class="rx-sugg-card-name">${_esc(f.name_common)} <span style="font-size:10px;font-weight:400;opacity:.7">${_esc(f.name_sanskrit || '')}</span></div>
+        ${ingr ? `<div class="rx-sugg-card-meta">${_esc(ingr)}</div>` : ''}
+        ${dose ? `<div class="rx-sugg-card-meta">Dose: ${_esc(dose)}${f.anupana ? ` · ${_esc(f.anupana)}` : ''}</div>` : ''}
+        <div class="rx-sugg-card-meta" style="font-style:italic">📖 ${_esc(f.classical_source || 'AFI')}</div>
         <div class="rx-sugg-card-add">+ Add to prescription</div>
       </div>`;
     }).join('');
@@ -6895,7 +6900,7 @@ function _parseFhirLegacy(bundle, hiType) {
   if (conds.length) {
     const dx = conds.map(c => {
       const name = c?.code?.text || c?.code?.coding?.[0]?.display || '';
-      const stat = c?.clinicalStatus?.coding?.[0]?.code ? ` <span class="fhir-badge" style="background:#fde8e8;color:#c0392b">${c.clinicalStatus.coding[0].code}</span>` : '';
+      const stat = c?.clinicalStatus?.coding?.[0]?.code ? ` <span class="fhir-badge" style="background:#fde8e8;color:#c0392b">${_esc(c.clinicalStatus.coding[0].code)}</span>` : '';
       return name ? `<span>${_esc(name)}${stat}</span>` : '';
     }).filter(Boolean).join(', ');
     if (dx) sections.push(`<div class="fhir-row"><span class="fhir-lbl dx">Diagnosis</span>${dx}</div>`);
@@ -7579,8 +7584,8 @@ async function _loadGrowthHistory(patientId) {
           <td>${r.weight_kg ? r.weight_kg+' kg' : '—'}</td>
           <td>${r.height_cm ? r.height_cm+' cm' : '—'}</td>
           <td>${r.hc_cm ? r.hc_cm+' cm' : '—'}</td>
-          <td>${r.weight_percentile_band || '—'}</td>
-          <td>${r.height_percentile_band || '—'}</td>
+          <td>${_esc(r.weight_percentile_band || '—')}</td>
+          <td>${_esc(r.height_percentile_band || '—')}</td>
         </tr>`;
       }).join('')}</tbody>
     </table>`;

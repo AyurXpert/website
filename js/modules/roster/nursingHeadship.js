@@ -10,10 +10,14 @@
 export async function resolveNursingHeadship(supabase, tenantId) {
   const [{ data: tenant }, { data: candidates }] = await Promise.all([
     supabase.from('tenants').select('nursing_head_delegate_id').eq('id', tenantId).single(),
-    supabase.from('profiles').select('id,full_name,designation').eq('tenant_id', tenantId).eq('is_active', true)
+    supabase.from('profiles').select('id,full_name,designation,role,secondary_role,status,terminated_at,created_at').eq('tenant_id', tenantId).eq('is_active', true)
       .in('designation', ['nursing_superintendent', 'deputy_nursing_superintendent']).order('full_name'),
   ]);
-  const all = candidates || [];
+  // Session 359 (TODO §293, owner Q9): the head holds the designation AND the role nurse_manager (primary or second), active -- the same as
+  // the server's _nursing_head_of(); the default head = the earliest such nursing superintendent
+  const all = (candidates || []).filter(c => (c.role === 'nurse_manager' || c.secondary_role === 'nurse_manager')
+    && c.status === 'active' && !c.terminated_at)
+    .sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)) || String(a.id).localeCompare(String(b.id)));
   const defaultHead = all.find(c => c.designation === 'nursing_superintendent') || null;
   const delegateId = tenant?.nursing_head_delegate_id || null;
   const delegate = delegateId ? (all.find(c => c.id === delegateId) || null) : null;

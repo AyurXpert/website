@@ -3140,11 +3140,17 @@ if (_qAdviceId) {
     document.getElementById('adm-advance-amount').value = advice.advance_amount_suggested || '';
     const banner = document.getElementById('adm-advice-banner');
     banner.style.display = '';
-    banner.innerHTML = `<strong>From doctor's admission advice</strong> — ` +
-      `${advice.payer_type === 'self_pay' ? 'Self-pay' : advice.payer_type} · ` +
-      `Estimated total: ₹${Number(advice.estimated_total||0).toLocaleString('en-IN')} · ` +
-      `Suggested deposit: <span id="adm-advice-suggested">₹${Number(advice.advance_amount_suggested||0).toLocaleString('en-IN')}</span>` +
-      (advice.room_type_preference ? ` · Advised room: ${_esc(roomTypeLabel(advice.room_type_preference))}` : '');   // Session 357c
+    // Built from DOM nodes + textContent (Semgrep raw-html-concat, 26 Oct 2026) -- same text as before
+    const bTitle = document.createElement('strong');
+    bTitle.textContent = "From doctor's admission advice";
+    const bSugg = document.createElement('span');
+    bSugg.id = 'adm-advice-suggested';
+    bSugg.textContent = `₹${Number(advice.advance_amount_suggested||0).toLocaleString('en-IN')}`;
+    banner.replaceChildren(bTitle,
+      ` — ${advice.payer_type === 'self_pay' ? 'Self-pay' : (advice.payer_type || '')} · ` +
+      `Estimated total: ₹${Number(advice.estimated_total||0).toLocaleString('en-IN')} · Suggested deposit: `,
+      bSugg,
+      advice.room_type_preference ? ` · Advised room: ${roomTypeLabel(advice.room_type_preference)}` : '');   // Session 357c
     // Session 311 -- a SUGGESTION only, shown next to the Payer field; the actual
     // dropdown is never auto-set from it (Dr. Venkatesh's decision -- the payer must
     // be reception/admin's own explicit choice at admission time, not inherited).

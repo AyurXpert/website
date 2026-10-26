@@ -42,7 +42,8 @@ const _okReview = r => !r || r === 'finalized';
 const _NICE = {
   pending: 'Pending', converted: 'Converted (Admitted)', declined: 'Refused admission against medical advice', expired: 'Expired',   // Session 356 (D13)
   sample_collected: 'Sample Collected', in_progress: 'In Progress', completed: 'Completed', ordered: 'Ordered',
-  paid: 'Fee Paid', waived: 'Fee Waived', ipd_credit: 'IPD Credit', day_care: 'Day Care',
+  // Session 359 (§295): waived = "Urgent -- unpaid" (still owed); fee_waived = the charge forgiven
+  paid: 'Fee Paid', waived: 'Urgent — unpaid', fee_waived: 'Fee Waived', ipd_credit: 'IPD Credit', day_care: 'Day Care',
   opd: 'OPD', admission: 'Admission', draft: 'Draft', finalized: 'Finalized', active: 'Active', cancelled: 'Cancelled',
 };
 const _nice = s => !s ? s : (_NICE[s] || String(s).replace(/_/g, ' ').replace(/^./, c => c.toUpperCase()));
@@ -296,8 +297,8 @@ function _pharmacySection(rxRows) {
 function _labHtml(l) {
   const items = (l.lab_order_items || []).filter(i => i.result_value !== null && i.result_value !== '');
   const flag = i => i.is_critical ? '<span class="vh-flag crit">⚠ Critical</span>' : i.is_abnormal ? '<span class="vh-flag">⚠ Abnormal</span>' : '';
-  const payColor = l.payment_status === 'paid' ? '#1a7a3a' : l.payment_status === 'waived' || l.payment_status === 'ipd_credit' ? '#6b7280' : '#c0392b';
-  const payBg    = l.payment_status === 'paid' ? '#e8f5ee' : l.payment_status === 'waived' || l.payment_status === 'ipd_credit' ? '#f3f4f6' : '#fff0ee';
+  const payColor = l.payment_status === 'paid' ? '#1a7a3a' : l.payment_status === 'fee_waived' || l.payment_status === 'ipd_credit' ? '#6b7280' : '#c0392b';
+  const payBg    = l.payment_status === 'paid' ? '#e8f5ee' : l.payment_status === 'fee_waived' || l.payment_status === 'ipd_credit' ? '#f3f4f6' : '#fff0ee';
   return `<div class="vh-inv">
     <div class="vh-inv-hd"><strong>🧪 ${_esc(l.test_name || (l.lab_order_items || []).map(i => i.test_name).slice(0, 3).join(', ') || 'Lab test')}</strong>
       <span><span class="badge" style="background:${payBg};color:${payColor}">${_esc(_nice(l.payment_status) || 'Fee: —')}</span> <span class="vh-muted">${l.performed_outside ? '🔗 Outside lab' : _esc(_nice(l.status) || '')}</span></span></div>

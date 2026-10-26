@@ -308,7 +308,7 @@ function renderQueue() {
       <div class="order-meta">
         <span class="status-dot dot-${o.status}"></span>${{pending:'Awaiting sample',sample_collected:'Sample collected',in_progress:'In progress',completed:'Completed',cancelled:'Cancelled'}[o.status]||o.status}
         · ${_esc(String(o.patients?.age??'—'))}${o.patients?.gender?('/'+_esc(o.patients.gender.charAt(0).toUpperCase())):''}
-        ${paymentDue ? '<span style="color:#7a4a00;font-weight:700;margin-left:4px">⏳ Payment due</span>' : o.payment_status === 'waived' ? '<span style="color:#7a1a1a;font-weight:700;margin-left:4px">🚨 Waived</span>' : ''}
+        ${paymentDue ? '<span style="color:#7a4a00;font-weight:700;margin-left:4px">⏳ Payment due</span>' : o.payment_status === 'waived' ? '<span style="color:#7a1a1a;font-weight:700;margin-left:4px">🚨 Urgent — unpaid</span>' : o.payment_status === 'fee_waived' ? '<span style="color:var(--text-mid);font-weight:700;margin-left:4px">Fee waived</span>' : ''}
       </div>
       <div class="order-tests">${_esc(tests||'No tests listed')}</div>
     </div>`;

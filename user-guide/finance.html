@@ -599,23 +599,30 @@
       </table>
     </div>
 
+    <h3 id="lab-urgent">Lab tests before payment — "Urgent" and the fee waiver (since 25 Oct 2026)</h3>
+    <ul>
+      <li><strong>🚨 Urgent</strong> (reception → 💰 Lab Bills; receptionist, cashier, Super Admin): the lab may start before the patient pays. A reason is required. The charge stays <strong>owed</strong> ("Urgent — unpaid") until it is collected with 💰 Collect; the row shows who sent it, why, and for how many days it is owed. A doctor's STAT "proceed before payment" at order time is recorded the same way.</li>
+      <li><strong>Waive charge</strong> (Finance → Revenue Tracking → 🧪 Lab owed &amp; waived; the Finance Manager, the Medical Superintendent, the Super Admin): the charge is forgiven in full, with a reason, and listed in the monthly <strong>Lab fee waivers</strong> report on the same tab. A test already on a bill cannot be waived there.</li>
+      <li>The <strong>owed list</strong> (the same tab) is visible to reception, the cashier, the accountant, the Finance Manager, the Super Admin and the Medical Superintendent.</li>
+    </ul>
+
     <h3 id="fee-approval">2.2 Approval Workflow</h3>
 
-    <p>No fee can be used for billing until it reaches <strong>active</strong> status. The approval workflow is a three-stage process:</p>
+    <p>No fee can be used for billing until it reaches <strong>active</strong> status. Since 25 Oct 2026 the approvals are checked by the server:</p>
 
     <div class="flow">
-      <span class="badge badge-accountant">accountant</span> creates fee →
+      <span class="badge badge-accountant">accountant</span> (or Dept Admin) creates fee →
       <span class="flow-step flow-pending">pending</span>
       <br />
-      &nbsp;&nbsp;&nbsp;&nbsp;&darr; <span class="badge badge-dept_admin">dept_admin</span> reviews and approves
+      &nbsp;&nbsp;&nbsp;&nbsp;&darr; the <strong>head of the fee's department</strong> approves (step 1)
       <br />
       <span class="flow-step flow-dept_approved">dept_approved</span>
       <br />
-      &nbsp;&nbsp;&nbsp;&nbsp;&darr; <span class="badge badge-super_admin">super_admin</span> gives final activation
+      &nbsp;&nbsp;&nbsp;&nbsp;&darr; the <strong>Medical Superintendent</strong>, the <strong>Finance Manager</strong> or the <span class="badge badge-super_admin">super_admin</span> gives the final approval
       <br />
       <span class="flow-step flow-active">active ✓ — now visible at reception</span>
       <br /><br />
-      <em>Note: super_admin can skip the dept_approved step and activate directly from pending.</em>
+      <em>A fee with no department needs only the final approval. Someone who is both the head of that department and a final approver gives both steps in one click. Nobody approves a fee they created themselves — except an organisation's only active Super Admin, whose own approval is flagged ⚑ in the "📜 Fee approval log". A rejection needs a reason. The Medical Director and the Principal do not approve fees.</em>
     </div>
 
     <div class="box box-warn">
@@ -630,9 +637,9 @@
       <li><span class="step-num">3</span><div class="step-body"><strong>Select the OPD</strong> — the fee is always linked to a specific OPD (e.g., General OPD, Panchakarma OPD).</div></li>
       <li><span class="step-num">4</span><div class="step-body"><strong>Select category</strong> — registration / consultation / procedure / package.</div></li>
       <li><span class="step-num">5</span><div class="step-body"><strong>Enter label and amount</strong> — e.g., label = "New Patient Consultation", amount = ₹250.</div></li>
-      <li><span class="step-num">6</span><div class="step-body"><strong>Save</strong> — status is set to <em>pending</em> automatically. If you are a super_admin, you can directly click "Activate" to skip to step 8.</div></li>
-      <li><span class="step-num">7</span><div class="step-body"><strong>Dept Admin reviews</strong> — logs into fee-admin.html, sees the pending fee in the list, clicks "Approve" to move status to <em>dept_approved</em>.</div></li>
-      <li><span class="step-num">8</span><div class="step-body"><strong>Super Admin activates</strong> — sees the dept_approved fee, clicks "Activate". Status changes to <em>active</em>. Fee now appears in the billing calculator at reception for the linked OPD.</div></li>
+      <li><span class="step-num">6</span><div class="step-body"><strong>Save</strong> — status is set to <em>pending</em> automatically. A Super Admin's "Save &amp; Activate" saves it and gives the final approval in one go (refused when someone else must approve — see the rules above).</div></li>
+      <li><span class="step-num">7</span><div class="step-body"><strong>The department head approves</strong> — sees the pending fee, clicks "✓ Approve (department)". Status → <em>dept_approved</em>.</div></li>
+      <li><span class="step-num">8</span><div class="step-body"><strong>Final approval</strong> — the Medical Superintendent, the Finance Manager or the Super Admin clicks "⚡ Final approval". Status → <em>active</em>. Fee now appears in the billing calculator at reception for the linked OPD.</div></li>
     </ol>
 
     <hr />

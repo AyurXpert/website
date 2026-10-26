@@ -11,6 +11,7 @@
 import { noAutofill } from '../../utils/noAutofill.js';   // Session 358 (§285)
 import { safeErrorMessage } from '../../utils/errors.js';
 import { istDateStr, todayISTStr } from '../../utils/dateUtils.js';
+import { canCorrectIdentity } from '../../utils/staffPowers.js';   // Session 359 (§305)
 
 const GENDERS = [['', '— Not recorded —'], ['male', 'Male'], ['female', 'Female'], ['other', 'Other']];
 const BLOOD = ['', 'A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
@@ -20,10 +21,11 @@ const ABHA_FIELDS = ['name', 'gender', 'date_of_birth', 'age'];
 const _has = (p, r) => p?.role === r || p?.secondary_role === r;
 
 // Display copy of the server rule. The server decides; this only hides the button where it would be refused.
+// Session 359 (§305): + an ACTIVE account only, and an unidentified casualty patient (358: patients.is_unidentified) is corrected only by
+// MRD staff / the Super Admin (the server's _patients_358_identity) -- reception no longer sees a button the server would refuse.
 export function canCorrectPatient(profile, patient) {
   if (!profile || !patient) return false;
-  if (['pg_scholar', 'intern', 'nursing_intern'].includes(profile.designation)) return false;
-  if (_has(profile, 'trainee_doctor') || _has(profile, 'student')) return false;
+  if (!canCorrectIdentity(profile, patient)) return false;
   if (profile.role === 'super_admin' || _has(profile, 'mrd_staff')) return true;
   if (_has(profile, 'receptionist')) return !!patient.created_at && istDateStr(new Date(patient.created_at)) === todayISTStr();
   return false;

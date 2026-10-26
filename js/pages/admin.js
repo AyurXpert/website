@@ -11,6 +11,7 @@ import { isNCISMType, NCISM_DEPTS, CLINICAL_CODES, UG_BED_RATIOS, ncismRequiredB
 import { SUPABASE_URL, SESSION_KEYS } from '../config/constants.js';
 import { DESIGS, DESIG_MAP, DESIG_CATS, isPowerfulPosition } from '../config/designations.js';
 import { RELIEVE_REASON_TYPES, canActOnStaff, relievedLabel, callStaffStatus } from '../utils/staffActions.js';   // Session 351 (TODO §233)
+import { designationRoleProblem, DESIG_REQUIRED_ROLE } from '../utils/staffPowers.js';   // Session 359 (TODO §293 rule 3)
 import { localDateStr, todayLocalStr, monthEndStr, todayISTStr, istMonthStr, istDayStartUTC, istDayEndUTC } from '../utils/dateUtils.js';
 import {
   NCISM_XX_ROWS, ORG_TREE_DEF, OPD_CHILD_NCISM_CODES,
@@ -806,7 +807,7 @@ window.loadStaffAccess = async function() {
         ?'<span class="chip" style="background:#fdecea;color:#8b1a1a;border:1px solid #f5c6c6;font-weight:700">⚠️ Dept. Admin — Full Access Requested</span>'
         :r.role==='super_admin'
         ?'<span class="chip" style="background:#fdecea;color:#8b1a1a;border:1px solid #f5c6c6;font-weight:700">⚠️ Super Admin Requested</span>'
-        :`<span class="chip g">${_roleLabel(r.role)}</span>`}${requested(r)}</td>
+        :`<span class="chip g">${_esc(_roleLabel(r.role))}</span>`}${requested(r)}</td>
       <td>${_esc(r.phone||'—')}</td>
       <td>${_relDate(r.created_at)}</td>
       <td>
@@ -884,6 +885,8 @@ async function _rejectAndDeleteStaff(targetUserId){
 // medical_record_officer/technician -> mrd_staff (dedicated role+page already exist);
 // ot_technician/cssd_* -> nurse per the documented workaround (TODO_LATER.md §38,
 // no dedicated OT/CSSD role built yet).
+// Session 359 (Q15): designations with deliberately NO default role -- the Super Admin must choose one
+const DESIG_NO_DEFAULT_ROLE = ['administrative_officer'];
 const DESIG_ROLE_DEFAULT = {
   professor:'doctor', hod:'doctor', associate_professor:'doctor', assistant_professor:'doctor',
   senior_resident:'doctor', junior_resident:'doctor',
@@ -903,7 +906,9 @@ const DESIG_ROLE_DEFAULT = {
   // PG/intern's clinical activity be individually logged, which a shared
   // login under a supervising doctor's account would make impossible.
   pg_scholar:'trainee_doctor', intern:'trainee_doctor',
-  administrative_officer:'dept_admin', opd_incharge:'dept_admin',
+  // Session 359 (owner Q7 / Q13 / Q15, 25 Oct 2026): opd_incharge -> doctor (was dept_admin); administrative_officer has NO default --
+  // HR makes the Super Admin pick a role (there is no plain office role; hospitals add accountant individually)
+  opd_incharge:'doctor',
   // Session 112: Nursing Superintendent/Deputy are managerial positions (NCISM lists them
   // under the Administration zone, Sch XX/4-5, not the clinical ward zones) -- they get
   // their own role landing on nursing-admin.html (roster + nursing leave approval +
@@ -2213,18 +2218,21 @@ function _effectiveRoleLabel(roleVal, desig){
 
 function _populatePinvRoleOptions(desig){
   const roleSel = document.getElementById('pinv-role-select');
-  const defaultRole = DESIG_ROLE_DEFAULT[desig] || 'doctor';
+  // Session 359 (Q15): a designation with no default role (administrative_officer) -> no pre-selection; the admin must choose
+  const defaultRole = DESIG_NO_DEFAULT_ROLE.includes(desig) ? '' : (DESIG_ROLE_DEFAULT[desig] || 'doctor');
   // Session 350 (TODO §214): a Dept Admin cannot invite a powerful role -- shown, greyed out (the server refuses it anyway)
   const viewerIsSuper = role === 'super_admin';
   const roleLocked = r => !viewerIsSuper && isPowerfulPosition(r, null);
-  roleSel.replaceChildren(...INVITE_ROLES.map(r=>{
+  const _choose = document.createElement('option');
+  _choose.value = ''; _choose.textContent = '— Choose the role —';
+  roleSel.replaceChildren(_choose, ...INVITE_ROLES.map(r=>{
     const o = document.createElement('option');
     o.value = r;
     o.disabled = roleLocked(r);
     o.textContent = _effectiveRoleLabel(r,desig)+(roleLocked(r)?' (Super Admin only)':'');
     return o;
   }));
-  roleSel.value = INVITE_ROLES.includes(defaultRole) && !roleLocked(defaultRole) ? defaultRole : (INVITE_ROLES.find(r=>!roleLocked(r)) || INVITE_ROLES[0]);
+  roleSel.value = !defaultRole ? '' : INVITE_ROLES.includes(defaultRole) && !roleLocked(defaultRole) ? defaultRole : (INVITE_ROLES.find(r=>!roleLocked(r)) || INVITE_ROLES[0]);
   roleSel.disabled = false;
 
   // Secondary role -- optional, for designations that genuinely need two hats
@@ -2299,6 +2307,8 @@ window.submitPositionInvite = async function(){
   const phone = document.getElementById('pinv-phone').value.trim();
   const email = document.getElementById('pinv-email').value.trim();
   if(!phone && !email){ _toast('Enter a phone number or email to invite.', true); return; }
+  if(!roleVal){ _toast('Choose the HMS login role for this position.', true); return; }   // Session 359 (Q15)
+  { const prob = designationRoleProblem(roleVal, secondaryRoleVal || null, designation); if (prob) { _toast(prob, true); return; } }   // rule 3
   if(secondaryRoleVal && secondaryRoleVal===roleVal){ _toast('Secondary role must be different from HMS Login Role.', true); return; }
   if(isDeptScoped && !deptId){ _toast('This position has no specific department to scope to.', true); return; }
 
@@ -2741,7 +2751,7 @@ async function _renderDeptStaff() {
   const dutyChip=(deptId,profileId)=>{
     const rows=dutyMap[deptId+'|'+profileId];
     if(!rows||!rows.length) return '<span style="font-size:10px;color:#b91c1c;margin-left:4px">· not rostered today</span>';
-    return rows.map(r=>'<span style="font-size:10px;background:#e8f0ff;color:#1a308b;border-radius:6px;padding:1px 6px;margin-left:4px">'+(SHIFT_LABELS[r.shift_type]||r.shift_type)+(r.is_confirmed?'':' (tentative)')+'</span>').join('');
+    return rows.map(r=>'<span style="font-size:10px;background:#e8f0ff;color:#1a308b;border-radius:6px;padding:1px 6px;margin-left:4px">'+_esc(SHIFT_LABELS[r.shift_type]||r.shift_type)+(r.is_confirmed?'':' (tentative)')+'</span>').join('');
   };
 
   // Designation order from DESIGS.lv (lower = senior)
@@ -2852,7 +2862,7 @@ async function _renderDeptStaff() {
     const isPG=dept?.is_pg_dept;
     const pgSeats=dept?.pg_seats_sanctioned||0;
     const showDuty=!!(opts.showDuty&&dept);
-    const badge=s=>'<span title="'+_esc(_dd(s.designation))+'" style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;background:#f0faf5;border:1px solid #b7dfc8;color:#1a4a2e;margin:2px">'+_esc(s.full_name||'?')+'<span style="color:var(--text-muted);margin-left:4px">'+_dl(s.designation)+'</span>'+(showDuty?dutyChip(dept.id,s.id):'')+'</span>';
+    const badge=s=>'<span title="'+_esc(_dd(s.designation))+'" style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;background:#f0faf5;border:1px solid #b7dfc8;color:#1a4a2e;margin:2px">'+_esc(s.full_name||'?')+'<span style="color:var(--text-muted);margin-left:4px">'+_esc(_dl(s.designation))+'</span>'+(showDuty?dutyChip(dept.id,s.id):'')+'</span>';
     const emptyChip=label=>'<span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;background:#fff0f0;border:1px solid #fca5a5;color:#b91c1c;margin:2px">'+label+' — not assigned</span>';
     // Assignment picker candidate pool (Session 137 part 2):
     // - Faculty-only OPD cards (teaching depts + PK/SW OPD clones): ONLY this
@@ -2921,7 +2931,7 @@ async function _renderDeptStaff() {
     // Interns — show for all depts (clinical determined by ncism_code)
     if(interns.length||isClinical){
       const internChip=interns.length
-        ?interns.map(s=>'<span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;background:#fef9ec;border:1px solid #f5c842;color:#854d0e;margin:2px">'+_esc(s.full_name||'?')+'<span style="color:var(--text-muted);margin-left:4px">'+_dl(s.designation)+'</span></span>').join('')
+        ?interns.map(s=>'<span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;background:#fef9ec;border:1px solid #f5c842;color:#854d0e;margin:2px">'+_esc(s.full_name||'?')+'<span style="color:var(--text-muted);margin-left:4px">'+_esc(_dl(s.designation))+'</span></span>').join('')
         :'<span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;background:#fff0f0;border:1px solid #fca5a5;color:#b91c1c;margin:2px">No interns assigned ⚠️</span>';
       rows+='<div style="display:flex;align-items:flex-start;gap:8px;padding:7px 0;border-bottom:1px solid #f0f4f2">'
         +'<div style="min-width:120px;font-size:11px;font-weight:700;color:#854d0e;text-transform:uppercase;padding-top:3px">Interns</div>'
@@ -2952,7 +2962,7 @@ async function _renderDeptStaff() {
       +'<div class="cc-hd ncism-toggle" style="border-bottom:1px solid var(--border);padding-bottom:10px;margin-bottom:4px;cursor:pointer">'
         +'<div>'
           +'<div style="font-weight:700;font-size:14px">'+_esc(dept?dept.name:'—')+pgBadge+'</div>'
-          +'<div style="font-size:11px;color:var(--text-muted);margin-top:2px">'+deptCode+' · <strong>'+staff.length+'</strong> active staff</div>'
+          +'<div style="font-size:11px;color:var(--text-muted);margin-top:2px">'+_esc(deptCode)+' · <strong>'+staff.length+'</strong> active staff</div>'
         +'</div>'
         +'<div style="display:flex;align-items:center;gap:6px">'
           +(!isFacultyOnlyClone&&interns.length===0&&isClinical?'<span style="background:#fff0f0;border:1px solid #fca5a5;color:#b91c1c;padding:2px 8px;border-radius:8px;font-size:11px">⚠️ No interns</span>':'')
@@ -3057,7 +3067,7 @@ async function _renderDeptStaff() {
   // Unassigned staff section
   let unassignedHtml='';
   if(unassigned.length){
-    const ugBadges=unassigned.sort((a,b)=>_lv(a.designation)-_lv(b.designation)).map(s=>'<span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;background:#f8f8f0;border:1px solid #e0dfc0;color:#555;margin:2px">'+_esc(s.full_name||'?')+' <span style="color:var(--text-muted)">'+_dl(s.designation)+' / '+s.role+'</span></span>').join('');
+    const ugBadges=unassigned.sort((a,b)=>_lv(a.designation)-_lv(b.designation)).map(s=>'<span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;background:#f8f8f0;border:1px solid #e0dfc0;color:#555;margin:2px">'+_esc(s.full_name||'?')+' <span style="color:var(--text-muted)">'+_esc(_dl(s.designation))+' / '+_esc(s.role)+'</span></span>').join('');
     unassignedHtml='<div class="cc" style="margin-bottom:12px">'
       +'<div class="cc-hd"><span class="cc-title">⚠️ Staff Without Department Assignment ('+unassigned.length+')</span></div>'
       +'<div style="padding:10px 4px;font-size:12px;color:var(--text-muted);margin-bottom:8px">These active profiles have no department set. Assign them via <strong>All Staff</strong> tab.</div>'
@@ -3148,6 +3158,8 @@ function renderStaffTable(staff){
     let actionCell = '';
     const _actBtn='style="font-size:11px;padding:4px 8px;width:100%;box-sizing:border-box;white-space:normal;text-align:left"';
     const _actBtnDanger='style="font-size:11px;padding:4px 8px;width:100%;box-sizing:border-box;white-space:normal;text-align:left;color:#c0392b;border-color:#e0b0b0"';
+    // Session 359 (Q3 / Q15): the login role + second role -- the active Super Admin only (set_staff_roles: a reason, audited, rule 3)
+    if (canPromote && s.status === 'active' && s.role !== 'super_admin' && s.id !== profile.id && !s.is_platform_admin) actionCell += `<button class="btn-outline" ${_actBtn} data-onclick="openChangeRoles" data-onclick-a0="${_esc(s.id)}">🔁 Change role</button>`;
     if (showPromote) actionCell += `<button class="btn-outline" ${_actBtn} data-onclick="promoteToDeptAdmin" data-onclick-a0="${_esc(s.id)}" data-onclick-a1="${_esc(s.full_name||'this staff member')}" data-onclick-a2="${_esc(s.role)}">⬆ Add Admin Access</button>`;
     if (showRevoke) actionCell += `<button class="btn-outline" ${_actBtnDanger} data-onclick="revokeDeptAdminAccess" data-onclick-a0="${_esc(s.id)}" data-onclick-a1="${_esc(s.full_name||'this staff member')}">⬇ Revoke Admin</button>`;
     if (showGrantMonitor) actionCell += `<button class="btn-outline" ${_actBtn} data-onclick="grantMonitoringAccess" data-onclick-a0="${_esc(s.id)}" data-onclick-a1="${_esc(s.full_name||'this staff member')}">👁 Add Monitoring</button>`;
@@ -3165,10 +3177,11 @@ function renderStaffTable(staff){
     <td><select class="desig-sel" data-id="${s.id}" data-onchange="saveDesig" data-onchange-a0="@this">${DESIG_SEL_HTML}</select></td>
     <td><select class="dept-sel" data-id="${s.id}" data-onchange="saveDept" data-onchange-a0="@this">${_deptSelOptsHtml}</select></td>
     <td>${_esc(s.phone||'—')}</td>
-    <td><span class="chip ${s.is_active?'g':'grey'}">${s.is_active?'Active':s.status}</span></td>
+    <td><span class="chip ${s.is_active?'g':'grey'}">${s.is_active?'Active':_esc(s.status)}</span></td>
     <td style="font-size:12px;color:var(--text-muted)">${_relDate(s.created_at)}</td>
     <td>${actionCell}</td>
-  </tr>`;
+  </tr>
+  <tr id="roles-row-${_esc(s.id)}" hidden><td colspan="8"></td></tr>`;
   }).join('');
   // Two selects share the same data-id per row (designation + department) -- must be
   // scoped by class too, or querySelector's first-match-wins would silently leave the
@@ -3181,6 +3194,52 @@ function renderStaffTable(staff){
     if(deptSel&&s.department_id)deptSel.value=s.department_id;
   });
 }
+
+// Session 359 (TODO §293, owner Q3 / Q15): change a staff member's login role / second role -- an in-page panel (no confirm()), a reason,
+// set_staff_roles() on the server (the active Super Admin only; audited; a designation that needs a role -- Finance Manager, Nursing
+// Superintendent, MS ... -- is checked there: "Give the role ... first")
+window.openChangeRoles = function(staffId){
+  const s = (window._staffAll || []).find(x => x.id === staffId);
+  const row = document.getElementById('roles-row-' + staffId);
+  if (!s || !row) return;
+  const cell = row.firstElementChild;
+  if (!row.hidden) { row.hidden = true; cell.replaceChildren(); return; }
+  const box = document.createElement('div');
+  box.style.cssText = 'padding:10px 12px;border:1.5px solid var(--green-mid);border-radius:8px;background:#f7fbf8;display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end';
+  const mk = (id, label, el) => { const w = document.createElement('label'); w.htmlFor = id; w.style.cssText = 'display:flex;flex-direction:column;font-size:12px;font-weight:600;color:var(--text-mid);gap:3px'; w.textContent = label; el.id = id; w.append(el); return w; };
+  const prim = document.createElement('select'); const sec = document.createElement('select');
+  const noneSec = document.createElement('option'); noneSec.value = ''; noneSec.textContent = '— None —'; sec.append(noneSec);
+  for (const r of INVITE_ROLES) {
+    const o = document.createElement('option'); o.value = r; o.textContent = _roleLabel(r); prim.append(o);
+    if (r !== 'trainee_doctor') { const o2 = document.createElement('option'); o2.value = r; o2.textContent = _roleLabel(r); sec.append(o2); }
+  }
+  prim.value = s.role; sec.value = s.secondary_role || '';
+  const reason = document.createElement('input'); reason.type = 'text'; reason.maxLength = 500; reason.style.cssText = 'min-width:240px;height:36px';
+  const need = DESIG_REQUIRED_ROLE[s.designation];
+  const hint = document.createElement('div'); hint.style.cssText = 'flex-basis:100%;font-size:12px;color:var(--text-mid)';
+  hint.textContent = `${s.full_name || 'This staff member'} — ${DESIG_MAP[s.designation]?.l || s.designation || 'no designation'}` + (need ? ` (this designation needs the role ${_roleLabel(need)}, primary or second)` : '');
+  const msg = document.createElement('div'); msg.setAttribute('role', 'status'); msg.style.cssText = 'flex-basis:100%;font-size:12.5px;font-weight:600;color:#a01a1a';
+  const ok = document.createElement('button'); ok.type = 'button'; ok.className = 'btn-primary'; ok.textContent = 'Save role'; ok.style.minHeight = '36px';
+  const no = document.createElement('button'); no.type = 'button'; no.className = 'btn-outline'; no.textContent = 'Cancel'; no.style.minHeight = '36px';
+  no.addEventListener('click', () => { row.hidden = true; cell.replaceChildren(); });
+  ok.addEventListener('click', async () => {
+    const r = prim.value, sr = sec.value || null, why = reason.value.trim();
+    if (sr && sr === r) { msg.textContent = 'Secondary role must be different from HMS Login Role.'; return; }
+    const prob = designationRoleProblem(r, sr, s.designation);
+    if (prob) { msg.textContent = prob; return; }
+    if (why.length < 5) { msg.textContent = 'Give the reason (at least 5 characters).'; reason.focus(); return; }
+    ok.disabled = true;
+    const { data, error } = await supabase.rpc('set_staff_roles', { p_staff_id: s.id, p_role: r, p_secondary_role: sr, p_reason: why });
+    ok.disabled = false;
+    if (error) { msg.textContent = safeErrorMessage(error, 'Could not change the role.'); return; }
+    _toast(data?.changed ? `${s.full_name || 'Staff member'}: role saved.` : 'Nothing changed.');
+    window.loadHR && window.loadHR('staff');
+  });
+  box.append(hint, mk('roles-prim-' + s.id, 'HMS login role', prim), mk('roles-sec-' + s.id, 'Second role', sec), mk('roles-why-' + s.id, 'Reason (required)', reason), ok, no, msg);
+  cell.replaceChildren(box);
+  row.hidden = false;
+  prim.focus();
+};
 
 // Session 117 -- grants dept_admin as a SECONDARY role now (see
 // promote_to_dept_admin RPC), so the staff member's normal role/landing page
@@ -3437,8 +3496,8 @@ function renderHierarchy(staff){
   const unSection=unassigned.length?`<div class="hcat">
     <div class="hcat-hd" style="background:var(--text-muted)"><span class="hcat-title">Designation Not Set</span><span class="hcat-count">${unassigned.length}</span></div>
     <div>${unassigned.map(s=>`<div class="hrow">
-      <div class="havatar">${(s.full_name||'?')[0].toUpperCase()}</div>
-      <div style="flex:1"><div class="hname">${_esc(s.full_name||'—')}</div><div class="hdesig">${_roleLabel(s.role)} · ${_esc(s.dept_name)}</div></div>
+      <div class="havatar">${_esc((s.full_name||'?')[0].toUpperCase())}</div>
+      <div style="flex:1"><div class="hname">${_esc(s.full_name||'—')}</div><div class="hdesig">${_esc(_roleLabel(s.role))} · ${_esc(s.dept_name)}</div></div>
     </div>`).join('')}</div>
   </div>`:'';
 
@@ -3488,7 +3547,7 @@ window.loadDepts = async function(){
     return `<div class="dept-card${isChild?' dept-child':''}" style="cursor:pointer" data-onclick="openDeptDetail" data-onclick-a0="${d.id}">
       ${isChild?'<div class="dept-child-marker">↳ Sub-unit</div>':''}
       <div class="dept-top">
-        ${showAcademicBadge?`<span class="cat-badge ${cat}">${catLabels[cat]||cat}</span>`:''}
+        ${showAcademicBadge?`<span class="cat-badge ${_esc(cat)}">${_esc(catLabels[cat]||cat)}</span>`:''}
         <div class="dept-name">${_esc(d.name)}</div>
         <div class="dept-code">${d.ncism_code?'NCISM: '+_esc(d.ncism_code):'No NCISM code'}</div>
         ${sharedNote}
@@ -5501,7 +5560,7 @@ window.loadInfraSetup = async function(){
   const{data:depts}=await supabase.from('departments').select('id,name,category').eq('tenant_id',tenantId).order('name');
   const sel=document.getElementById('infra-dept-sel');
   sel.innerHTML='<option value="">— Select a Department —</option>'+
-    (depts||[]).map(d=>`<option value="${d.id}" data-name="${(d.name||'').toLowerCase()}">${_esc(d.name)}</option>`).join('');
+    (depts||[]).map(d=>`<option value="${d.id}" data-name="${_esc((d.name||'').toLowerCase())}">${_esc(d.name)}</option>`).join('');
 };
 
 window.loadInfra = async function(){
@@ -6667,7 +6726,7 @@ async function _loadPkgTemplates() {
     <thead><tr><th>Name</th><th>Type</th><th>Sessions</th><th>Validity</th><th>Price</th><th>Status</th><th></th></tr></thead>
     <tbody>${data.map(p => `<tr>
       <td><strong>${_esc(p.name)}</strong>${p.description ? `<div style="font-size:11px;color:var(--text-muted);margin-top:2px">${_esc(p.description)}</div>` : ''}</td>
-      <td><span class="cat-badge ${PKG_COLORS[p.package_type]||'clinical'}">${PKG_TYPES[p.package_type]||p.package_type}</span></td>
+      <td><span class="cat-badge ${PKG_COLORS[p.package_type]||'clinical'}">${_esc(PKG_TYPES[p.package_type]||p.package_type)}</span></td>
       <td>${p.sessions_total} sessions</td>
       <td>${p.validity_days} days</td>
       <td style="font-weight:600">₹${parseFloat(p.price).toLocaleString('en-IN')}</td>
@@ -6702,7 +6761,7 @@ async function _loadSoldPkgs() {
           <div style="height:4px;background:#eee;border-radius:4px;width:80px;margin-top:3px"><div style="height:4px;background:var(--green-mid);border-radius:4px;width:${pct}%"></div></div>
         </td>
         <td>₹${parseFloat(pp.amount_paid||0).toLocaleString('en-IN')}</td>
-        <td><span style="font-size:11px;font-weight:600;color:${statusCls}">${pp.status}</span></td>
+        <td><span style="font-size:11px;font-weight:600;color:${statusCls}">${_esc(pp.status)}</span></td>
       </tr>`;
     }).join('')}</tbody>
   </table></div>`;
@@ -6791,7 +6850,7 @@ window.searchSellPatient = function() {
     const { data } = isPhone ? await query.eq('phone',q).limit(5) : await query.ilike('name',`%${q}%`).limit(5);
     const res = document.getElementById('sell-pt-results');
     if (!data?.length) { res.style.display = 'none'; return; }
-    res.innerHTML = data.map(p=>`<div style="padding:8px 12px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--border)" data-onclick="selectSellPatient" data-onclick-a0="${_esc(p.id)}" data-onclick-a1="${_esc(p.name)}" data-onclick-a2="${_esc(p.phone||'')}" onmouseover="this.style.background='var(--green-light)'" onmouseout="this.style.background=''"><strong>${_esc(p.name)}</strong> <span style="color:var(--text-muted);font-size:11px">${p.phone||''}</span></div>`).join('');
+    res.innerHTML = data.map(p=>`<div style="padding:8px 12px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--border)" data-onclick="selectSellPatient" data-onclick-a0="${_esc(p.id)}" data-onclick-a1="${_esc(p.name)}" data-onclick-a2="${_esc(p.phone||'')}" onmouseover="this.style.background='var(--green-light)'" onmouseout="this.style.background=''"><strong>${_esc(p.name)}</strong> <span style="color:var(--text-muted);font-size:11px">${_esc(p.phone||'')}</span></div>`).join('');
     res.style.display = '';
   }, 300);
 };
@@ -7139,7 +7198,7 @@ window.loadNabhStatus = async function() {
   el.innerHTML = `
     <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
       <div style="background:${lm.bg};color:${lm.color};font-weight:700;font-size:15px;padding:6px 18px;border-radius:8px">${lm.label}</div>
-      ${cert ? `<div style="font-size:12px;color:var(--text-mid)">Cert No: <strong>${cert}</strong></div>` : '<div style="font-size:12px;color:var(--text-muted);font-style:italic">Certificate number not entered</div>'}
+      ${cert ? `<div style="font-size:12px;color:var(--text-mid)">Cert No: <strong>${_esc(cert)}</strong></div>` : '<div style="font-size:12px;color:var(--text-muted);font-style:italic">Certificate number not entered</div>'}
     </div>
     ${expiryHtml}
     ${level === 'not_accredited' ? '<div style="font-size:12px;color:#8a5c00;margin-top:8px;padding:8px 12px;background:#fffbe6;border-radius:6px;border:1px solid #f4d03f">⚠ NABH Entry Level accreditation is required for new college applications to NCISM (Regulation §3.16)</div>' : ''}`;
@@ -7196,9 +7255,9 @@ window.generateSDF = async function() {
       <div style="padding:10px;background:#e3f0ff;border-radius:8px;text-align:center"><div style="font-size:10px;color:var(--text-muted);text-transform:uppercase">Teleconsultations</div><div style="font-size:24px;font-weight:700;color:#1a4080">${teleVisits.length}</div></div>
       <div style="padding:10px;background:#fdf3e2;border-radius:8px;text-align:center"><div style="font-size:10px;color:var(--text-muted);text-transform:uppercase">IPD Admissions</div><div style="font-size:24px;font-weight:700;color:var(--gold)">${adms.length}</div></div>
     </div>
-    <div style="font-size:12px;margin-bottom:8px"><strong>OPD by Dept:</strong> ${Object.entries(deptOPD).map(([c,n])=>`${c}:${n}`).join(' · ')||'—'}</div>
-    <div style="font-size:12px;margin-bottom:8px"><strong>IPD by Dept:</strong> ${Object.entries(deptIPD).map(([c,n])=>`${c}:${n}`).join(' · ')||'—'}</div>
-    <div style="font-size:12px;margin-bottom:10px"><strong>Staff:</strong> ${Object.entries(roleCounts).map(([r,n])=>`${r}:${n}`).join(' · ')}</div>
+    <div style="font-size:12px;margin-bottom:8px"><strong>OPD by Dept:</strong> ${Object.entries(deptOPD).map(([c,n])=>`${_esc(c)}:${n}`).join(' · ')||'—'}</div>
+    <div style="font-size:12px;margin-bottom:8px"><strong>IPD by Dept:</strong> ${Object.entries(deptIPD).map(([c,n])=>`${_esc(c)}:${n}`).join(' · ')||'—'}</div>
+    <div style="font-size:12px;margin-bottom:10px"><strong>Staff:</strong> ${Object.entries(roleCounts).map(([r,n])=>`${_esc(r)}:${n}`).join(' · ')}</div>
     <div style="font-size:11px;color:var(--text-muted);padding:10px;background:#f5faf7;border-radius:6px">Upload this data to NCISM SDF portal by the 10th. Copy dept-wise OPD + IPD figures into the portal fields.</div>`;
 };
 
@@ -7268,7 +7327,7 @@ window.generateNAMSTE = async function() {
   el.innerHTML = `<div style="font-weight:600;font-size:14px;color:var(--green-deep);margin-bottom:10px">NAMSTE Morbidity — ${month} (${_namsteData.length} conditions)</div>
     <table style="width:100%;border-collapse:collapse;font-size:12px;margin-bottom:12px">
       <thead><tr style="background:#f5faf7"><th style="padding:6px 10px;text-align:left;border-bottom:1.5px solid var(--border)">NAMC Code</th><th style="padding:6px 10px;text-align:left;border-bottom:1.5px solid var(--border)">Condition</th><th style="padding:6px 10px;text-align:right;border-bottom:1.5px solid var(--border)">Cases</th></tr></thead>
-      <tbody>${_namsteData.slice(0,20).map(d=>`<tr><td style="padding:6px 10px;border-bottom:1px solid #f0f4f2;font-weight:600;color:var(--green-deep)">${d.code}</td><td style="padding:6px 10px;border-bottom:1px solid #f0f4f2">${d.label}</td><td style="padding:6px 10px;border-bottom:1px solid #f0f4f2;text-align:right;font-weight:600">${d.count}</td></tr>`).join('')}</tbody>
+      <tbody>${_namsteData.slice(0,20).map(d=>`<tr><td style="padding:6px 10px;border-bottom:1px solid #f0f4f2;font-weight:600;color:var(--green-deep)">${_esc(d.code)}</td><td style="padding:6px 10px;border-bottom:1px solid #f0f4f2">${_esc(d.label)}</td><td style="padding:6px 10px;border-bottom:1px solid #f0f4f2;text-align:right;font-weight:600">${d.count}</td></tr>`).join('')}</tbody>
     </table>
     ${_namsteData.length>20?`<div style="font-size:11px;color:var(--text-muted);margin-bottom:8px">Showing top 20 of ${_namsteData.length}. Use CSV export for full list.</div>`:''}
     <div style="font-size:11px;color:var(--text-muted);padding:10px;background:#f5faf7;border-radius:6px">Export CSV and upload to CCRAS NAMSTE portal. NCISM Reg 39(8).</div>`;
@@ -7785,7 +7844,7 @@ window.testDiscoverMatch = async function() {
 
     resultEl.innerHTML = `<div style="padding:12px 14px;background:#f0faf5;border:1px solid #b8ddc4;border-radius:8px;font-size:13px">
       ✅ Matched <strong>${_esc(data.patient?.name ?? '')}</strong> via ${matchLabel}.
-      <div style="margin-top:8px;font-weight:600;font-size:12px;color:var(--green-deep)">${discoverable} care context${discoverable===1?'':'s'} would be returned to ABDM as discoverable:</div>
+      <div style="margin-top:8px;font-weight:600;font-size:12px;color:var(--green-deep)">${Number(discoverable)||0} care context${Number(discoverable)===1?'':'s'} would be returned to ABDM as discoverable:</div>
       ${unlinkedRows || '<div style="font-size:12px;color:var(--text-muted);margin-top:4px">None — every care context on file is already linked, so discover returns "no records found" (correct: linked records show under the PHR app\'s Linked Facilities).</div>'}
       ${linkedRows ? `<div style="margin-top:10px;font-size:11.5px;color:var(--text-muted)">Already linked (not returned by discover):</div>${linkedRows}` : ''}
     </div>`;

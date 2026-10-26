@@ -23,6 +23,8 @@ import { printDocument } from '../utils/printDocument.js';
 import { mountAlertBell } from '../components/alertBell.js';
 import { loadPendingFollowups } from '../modules/patient/pendingFollowups.js';   // Session 358
 import { noAutofill } from '../utils/noAutofill.js';                               // Session 358 (§285)
+import { canMarkLabUrgent, canSeeLabOutstanding } from '../utils/staffPowers.js';   // Session 359 (§293 / §295)
+import { buildLabReasonPanel } from '../modules/billing/labPayments.js';           // Session 359 (§295)
 import { stageChip, awaitingRows, buildCounterPanel, canWaiveDeposit, SCHEMES } from '../modules/ipd/admissionCounter.js';
 import {
   requestABHAOtp, enrollABHA,
@@ -902,7 +904,7 @@ async function _searchPhone(phone) {
   _confirmNewDespiteName = false;
   const { data } = await supabase
     .from('patients')
-    .select('id, uhid, name, abha_number, abha_address, age, gender, date_of_birth, blood_group, phone, prakriti_data, prakriti_assessed_at, created_at')
+    .select('id, uhid, name, abha_number, abha_address, age, gender, date_of_birth, blood_group, phone, prakriti_data, prakriti_assessed_at, created_at, is_unidentified')   // 359: + is_unidentified (§305)
     .eq('tenant_id', tenantId)
     .eq('phone', phone)
     .limit(6);
@@ -924,7 +926,7 @@ async function _searchName(query) {
   _confirmNewDespiteName = false;
   const { data } = await supabase
     .from('patients')
-    .select('id, uhid, name, abha_number, abha_address, age, gender, date_of_birth, blood_group, phone, prakriti_data, prakriti_assessed_at, created_at')
+    .select('id, uhid, name, abha_number, abha_address, age, gender, date_of_birth, blood_group, phone, prakriti_data, prakriti_assessed_at, created_at, is_unidentified')   // 359: + is_unidentified (§305)
     .eq('tenant_id', tenantId)
     .ilike('name', `%${query}%`)
     .limit(8);
@@ -4497,9 +4499,12 @@ _loadPending();
 
 // ── Pending Lab/Investigation Bills (Session 126) ──
 // Shows lab_orders whose charge hasn't actually been collected yet (payment_status
-// 'pending' = blocking the lab; 'waived' = an emergency bypass already let the lab
-// proceed but the money is still owed) -- reuses bill_items via lab_order_id instead
-// of a parallel ledger, matching the existing Session 124 OPD lab billing rebuild.
+// 'pending' = blocking the lab; 'waived' = "Urgent -- unpaid": the lab may proceed but
+// the money is still owed) -- reuses bill_items via lab_order_id instead of a parallel
+// ledger, matching the existing Session 124 OPD lab billing rebuild.
+// Session 359 (§295): "Urgent" needs a reason and is server-logged (mark_lab_order_urgent); the real fee waiver is the finance
+// manager's / MS's (finance.html -> 🧪 Lab owed & waived). The urgent rows show who, why and for how many days it is owed.
+let _labOwed = {};   // Session 359: lab order id -> list_lab_outstanding() row
 async function loadPendingLabBills() {
   const { data: orders, error } = await supabase
     .from('lab_orders')
@@ -4562,6 +4567,12 @@ async function loadPendingLabBills() {
     });
   }
 
+  _labOwed = {};
+  if (canSeeLabOutstanding(profile) && nowOrders.some(o => o.payment_status === 'waived')) {
+    const { data: owed } = await supabase.rpc('list_lab_outstanding');
+    (owed || []).forEach(r => { _labOwed[r.lab_order_id] = r; });
+  }
+
   const rank = { stat: 0, urgent: 1, routine: 2 };
   const sorted = nowOrders.slice().sort((a, b) =>
     (rank[a.priority] ?? 2) - (rank[b.priority] ?? 2) || new Date(a.created_at) - new Date(b.created_at));
@@ -4583,7 +4594,10 @@ async function loadPendingLabBills() {
     const priorityBadge = o.priority !== 'routine'
       ? `<span class="badge" style="background:#ffe0e0;color:#a01a1a">${_esc(o.priority.toUpperCase())}</span>` : '';
     const waivedBadge = isWaived
-      ? `<span class="badge" style="background:#ffe0cc;color:#7a1a1a">🚨 WAIVED — lab proceeding</span>` : '';
+      ? `<span class="badge" style="background:#ffe0cc;color:#7a1a1a">🚨 URGENT — UNPAID, lab proceeding</span>` : '';
+    const owed = isWaived ? _labOwed[o.id] : null;
+    const owedLine = owed
+      ? `<div class="q-row3" style="color:#7a1a1a">Owed ${_esc(String(owed.days_owed))} day${owed.days_owed === 1 ? '' : 's'} · ${_esc(owed.urgent_by_name || 'ordered STAT by the doctor')}${owed.reason ? ' — ' + _esc(owed.reason) : ''}</div>` : '';
 
     return `<div class="q-item">
       <div class="q-token waiting">${_esc(tokenNo)}</div>
@@ -4591,7 +4605,9 @@ async function loadPendingLabBills() {
         <div class="q-name">${_esc(name)} ${priorityBadge}${waivedBadge}</div>
         <div class="q-row2"><span style="color:var(--text-mid)">${tests}</span></div>
         <div class="q-row3">${_labGst ? 'Est. before GST' : 'Amount due'}: <strong>₹${amount.toFixed(2)}</strong></div>
+        ${owedLine}
         ${_unpricedNoteHtml(o.id)}
+        <div id="lab-urgent-slot-${o.id}"></div>
       </div>
       <div class="q-right" style="display:flex;flex-direction:column;gap:4px;align-items:flex-end">
         <select id="pm-${o.id}" style="height:26px;font-size:11px;border-radius:5px;border:1px solid var(--border)">
@@ -4603,7 +4619,7 @@ async function loadPendingLabBills() {
           style="height:26px;width:120px;font-size:11px;border-radius:5px;border:1px solid var(--border);padding:0 6px">
         <div style="display:flex;gap:4px">
           <button class="q-edit-btn" data-onclick="collectLabPayment" data-onclick-a0="${o.id}" style="width:auto;padding:0 8px;font-size:11px;background:var(--green-mid);color:#fff">💰 Collect</button>
-          ${!isWaived ? `<button class="q-edit-btn" data-onclick="waiveLabPayment" data-onclick-a0="${o.id}" style="width:auto;padding:0 8px;font-size:11px;background:#a01a1a;color:#fff">⚠ Waive</button>` : ''}
+          ${!isWaived && canMarkLabUrgent(profile) ? `<button class="q-edit-btn" data-onclick="waiveLabPayment" data-onclick-a0="${o.id}" style="width:auto;padding:0 8px;font-size:11px;background:#a01a1a;color:#fff" title="Send to the lab before payment -- the charge stays owed">🚨 Urgent</button>` : ''}
         </div>
       </div>
     </div>`;
@@ -4711,12 +4727,20 @@ window.collectLabPayment = async function(orderId) {
   loadPendingLabBills();
 };
 
-window.waiveLabPayment = async function(orderId) {
-  if (!confirm('Waive payment for this investigation? The lab will proceed immediately; this still shows as owed until collected manually later.')) return;
-  const { error } = await supabase.from('lab_orders').update({ payment_status: 'waived' }).eq('id', orderId);
-  if (error) { _alert('error', safeErrorMessage(error, 'Could not waive payment.')); return; }
-  _alert('success', 'Payment waived — lab can proceed.');
-  loadPendingLabBills();
+// Session 359 (§295, owner Q4): "Urgent -- proceed before payment" -- an in-page panel with the reason (no confirm()); the server checks
+// who (receptionist / cashier / Super Admin), logs who / when / why / the amount, and the order stays owed until collected.
+window.waiveLabPayment = function(orderId) {
+  const slot = document.getElementById('lab-urgent-slot-' + orderId);
+  if (!slot) return;
+  if (slot.childElementCount) { slot.replaceChildren(); return; }
+  const priced = _labPriced[orderId] || { lines: [] };
+  const row = slot.closest('.q-item');
+  slot.append(buildLabReasonPanel({ supabase, mode: 'urgent',
+    feeIds: priced.lines.map(l => l.fee_structure_id).filter(Boolean),
+    order: { id: orderId, patient_name: row?.querySelector('.q-name')?.childNodes[0]?.textContent?.trim(),
+             tests: row?.querySelector('.q-row2')?.textContent?.trim(), amount: priced.lines.reduce((s, l) => s + (Number(l.price) || 0), 0) },
+    onDone: m => { _alert('success', m); loadPendingLabBills(); },
+    onClose: () => slot.replaceChildren() }));
 };
 
 // ── Admission Requests (Session 205 cont.) ──────────────────────────
@@ -5477,7 +5501,7 @@ async function checkIn(apptId) {
 
   const { data: patient } = await supabase
     .from('patients')
-    .select('id, uhid, name, abha_number, abha_address, age, gender, date_of_birth, blood_group, phone, prakriti_data, prakriti_assessed_at, created_at')
+    .select('id, uhid, name, abha_number, abha_address, age, gender, date_of_birth, blood_group, phone, prakriti_data, prakriti_assessed_at, created_at, is_unidentified')   // 359: + is_unidentified (§305)
     .eq('id', appt.patient_id).single();
 
   if (patient) {

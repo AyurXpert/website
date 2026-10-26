@@ -17,6 +17,8 @@ import { mountTaxApprovals, TAX_APPROVAL_TYPES } from '../modules/tax/taxApprova
 import { mountTaxProfiles } from '../modules/tax/taxProfiles.js';
 import { mountGstReturns } from '../modules/tax/gstReturns.js';   // Session 345m (GST Stage 7a)
 import { loadDepositWaivers, canSeeWaiverReport } from '../modules/ipd/admissionCounter.js';   // Session 357c (B5)
+import { loadLabOutstanding, loadLabWaivers } from '../modules/billing/labPayments.js';           // Session 359 (§295)
+import { canSeeLabOutstanding, canWaiveLabBill } from '../utils/staffPowers.js';                  // Session 359 (§293)
 
 wireDelegatedEvents();
 
@@ -82,6 +84,14 @@ window.switchSub = function(grp, sub, el) {
   }
   if (sub === 'depwaivers') {   // Session 357c (B5): read-only, re-read on every open
     loadDepositWaivers({ supabase, container: document.getElementById('depwaivers-root'), countEl: document.getElementById('depwaivers-count') });
+  }
+  if (sub === 'labowed') {   // Session 359 (§295): re-read on every open
+    loadLabOutstanding({ supabase, tenantId: getCurrentTenantId(), profile: _profile, container: document.getElementById('labowed-root'),
+      countEl: document.getElementById('labowed-count') });
+    if (canWaiveLabBill(_profile)) {
+      document.getElementById('labwaivers-wrap').hidden = false;
+      loadLabWaivers({ supabase, container: document.getElementById('labwaivers-root'), countEl: document.getElementById('labwaivers-count') });
+    }
   }
   if (sub === 'pharmreturns') {
     if (!_prQueue) _prQueue = mountReturnsQueue(document.getElementById('pharmreturns-root'), { supabase, onCount: _setPrBadge, onDecided: () => window.loadAll() });
@@ -149,6 +159,9 @@ if (_GST_REPORT_ROLES.includes(_role) || _GST_REPORT_ROLES.includes(getCurrentSe
 }
 // Session 357c (B5, owner 25 Oct 2026): the deposit-waiver report -- the finance manager (primary / second role), the MS, the Super Admin
 if (canSeeWaiverReport(_profile)) document.getElementById('tab-depwaivers').hidden = false;
+// Session 359 (§295, owner Q6): urgent lab orders still owed -- reception, cashier, accountant, finance manager, Super Admin, the MS (view);
+// the Waive button + the waiver report: the finance manager (role) / MS / Super Admin (Q5)
+if (canSeeLabOutstanding(_profile) || canWaiveLabBill(_profile)) document.getElementById('tab-labowed').hidden = false;
 // Expenses & Audits -> GST (owner, 15 Oct 2026: the old fixed-rate estimate removed) -> opens Revenue Tracking -> 📑 GST returns
 window.openGstReturns = function() {
   const grp = document.querySelector('.grp-tab[data-grp="revenue"]');

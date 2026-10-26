@@ -238,7 +238,7 @@ p:last-child{margin-bottom:0}
       <div class="role-card">
         <div class="role-name">Dept Admin</div>
         <div class="role-home">→ admin.html</div>
-        <div class="role-desc">Department-level management. Can approve fees at dept level, manage OPDs and IPD setup.</div>
+        <div class="role-desc">Department-level management. Creates fees; approves a fee's first step as the department head; manages OPDs and IPD setup.</div>
       </div>
       <div class="role-card">
         <div class="role-name">Doctor</div>
@@ -429,16 +429,16 @@ p:last-child{margin-bottom:0}
        ══════════════════════════════════════════════ -->
   <div class="section" id="setup-fees">
     <div class="section-title">4. Fee Structures</div>
-    <p>Page: <strong>fee-admin.html</strong> &nbsp;|&nbsp; Access: super_admin, dept_admin, accountant</p>
-    <p>Fees have a <strong>3-level approval workflow</strong>: Accountant creates → Dept Admin approves → Super Admin activates.</p>
+    <p>Page: <strong>fee-admin.html</strong> &nbsp;|&nbsp; Access: accountant and Dept Admin (create fees), the head of a department, the Medical Superintendent, the Finance Manager, the Super Admin</p>
+    <p>A new fee is always <strong>Pending</strong>. It needs two approvals: the <strong>head of the fee's department</strong>, then the <strong>Medical Superintendent, the Finance Manager or the Super Admin</strong>. A fee with no department needs only the second approval. The Medical Director and the Principal do not approve fees.</p>
 
     <div class="steps">
-      <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Create a fee (Accountant / Dept Admin)</div><div class="step-desc">Click "+ New Fee". Select OPD, fee type (Registration / Consultation / Procedure / Investigation / Package), enter amount, label. Status = <strong>pending</strong>.</div></div></div>
-      <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Dept Admin approval</div><div class="step-desc">Dept admin sees pending fees and clicks "Dept Approve". Status → <strong>dept_approved</strong>.</div></div></div>
-      <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Super Admin activation</div><div class="step-desc">Super admin sees dept-approved fees and clicks "Activate". Status → <strong>active</strong>. Now this fee appears in Reception when creating a bill.</div></div></div>
+      <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Create a fee (Accountant / Dept Admin)</div><div class="step-desc">Click "+ New Fee". Select OPD, fee type (Registration / Consultation / Procedure / Investigation / Package), enter amount, label. Status = <strong>Pending</strong>.</div></div></div>
+      <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Department head (step 1)</div><div class="step-desc">The head of that department clicks "✓ Approve (department)". Status → <strong>Dept. Approved</strong>.</div></div></div>
+      <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Final approval</div><div class="step-desc">The Medical Superintendent, the Finance Manager or the Super Admin clicks "⚡ Final approval". Status → <strong>Active</strong>. Now this fee appears in Reception when creating a bill. Someone who is both the department head and a final approver does both steps with one click.</div></div></div>
     </div>
 
-    <div class="tip"><strong>Shortcut:</strong> Super admin can bypass dept approval and directly activate any fee.</div>
+    <div class="tip"><strong>Rules:</strong> nobody approves a fee they created themselves — except an organisation's only Super Admin, whose own approval is marked ⚑ in the "📜 Fee approval log". A rejection needs a reason. Only the Super Admin changes an active fee or a promo price, and the admission advance policy.</div>
   </div>
 
   <!-- ══════════════════════════════════════════════

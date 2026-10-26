@@ -471,6 +471,24 @@ export function safeErrorMessage(error, fallback = 'Something went wrong. Please
   if (['42501','22023'].includes(error?.code) && /^The (phone|address|date of birth|blood group) is already recorded|^The \w[\w ]* is not completed here/.test(error?.message || '')) {
     return error.message;
   }
+  // Session 359 (TODO §293 / §295): fee approval, the role rule (rule 3), the lab Urgent / waiver, the roles of an account, the nursing head
+  const S359_MSGS = ['A new fee starts as Pending', 'A fee is approved, activated or rejected only', 'Only an active Super Admin can deactivate a fee',
+    'Only an active Super Admin can set or clear a promo price', 'An active fee is changed only by the Super Admin', 'Choose approve or reject',
+    'Choose between 1 and 1000 fees', 'A rejection needs a reason', 'Fee not found in your organisation', 'You cannot approve or reject a fee you created yourself',
+    'Fee "', 'Only the head of the fee', 'The final approval of a fee', 'Only a Pending or Dept. Approved fee', 'Choose a period of up to one year',
+    'Give the role ', 'Only an active receptionist, cashier or the Super Admin', 'Lab order not found in your organisation', 'Give the reason (5 to 500',
+    'Only an open, unpaid order', 'A listed price is not an active lab', 'Only the Finance Manager, the Medical Superintendent or the Super Admin can waive',
+    'Only an unpaid OPD order', 'This test is already on a bill', 'The order has no priced test', 'Use "Urgent -- proceed before payment"',
+    "Only an active Super Admin can change a staff member's role", 'Staff member not found in your organisation', 'You cannot change your own role',
+    'The role of a Super Admin is not changed here', "Only an active account's role", 'Choose a valid role', 'Secondary role must be different',
+    'Delegate must be an active Deputy Nursing Superintendent', 'Only super_admin can promote staff', 'Staff member must be an active account',
+    "This is the organisation's last active Super Admin"];
+  if (['P0001','42501','22023','23514'].includes(error?.code) && S359_MSGS.some(m => error?.message?.startsWith(m))) {
+    return error.message;
+  }
+  if (error?.code === '42501' && error?.message === 'Not authorized') {   // 359: an inactive / relieved account, or no right at all
+    return 'Your account is not allowed to do this (it may not be active). Ask the Super Admin.';
+  }
   if (error?.code === '42501' && /^permission denied for (table|column) doctor_alerts/.test(error?.message || '')) {
     return 'Only your own alerts can be opened or marked read.';
   }

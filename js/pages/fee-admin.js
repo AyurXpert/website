@@ -1,4 +1,6 @@
 import { requireAuth, getCurrentProfile, getCurrentTenant, getCurrentTenantId, getCurrentRole, getCurrentSecondaryRole } from '../core/auth.js';
+import { canOpenFeeAdmin, canMakeFee, canEditFeeContent, feeDecision, isFeeFinalApprover, canChangeAdvancePolicy } from '../utils/staffPowers.js';   // Session 359
+import { ROLE_HOME } from '../config/constants.js';
 import { initNavbar } from '../components/navbar.js';
 import { supabase } from '../core/db/supabaseClient.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
@@ -9,7 +11,12 @@ import { notify } from '../components/notify.js';
 
 // accountant = maker: creates fees as pending, edits/deletes only their own pending ones;
 // an admin approves (sql/session305c_fee_admin_accountant_maker.sql enforces this in RLS).
-await requireAuth(['dept_admin','super_admin','accountant']);
+// Session 359 (TODO §293, owner Q7 / Q12 / Q14): approving is decide_fees() only -- step 1 = the head of the fee's department, the final
+// step = the Medical Superintendent / the Finance Manager (role) / the Super Admin; a fee with no department needs only the final step;
+// the maker never decides their own fee (a sole Super Admin's self-approval is flagged in the approval log). Who sees which button:
+// js/utils/staffPowers.js -- the server decides.
+await requireAuth(['dept_admin','super_admin','accountant','finance_manager','doctor']);
+if (!canOpenFeeAdmin(getCurrentProfile())) window.location.replace(ROLE_HOME[getCurrentRole()] || 'index.html');
 initNavbar();
 wireDelegatedEvents();
 
@@ -17,11 +24,7 @@ const profile   = getCurrentProfile();
 const tenant    = getCurrentTenant();
 const tenantId  = getCurrentTenantId();
 const role      = getCurrentRole();
-// Session 123 -- a secondary_role='dept_admin' caller (e.g. Medical Director/
-// MS whose primary role is doctor) counts as dept_admin-tier here too --
-// buildActions() below used to check the raw primary role only, so they
-// could reach this page but never saw a single action button.
-const isDeptAdminTier = role === 'dept_admin' || getCurrentSecondaryRole() === 'dept_admin';
+// Session 359: who sees which fee button = js/utils/staffPowers.js (primary OR second role, active; the server decides)
 const userId    = profile.id;
 const facType   = tenant?.type || 'clinic';
 
@@ -62,12 +65,15 @@ document.getElementById('fac-cats').textContent  =
 const roleBadge = document.getElementById('role-badge');
 const roleLabels = {
   accountant:  { text: 'Accountant — Can create fees', cls: 'accountant' },
-  dept_admin:  { text: 'Dept. Admin — Can approve fees', cls: 'dept_admin' },
+  dept_admin:  { text: 'Dept. Admin — Creates fees; approves step 1 as department head', cls: 'dept_admin' },
+  finance_manager: { text: 'Finance Manager — Final approval of fees', cls: 'dept_admin' },
+  doctor:      { text: 'Head of Department — Approves fees of the department (step 1)', cls: 'dept_admin' },
   super_admin: { text: 'Super Admin — Full control', cls: 'super_admin' }
 };
 // Session 358 (TODO §292): a secondary-role dept_admin (MS / MD / Principal ...) has a primary role with no label -- the label comes
 // from the second role then, and an empty class is never added (classList.add('') throws and stopped the whole page)
-const rl = roleLabels[role] || roleLabels[getCurrentSecondaryRole()] || { text: role || 'Staff', cls: '' };
+const rl = (profile?.designation === 'medical_superintendent' && { text: 'Medical Superintendent — Final approval of fees', cls: 'dept_admin' })
+  || roleLabels[role] || roleLabels[getCurrentSecondaryRole()] || { text: role || 'Staff', cls: '' };
 roleBadge.textContent = rl.text;
 if (rl.cls) roleBadge.classList.add(rl.cls);
 
@@ -80,10 +86,58 @@ if (role === 'accountant') {
 }
 // Session 357c (Q6): the advance policy now decides the insurance deposit too -- only the (active) Super Admin changes it (server-checked,
 // audited); others see it read-only
-if (role !== 'super_admin') {
+// Session 359 (§306, owner Q10): disabled -- not just readOnly, which still looked editable -- and the 🔒 note shown
+if (!canChangeAdvancePolicy(profile)) {
   document.getElementById('advpol-save').style.display = 'none';
   document.getElementById('advpol-readonly-note').style.display = '';
-  ['advpol-self-pay', 'advpol-insurance', 'advpol-default-insurance-advance'].forEach(id => { document.getElementById(id).readOnly = true; });
+  ['advpol-self-pay', 'advpol-insurance', 'advpol-default-insurance-advance'].forEach(id => {
+    const inp = document.getElementById(id);
+    inp.disabled = true; inp.setAttribute('aria-describedby', 'advpol-readonly-note');
+  });
+}
+
+// ── Session 359 (owner Q12): the fee approval log, last 31 days -- a sole Super Admin's self-approval is FLAGGED ──
+if (isFeeFinalApprover(profile) || canEditFeeContent(profile)) {
+  const card = document.createElement('div');
+  card.id = 'fee-log-card';
+  card.style.cssText = 'background:#fff;border:1.5px solid var(--border);border-radius:10px;padding:14px 18px;margin-bottom:16px';
+  const head = document.createElement('div');
+  head.style.cssText = 'display:flex;gap:10px;align-items:center;flex-wrap:wrap';
+  const h = document.createElement('div'); h.style.cssText = 'font-weight:700;font-size:14px;color:var(--green-deep)'; h.textContent = '📜 Fee approval log (last 31 days)';
+  const b = document.createElement('button'); b.type = 'button'; b.className = 'act-btn act-edit'; b.id = 'fee-log-show'; b.textContent = 'Show';
+  const out = document.createElement('div'); out.id = 'fee-log-out'; out.setAttribute('role', 'status'); out.style.cssText = 'font-size:12px;margin-top:8px;overflow-x:auto';
+  head.append(h, b); card.append(head, out);
+  document.getElementById('advance-policy-card')?.after(card);
+  b.addEventListener('click', async () => {
+    const to = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
+    const from = new Date(to); from.setDate(from.getDate() - 31);
+    const iso = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const { data, error } = await supabase.rpc('fee_approval_log', { p_from: iso(from), p_to: iso(to) });
+    out.replaceChildren();
+    if (error) { out.textContent = safeErrorMessage(error, 'Could not load the approval log.'); return; }
+    if (!data?.length) { out.textContent = 'No fee was approved or rejected in the last 31 days.'; return; }
+    const t = document.createElement('table'); t.style.cssText = 'width:100%;border-collapse:collapse';
+    const tr0 = document.createElement('tr');
+    for (const c of ['When', 'Fee', 'Amount', 'Department', 'Decision', 'By', 'Reason', 'Flag']) {
+      const th = document.createElement('th'); th.style.cssText = 'text-align:left;padding:5px;border-bottom:1.5px solid var(--border);color:var(--text-mid)'; th.textContent = c; tr0.append(th);
+    }
+    t.append(tr0);
+    const what = { fee_approved_step1: 'Approved (department)', fee_activated: 'Activated', fee_rejected: 'Rejected',
+      fee_price_changed: 'Price changed — back to Pending for approval' };   // owner B5 (26 Oct 2026)
+    for (const r of data) {
+      const tr = document.createElement('tr');
+      for (const v of [new Date(r.decided_at).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }),
+                       r.label, r.amount != null ? '₹' + Number(r.amount).toLocaleString('en-IN') : '—', r.department_name || 'No department',
+                       // owner B2 (26 Oct 2026): a one-press approval of both steps says so
+                       r.action === 'fee_activated' && r.step === 'both' ? 'Activated — both steps by the same person' : (what[r.action] || r.action), r.decided_by_name, r.reason, r.self_approved_sole_admin ? '⚑ Self-approved (only Super Admin)' : '']) {
+        const td = document.createElement('td'); td.style.cssText = 'padding:5px;border-bottom:1px solid var(--border);vertical-align:top'; td.textContent = v || '—';
+        if (v && String(v).startsWith('⚑')) td.style.cssText += ';color:#7a4a00;font-weight:700';
+        tr.append(td);
+      }
+      t.append(tr);
+    }
+    out.append(t);
+  });
 }
 
 // ── NCISM/Ayush benchmark-rate catalog (Session 207) ──────────────────────
@@ -367,9 +421,10 @@ const CLAIMED_DEPT_NAMES = new Set([
 
 // ── Approval text per role ────────────────────────
 const APPROVAL_TEXT = {
-  accountant:  'Your submission will be sent to the Department Admin for approval before it becomes active.',
-  dept_admin:  'Your submission will go to you for approval. You can approve it immediately after saving.',
-  super_admin: 'As Super Admin, you can activate this fee immediately or save it as active directly.'
+  accountant:  'Your submission goes to the head of its department (step 1), then the Medical Superintendent, the Finance Manager or the Super Admin (final). A fee with no department needs only the final step.',
+  dept_admin:  'Your submission goes to the head of its department (step 1), then the Medical Superintendent, the Finance Manager or the Super Admin (final). You cannot approve a fee you created yourself.',
+  finance_manager: 'Your submission goes to the head of its department and another final approver -- you cannot approve a fee you created yourself.',
+  super_admin: "As Super Admin you give the final approval. A fee you create yourself is activated only if you are the organisation's only active Super Admin -- it is then flagged in the approval log."
 };
 
 // ── Load OPDs ─────────────────────────────────────
@@ -659,36 +714,20 @@ function buildActions(f) {
   const own = f.created_by === userId;
   let btns  = '';
 
-  if (role === 'accountant') {
-    if (own && s === 'pending') {
-      btns += `<button class="act-btn act-edit" data-onclick="openEdit" data-onclick-a0="${f.id}">Edit</button>`;
-      btns += `<button class="act-btn act-delete" data-onclick="deleteFee" data-onclick-a0="${f.id}">Delete</button>`;
-    }
+  // the maker (accountant / admin tier): edit / delete his own Pending fee; a Rejected one may be corrected and sent again
+  if (canMakeFee(profile) && role !== 'super_admin' && own && (s === 'pending' || (s === 'rejected' && canEditFeeContent(profile)))) {
+    btns += `<button class="act-btn act-edit" data-onclick="openEdit" data-onclick-a0="${f.id}">Edit</button>`;
+    if (s === 'pending') btns += `<button class="act-btn act-delete" data-onclick="deleteFee" data-onclick-a0="${f.id}">Delete</button>`;
   }
 
-  if (isDeptAdminTier) {
-    if (s === 'pending') {
-      btns += `<button class="act-btn act-approve" data-onclick="approveFee" data-onclick-a0="${f.id}">✓ Approve</button>`;
-      btns += `<button class="act-btn act-reject"  data-onclick="rejectFee" data-onclick-a0="${f.id}">✗ Reject</button>`;
-    }
-    if (s === 'dept_approved') {
-      btns += `<button class="act-btn act-reject" data-onclick="rejectFee" data-onclick-a0="${f.id}">✗ Reject</button>`;
-    }
-    if (own && s === 'pending') {
-      btns += `<button class="act-btn act-edit" data-onclick="openEdit" data-onclick-a0="${f.id}">Edit</button>`;
-    }
-  }
+  // Session 359: approve / reject = decide_fees (the server checks the department head / final approver and the maker rule)
+  const d = feeDecision(profile, f);
+  const saBoth = role === 'super_admin' && s === 'pending';
+  if (d.approve) btns += `<button class="act-btn ${s === 'dept_approved' || saBoth ? 'act-activate' : 'act-approve'}" data-onclick="approveFee" data-onclick-a0="${f.id}">${_esc(saBoth ? '⚡ Approve & Activate' : d.label)}</button>`;
+  if (d.reject) btns += `<button class="act-btn act-reject" data-onclick="rejectFee" data-onclick-a0="${f.id}">✗ Reject</button>`;
 
   if (role === 'super_admin') {
     btns += `<button class="act-btn act-edit" data-onclick="openEdit" data-onclick-a0="${f.id}">Edit</button>`;
-    if (s !== 'active') {
-      if (s === 'dept_approved') {
-        btns += `<button class="act-btn act-activate" data-onclick="activateFee" data-onclick-a0="${f.id}" data-onclick-a1="@false">⚡ Activate</button>`;
-      }
-      if (s === 'pending') {
-        btns += `<button class="act-btn act-bypass" data-onclick="activateFee" data-onclick-a0="${f.id}" data-onclick-a1="@true">⚡ Bypass &amp; Activate</button>`;
-      }
-    }
     if (s === 'active') {
       btns += `<button class="act-btn act-reject" data-onclick="deactivateFee" data-onclick-a0="${f.id}">Deactivate</button>`;
       // Session 125 -- promo pricing deliberately not offered on tiered
@@ -699,9 +738,6 @@ function buildActions(f) {
           : `<button class="act-btn act-edit" data-onclick="openPromoModal" data-onclick-a0="${f.id}">🎁 Set Promo</button>`;
       }
     }
-    if (s !== 'rejected' && s !== 'active') {
-      btns += `<button class="act-btn act-reject" data-onclick="rejectFee" data-onclick-a0="${f.id}">✗ Reject</button>`;
-    }
     btns += `<button class="act-btn act-delete" data-onclick="deleteFee" data-onclick-a0="${f.id}">Delete</button>`;
   }
 
@@ -709,32 +745,36 @@ function buildActions(f) {
 }
 
 // ── Approval actions ──────────────────────────────
+// Session 359: one server call for both steps; the message says which step was given (a sole Super Admin's own fee is flagged)
+function _decisionToast(r) {
+  if (!r) return 'Done.';
+  if (r.rejected) return `Fee rejected (${r.rejected}).`;
+  const parts = [];
+  if (r.activated) parts.push(`${r.activated} activated`);
+  if (r.step1) parts.push(`${r.step1} approved for the department — waiting for the final approval`);
+  return (parts.join(', ') || 'Done') + (r.self_approved_sole_admin ? ' — self-approved as the only Super Admin (flagged in the approval log).' : '.');
+}
+async function _decide(ids, decision, reason) {
+  const { data, error } = await supabase.rpc('decide_fees', { p_fee_ids: ids, p_decision: decision, p_reason: reason || null });
+  if (error) { toast(safeErrorMessage(error, decision === 'reject' ? 'Could not reject the fee.' : 'Could not approve the fee.'), 'error'); return null; }
+  return data;
+}
 window.approveFee = async function(id) {
-  await supabase.from('fee_structures').update({
-    approval_status: 'dept_approved',
-    approved_by_dept: userId
-  }).eq('id', id);
-  toast('Fee approved by department.', 'success');
+  const r = await _decide([id], 'approve');
+  if (r) toast(_decisionToast(r), 'success');
   loadFees();
 };
-
-window.activateFee = async function(id, bypass) {
-  await supabase.from('fee_structures').update({
-    approval_status: 'active',
-    is_active: true,
-    approved_by_super: userId
-  }).eq('id', id);
-  toast(bypass ? 'Fee bypassed and activated.' : 'Fee activated.', 'success');
-  loadFees();
-};
+window.activateFee = window.approveFee;
 
 window.deactivateFee = async function(id) {
-  await supabase.from('fee_structures').update({
+  const { error } = await supabase.from('fee_structures').update({
     approval_status: 'pending',
     is_active: false,
+    approved_by_dept: null,
     approved_by_super: null
   }).eq('id', id);
-  toast('Fee deactivated.', 'success');
+  if (error) { toast(safeErrorMessage(error, 'Could not deactivate the fee.'), 'error'); return; }
+  toast('Fee deactivated — it is Pending again and needs a new approval.', 'success');
   loadFees();
 };
 
@@ -793,14 +833,38 @@ window.clearPromo = async function(id) {
   loadFees();
 };
 
-window.rejectFee = async function(id) {
-  if (!confirm('Reject this fee? It will be marked as rejected.')) return;
-  await supabase.from('fee_structures').update({
-    approval_status: 'rejected',
-    is_active: false
-  }).eq('id', id);
-  toast('Fee rejected.', 'success');
-  loadFees();
+// Session 359: a rejection needs a reason (5-500) -- an in-page panel under the fee's row (no confirm())
+window.rejectFee = function(id) {
+  const tr = document.querySelector(`tr[data-id="${CSS.escape(id)}"]`);
+  const f = _allFees.find(x => x.id === id);
+  document.getElementById('fee-reject-row')?.remove();
+  const row = document.createElement('tr'); row.id = 'fee-reject-row';
+  const cell = document.createElement('td'); cell.colSpan = 6; row.append(cell);
+  const box = document.createElement('div');
+  box.style.cssText = 'padding:10px 12px;border:1.5px solid var(--red,#a01a1a);border-radius:8px;background:#fff6f4';
+  const lab = document.createElement('label'); lab.htmlFor = 'fee-reject-reason';
+  lab.style.cssText = 'display:block;font-size:12.5px;font-weight:600;margin-bottom:4px';
+  lab.textContent = `Reject "${f?.label || 'this fee'}" — reason (required, 5–500 characters)`;
+  const ta = document.createElement('textarea'); ta.id = 'fee-reject-reason'; ta.maxLength = 500;
+  ta.style.cssText = 'width:100%;min-height:54px;padding:8px;border:1.5px solid var(--border);border-radius:7px;font:inherit;box-sizing:border-box';
+  const msg = document.createElement('div'); msg.setAttribute('role', 'status'); msg.style.cssText = 'font-size:12.5px;font-weight:600;color:#a01a1a;margin:4px 0';
+  const ok = document.createElement('button'); ok.type = 'button'; ok.className = 'act-btn act-reject'; ok.id = 'fee-reject-ok'; ok.textContent = 'Reject the fee';
+  const no = document.createElement('button'); no.type = 'button'; no.className = 'act-btn act-edit'; no.textContent = 'Cancel';
+  no.addEventListener('click', () => row.remove());
+  ok.addEventListener('click', async () => {
+    const reason = ta.value.trim();
+    if (reason.length < 5) { msg.textContent = 'Give the reason (at least 5 characters).'; ta.focus(); return; }
+    ok.disabled = true;
+    const r = await _decide([id], 'reject', reason);
+    ok.disabled = false;
+    if (!r) return;
+    toast(_decisionToast(r), 'success');
+    loadFees();
+  });
+  const act = document.createElement('div'); act.style.cssText = 'display:flex;gap:8px;margin-top:6px'; act.append(ok, no);
+  box.append(lab, ta, msg, act); cell.append(box);
+  if (tr) tr.after(row);
+  ta.focus();
 };
 
 window.deleteFee = async function(id) {
@@ -1025,6 +1089,10 @@ window.saveFee = async function() {
   btn.classList.add('loading'); btn.disabled = true;
 
   const isSuperAdmin = role === 'super_admin';
+  // Session 359: a fee is saved as Pending (a new one, or a corrected Rejected one) -- approval is decide_fees only; editing an Active
+  // fee (the Super Admin) keeps its status. "Save & Activate" = save, then the Super Admin's final approval (refused for his own fee
+  // unless he is the organisation's only active Super Admin).
+  const before = _editId ? _allFees.find(x => x.id === _editId) : null;
   const payload = {
     tenant_id:       tenantId,
     label,
@@ -1036,24 +1104,34 @@ window.saveFee = async function() {
     department_id:   deptId,
     service_group:   groupTag,
     pricing_mode:    tiered ? 'tiered' : 'flat',
-    approval_status: isSuperAdmin ? 'active' : 'pending',
-    is_active:       isSuperAdmin,
-    created_by:      userId,
-    ...(isSuperAdmin ? { approved_by_super: userId } : {})
+    ...(!before ? { approval_status: 'pending', is_active: false, created_by: userId } : {}),
+    ...(before?.approval_status === 'rejected' ? { approval_status: 'pending' } : {}),
   };
 
-  let error;
+  let error, savedId = _editId;
   if (_editId) {
     ({ error } = await supabase.from('fee_structures').update(payload).eq('id', _editId));
   } else {
-    ({ error } = await supabase.from('fee_structures').insert(payload));
+    let row;
+    ({ data: row, error } = await supabase.from('fee_structures').insert(payload).select('id').single());
+    savedId = row?.id;
   }
 
   btn.classList.remove('loading'); btn.disabled = false;
 
   if (error) { toast(safeErrorMessage(error, 'Could not save fee.'), 'error'); return; }
 
-  toast(_editId ? 'Fee updated.' : (isSuperAdmin ? 'Fee saved and activated.' : 'Fee submitted for approval.'), 'success');
+  // owner B5 (26 Oct 2026): a PRICE change of an Active / Dept. Approved fee sends it back to Pending (the server does it) -- approval again
+  const priceChanged = !!before && ['active', 'dept_approved'].includes(before.approval_status)
+    && (Number(before.amount) !== Number(amount) || (before.pricing_mode || 'flat') !== payload.pricing_mode);
+  if (isSuperAdmin && savedId && (before?.approval_status !== 'active' || priceChanged)) {
+    const r = await _decide([savedId], 'approve');
+    closeModal();
+    if (r) toast('Fee saved — ' + _decisionToast(r), 'success');
+    loadFees();
+    return;
+  }
+  toast(priceChanged ? 'Price changed — the fee is Pending again and needs approval.' : _editId ? 'Fee updated.' : 'Fee submitted for approval.', 'success');
   closeModal();
   loadFees();
 };
@@ -1375,17 +1453,20 @@ window.runQuickSetup = async function() {
     department_id:   t.dept ? (deptByCode[t.dept] || null) : null,
     service_group:   t.group || null,
     pricing_mode:    'flat',
-    approval_status: isSA ? 'active' : 'pending',
-    is_active:       isSA,
+    approval_status: 'pending',   // Session 359: approved through decide_fees
+    is_active:       false,
     created_by:      userId,
-    ...(isSA ? { approved_by_super: userId } : {})
   }));
 
-  const { error } = await supabase.from('fee_structures').insert(rows);
+  const { data: added, error } = await supabase.from('fee_structures').insert(rows).select('id');
 
   btn.classList.remove('loading'); btn.disabled = false;
 
   if (error) { toast(safeErrorMessage(error, 'Could not add services.'), 'error'); return; }
+  if (isSA && added?.length) {   // the Super Admin's final approval (a sole Super Admin's own fees: flagged in the approval log)
+    const r = await _decide(added.map(a => a.id), 'approve');
+    if (!r) { closeQuickSetup(); loadFees(); return; }
+  }
 
   if (skippedCount) {
     toast(`${selected.length} service${selected.length > 1 ? 's' : ''} added, ${skippedCount} already existed and were skipped.`, 'success');
@@ -1704,7 +1785,7 @@ async function loadBedMultipliers() {
 
 window.openBedMultipliers = function() {
   const wrap = document.getElementById('bcm-grid');
-  const readOnly = role === 'accountant';
+  const readOnly = !canEditFeeContent(profile);   // Session 359: only the admin tier saves multipliers (server: _fee_structures_write_ok)
 
   wrap.innerHTML = _bedMultipliers.length
     ? _bedMultipliers.map(m => `

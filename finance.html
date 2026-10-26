@@ -220,6 +220,8 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--green-mi
       <button class="sub-tab" id="tab-gstreturns" hidden data-onclick="switchSub" data-onclick-a0="revenue" data-onclick-a1="gstreturns" data-onclick-a2="@this">📑 GST returns</button>
       <!-- Session 357c (B5, owner 25 Oct 2026): the admission deposit-waiver report, read-only -- the finance manager / MS / Super Admin -->
       <button class="sub-tab" id="tab-depwaivers" hidden data-onclick="switchSub" data-onclick-a0="revenue" data-onclick-a1="depwaivers" data-onclick-a2="@this">🛏️ Deposit waivers</button>
+      <!-- Session 359 (§295, owner Q5 / Q6): urgent lab orders still owed + the lab fee waivers (shown by finance.js; the server decides) -->
+      <button class="sub-tab" id="tab-labowed" hidden data-onclick="switchSub" data-onclick-a0="revenue" data-onclick-a1="labowed" data-onclick-a2="@this">🧪 Lab owed &amp; waived</button>
       <a class="sub-tab" href="shift-close.html?tab=review" style="text-decoration:none;display:inline-flex;align-items:center">🤝 Shift handovers</a>
     </div>
 
@@ -304,6 +306,18 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--green-mi
       <div class="cc-hd" style="display:flex;gap:10px;align-items:baseline;margin-bottom:8px"><span style="font-family:'Cormorant Garamond',serif;font-size:20px;font-weight:700;color:var(--green-deep)">🛏️ Admission deposit waivers</span>
         <span id="depwaivers-count" role="status" style="font-size:12px;color:var(--text-mid)"></span></div>
       <div id="depwaivers-root"></div>
+    </div>
+
+    <!-- Session 359 (§295): urgent lab orders still owed (Waive = the finance manager / MS / Super Admin) + the monthly lab waiver report -->
+    <div class="sub-panel" id="sub-labowed">
+      <div class="cc-hd" style="display:flex;gap:10px;align-items:baseline;margin-bottom:8px"><span style="font-family:'Cormorant Garamond',serif;font-size:20px;font-weight:700;color:var(--green-deep)">🧪 Urgent lab orders — still owed</span>
+        <span id="labowed-count" role="status" style="font-size:12px;color:var(--text-mid)"></span></div>
+      <div id="labowed-root"></div>
+      <div id="labwaivers-wrap" hidden style="margin-top:22px">
+        <div class="cc-hd" style="display:flex;gap:10px;align-items:baseline;margin-bottom:8px"><span style="font-family:'Cormorant Garamond',serif;font-size:20px;font-weight:700;color:var(--green-deep)">Lab fee waivers</span>
+          <span id="labwaivers-count" role="status" style="font-size:12px;color:var(--text-mid)"></span></div>
+        <div id="labwaivers-root"></div>
+      </div>
     </div>
 
     <!-- Credit notes sub-panel (Session 345h, GST Stage 6c) -->
