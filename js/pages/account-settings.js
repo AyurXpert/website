@@ -212,6 +212,12 @@ window.switchAccountTab = function (name, btnEl) {
   document.querySelectorAll('.acct-tab').forEach(b => b.classList.toggle('active', b === btnEl));
   document.querySelectorAll('.acct-panel').forEach(p => p.classList.toggle('active', p.id === `panel-${name}`));
 };
+// Session 362: ?tab=leave / ?tab=security opens that tab (the Office home page links straight to it)
+{
+  const _tab = new URLSearchParams(window.location.search).get('tab');
+  const _btn = ['leave', 'security'].includes(_tab) ? document.querySelector(`.acct-tab[data-onclick-a0="${_tab}"]`) : null;
+  if (_btn) window.switchAccountTab(_tab, _btn);
+}
 
 // ── My Profile ─────────────────────────────────────────────────────────────
 const _uid = getCurrentProfile()?.id;

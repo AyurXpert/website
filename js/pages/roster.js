@@ -23,7 +23,8 @@ import { notify } from '../components/notify.js';
 // (Medical Director defaults to role='dept_admin' directly; Medical Superintendent already gets
 // full access today via secondary_role='dept_admin', see the _canEdit fix below) -- so this one
 // line is what actually grants Deputy MS's first-ever access to this page.
-await requireAuth(['super_admin', 'dept_admin', 'nurse_manager', 'nurse'], 'login.html', { monitoringSafe: true });
+// Session 362 (TODO §312): + office_staff -- view only (never _canEdit; the server refuses an office-only account every roster write)
+await requireAuth(['super_admin', 'dept_admin', 'nurse_manager', 'nurse', 'office_staff'], 'login.html', { monitoringSafe: true });
 initNavbar();
 wireDelegatedEvents();
 
@@ -36,6 +37,9 @@ const role     = getCurrentRole();
 // hidden for her regardless -- read-only in the UI despite having genuine edit rights server-side.
 let _canEdit   = role === 'super_admin' || role === 'dept_admin' || getCurrentSecondaryRole() === 'dept_admin'; // refined once headship resolves, for nurse_manager
 let _holidays  = new Map(); // 'YYYY-MM-DD' -> occasion name, for the visible week
+// Session 362: an office-ONLY account may not read other staff members' profiles (default deny) -- the roster's names come from
+// roster_staff_names() (names only, own organisation)
+const _officeOnly = role === 'office_staff' && !getCurrentSecondaryRole();
 
 // This page was originally built as the doctor RMO/EMO/GDMO on-call duty
 // roster (NCISM §51(5)) and later reused wholesale for the Nursing Duty
@@ -299,6 +303,7 @@ async function loadRoster() {
   if (deptFilter) q = q.eq('department_id', deptFilter);
   const [{ data }] = await Promise.all([q, loadHolidays()]);
   _roster = data || [];
+  if (_officeOnly) await _fillRosterNames(_roster);
   await computeOffByDate(dates);
   renderRoster();
   renderOnCall();
@@ -308,6 +313,16 @@ async function loadRoster() {
   // fetching/rendering leave-tab data on every load for viewers who never
   // open it, e.g. plain nurses who can't see the tab at all).
   if (_nursingStaffOff.length) renderWeeklyOff();
+}
+
+// Session 362: the names an office-only viewer cannot embed from profiles
+async function _fillRosterNames(rows) {
+  const ids = [...new Set(rows.filter(r => r.profile_id && !r.profiles?.full_name).map(r => r.profile_id))];
+  if (!ids.length) return;
+  const { data, error } = await supabase.rpc('roster_staff_names', { p_ids: ids });
+  if (error) { console.warn('[roster] roster_staff_names:', error.message); return; }
+  const byId = new Map((data || []).map(x => [x.id, x.full_name]));
+  rows.forEach(r => { if (byId.has(r.profile_id)) r.profiles = { full_name: byId.get(r.profile_id) }; });
 }
 
 // Session 167: "who's off today" derived straight from ground truth -- a pool

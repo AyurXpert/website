@@ -521,10 +521,21 @@ function updateStats() {
   document.getElementById('stat-active').textContent  = active;
   document.getElementById('stat-pending').textContent = pending;
   document.getElementById('stat-dept').textContent    = dept;
+  document.getElementById('stat-rejected').textContent = _allFees.filter(f => f.approval_status === 'rejected').length;
   document.getElementById('stat-total').textContent   = _allFees.length;
 }
 
-window.filterFees = function() { renderTable(); };
+// Session 362 (TODO §313): the Status filter (the select and the count cards stay in step); it combines with the group tabs and
+// the search, and the "Current View" CSV / PDF follow it
+function _syncStatusCards() {
+  const v = document.getElementById('status-filter').value;
+  document.querySelectorAll('[data-status-card]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.statusCard === v)));
+}
+window.filterFees = function() { _syncStatusCards(); renderTable(); };
+window.setFeeStatusFilter = function(status) {
+  document.getElementById('status-filter').value = status || '';
+  window.filterFees();
+};
 
 // ── Group tabs (Session 109/110) ───────────────────
 // Two-level nav. The 11 `alwaysShow` groups in GROUP_CONFIG (Administration, OPD, IPD,
@@ -659,6 +670,9 @@ function renderTable() {
   if (_activeGroup === 'ipd' && _activeSub === 'room') { renderRoomTariffTable(); return; }
 
   const rows = _currentFilteredFees();
+  const _stSel = document.getElementById('status-filter');
+  document.getElementById('status-filter-count').textContent = _stSel?.value
+    ? `${rows.length} ${_stSel.options[_stSel.selectedIndex].text.toLowerCase()} shown` : '';   // Session 362 (TODO §313)
 
   const tbody = document.getElementById('fee-tbody');
   if (!rows.length) {
@@ -1588,8 +1602,10 @@ function _matchesActiveGroup(f) {
 
 function _currentFilteredFees() {
   const q = document.getElementById('search-input').value.toLowerCase();
+  const st = document.getElementById('status-filter')?.value || '';   // Session 362 (TODO §313)
   return _allFees.filter(f => {
     if (!_matchesActiveGroup(f)) return false;
+    if (st && (f.approval_status || 'pending') !== st) return false;
     if (q && !f.label?.toLowerCase().includes(q) &&
              !f.fee_type?.toLowerCase().includes(q) &&
              !f.notes?.toLowerCase().includes(q)) return false;

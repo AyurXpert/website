@@ -124,7 +124,8 @@ function _buildGroups(role, type, secondaryRole, hasMonitoringAccess, isDeptScop
         // just above all already include 'nurse').
         // Session 205 (cont.): same mirror-image gap as nursing.html above -- roster.js's
         // requireAuth() already allows 'nurse_manager' (Session 137), nav item never caught up.
-        { href:'roster.html',        label:'Duty Roster',     roles:ADMIN_ROLES.concat(['nurse','nurse_manager']),types:HOSP, module:'hr'         },
+        // Session 362 (TODO §312): office_staff views the roster (roster.js requireAuth; view only)
+        { href:'roster.html',        label:'Duty Roster',     roles:ADMIN_ROLES.concat(['nurse','nurse_manager','office_staff']),types:HOSP, module:'hr' },
         { href:'facility-ops.html',  label:'Facility Ops',    roles:ADMIN_ROLES.concat(['nurse','receptionist']), types:HOSP, module:'hr'    },
         { href:'emergency.html',     label:'Emergency OPD',   roles:CLINICAL.concat(['receptionist']),       types:HOSP, module:'emergency'  },
         // Session 205 (cont.): labour-room.js's requireAuth() already allows 'receptionist'
@@ -162,6 +163,7 @@ function _buildGroups(role, type, secondaryRole, hasMonitoringAccess, isDeptScop
         // other role clicking it got silently bounced straight back to their own ROLE_HOME, no
         // message, no explanation. Narrowed to ADMIN_ROLES to match the destination exactly.
         { href:'admin.html',             label:'Dashboard',        roles:ADMIN_ROLES,                                          types:null  },
+        { href:'office.html',            label:'Office',           roles:['office_staff'],                                     types:null  },   // Session 362
         { href:'finance.html',           label:'Finance',          roles:['super_admin','dept_admin','accountant','cashier','finance_manager','receptionist'], types:null, module:'finance'  },
         { href:'insurance-claims.html',  label:'Insurance Claims', roles:['super_admin','dept_admin','accountant'],             types:null, module:'finance'  },
         { href:'hr.html',                label:'HR',               roles:['super_admin','dept_admin'],                         types:null, module:'hr'       },
@@ -585,7 +587,7 @@ function _roleLabel(role) {
   return { super_admin:'Super Admin', dept_admin:'Dept. Admin', doctor:'Doctor', receptionist:'Receptionist',
     pharmacist:'Pharmacist', nurse:'Nurse', nurse_manager:'Nurse Manager', lab_tech:'Lab Technician', accountant:'Accountant',
     cashier:'Cashier', finance_manager:'Finance Manager', student:'Student', therapist:'Therapist',
-    diet_staff:'Diet / Pathya Staff', mrd_staff:'Medical Records Staff' }[role] || role;
+    diet_staff:'Diet / Pathya Staff', mrd_staff:'Medical Records Staff', office_staff:'Office Staff' }[role] || role;
 }
 
 // Session 113 -- role alone ("Receptionist") was showing for a Registration Clerk / Billing

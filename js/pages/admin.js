@@ -886,7 +886,11 @@ async function _rejectAndDeleteStaff(targetUserId){
 // ot_technician/cssd_* -> nurse per the documented workaround (TODO_LATER.md §38,
 // no dedicated OT/CSSD role built yet).
 // Session 359 (Q15): designations with deliberately NO default role -- the Super Admin must choose one
-const DESIG_NO_DEFAULT_ROLE = ['administrative_officer'];
+// Session 362 (TODO §312): the Office Superintendent (key opd_incharge, kept for old data) too -- an office post, not a doctor
+const DESIG_NO_DEFAULT_ROLE = ['administrative_officer', 'opd_incharge'];
+// Session 362 (Q5): the staffing counts put these office posts in the "Office / Administration" group (role office_staff) --
+// a COUNT bucket only, never a pre-selected login role
+const STAFFING_ROLE_BUCKET = { opd_incharge: 'office_staff', administrative_officer: 'office_staff' };
 const DESIG_ROLE_DEFAULT = {
   professor:'doctor', hod:'doctor', associate_professor:'doctor', assistant_professor:'doctor',
   senior_resident:'doctor', junior_resident:'doctor',
@@ -906,9 +910,8 @@ const DESIG_ROLE_DEFAULT = {
   // PG/intern's clinical activity be individually logged, which a shared
   // login under a supervising doctor's account would make impossible.
   pg_scholar:'trainee_doctor', intern:'trainee_doctor',
-  // Session 359 (owner Q7 / Q13 / Q15, 25 Oct 2026): opd_incharge -> doctor (was dept_admin); administrative_officer has NO default --
-  // HR makes the Super Admin pick a role (there is no plain office role; hospitals add accountant individually)
-  opd_incharge:'doctor',
+  // Session 362 (TODO §312): opd_incharge (the Office Superintendent) has NO default role any more (359 had set doctor) -- see
+  // DESIG_NO_DEFAULT_ROLE; the Super Admin chooses (usually Office Staff)
   // Session 112: Nursing Superintendent/Deputy are managerial positions (NCISM lists them
   // under the Administration zone, Sch XX/4-5, not the clinical ward zones) -- they get
   // their own role landing on nursing-admin.html (roster + nursing leave approval +
@@ -1217,7 +1220,7 @@ function _ncismRoleMinimums(ug){
   _designationRollup(ug, [], undefined, fac).forEach(row => {
     if (row.facultyHeld) return;
     const total = row.ugTotal + row.pgAddon;
-    if (total) add(DESIG_ROLE_DEFAULT[row.key], total);
+    if (total) add(STAFFING_ROLE_BUCKET[row.key] || DESIG_ROLE_DEFAULT[row.key], total);
   });
 
   return byRole;
@@ -2203,8 +2206,9 @@ const totalOrgStaff = await _count('profiles',[['tenant_id',tenantId],['is_activ
 // (e.g. a Deputy Medical Superintendent who should get dept_admin access
 // instead of the plain doctor default). DESIG_ROLE_DEFAULT still supplies the
 // pre-selected default so the common case needs no extra click.
+// Session 362 (TODO §312): + office_staff (the server's three lists of roles that may be given: signup / invite / Change role)
 const INVITE_ROLES = ['doctor','trainee_doctor','receptionist','pharmacist','nurse','nurse_manager','lab_tech',
-  'therapist','accountant','cashier','finance_manager','student','diet_staff','mrd_staff','dept_admin'];
+  'therapist','accountant','cashier','finance_manager','student','diet_staff','mrd_staff','office_staff','dept_admin'];
 
 // Apex admin-zone designations whose dept_admin option shows their own title
 // (e.g. "Medical Director (Dean/Principal/Director)") instead of the generic
@@ -2435,6 +2439,7 @@ const STAFFING_PLAN_ROLE_ORDER = [
   {role:'receptionist', icon:'🏥', label:'Receptionists'},
   {role:'therapist',    icon:'🌸', label:'Therapists'},
   {role:'dept_admin',   icon:'🏛️', label:'Administrative Officers'},
+  {role:'office_staff', icon:'🗂️', label:'Office / Administration'},   // Session 362 (Q5)
   {role:'accountant',   icon:'💰', label:'Finance & Accounts'},
   {role:'mrd_staff',    icon:'📋', label:'Medical Records'},
   {role:'diet_staff',   icon:'🍲', label:'Diet / Pathya'},
@@ -2533,7 +2538,7 @@ const totalOrgStaff = await _count('profiles',[['tenant_id',tenantId],['is_activ
   const STAFFING_PLAN_ROLE_ALIAS = {finance_manager:'accountant'};
   const byRole = {};
   rollupRows.forEach(row=>{
-    const role = STAFFING_PLAN_ROLE_ALIAS[row.key] || DESIG_ROLE_DEFAULT[row.key] || 'other';
+    const role = STAFFING_PLAN_ROLE_ALIAS[row.key] || STAFFING_ROLE_BUCKET[row.key] || DESIG_ROLE_DEFAULT[row.key] || 'other';
     (byRole[role] = byRole[role] || []).push(row);
   });
   // Session 160: STAFFING_PLAN_ROLE_ORDER is now a PREFERRED order + icon/label lookup, not a
@@ -6042,7 +6047,7 @@ async function _collectedToday(){
   }catch{return 0;}
 }
 function _fmt(n){if(!n)return'₹0';if(n>=100000)return'₹'+(n/100000).toFixed(1)+'L';if(n>=1000)return'₹'+(n/1000).toFixed(1)+'K';return'₹'+Math.round(n);}
-function _roleLabel(r){return{super_admin:'Super Admin',dept_admin:'Dept. Admin',doctor:'Doctor',trainee_doctor:'Trainee Doctor (PG/Intern)',receptionist:'Receptionist',pharmacist:'Pharmacist',nurse:'Nurse',nurse_manager:'Nurse Manager',lab_tech:'Lab Technician',accountant:'Accountant',cashier:'Cashier',finance_manager:'Finance Manager',therapist:'Therapist',student:'Student',diet_staff:'Diet / Pathya Staff',mrd_staff:'Medical Records Staff'}[r]||r;}
+function _roleLabel(r){return{super_admin:'Super Admin',dept_admin:'Dept. Admin',doctor:'Doctor',trainee_doctor:'Trainee Doctor (PG/Intern)',receptionist:'Receptionist',pharmacist:'Pharmacist',nurse:'Nurse',nurse_manager:'Nurse Manager',lab_tech:'Lab Technician',accountant:'Accountant',cashier:'Cashier',finance_manager:'Finance Manager',therapist:'Therapist',student:'Student',diet_staff:'Diet / Pathya Staff',mrd_staff:'Medical Records Staff',office_staff:'Office Staff'}[r]||r;}
 function _tenantLabel(t){return{clinic:'Clinic',hospital:'Hospital',teaching_hospital:'Teaching Hospital',pk_center:'PK Centre',dispensary:'Dispensary',college:'Ayurveda College',pharma:'Pharmaceutical Co.',supplier:'Supplier',dealer:'Dealer',journal:'Journal'}[t]||'Healthcare';}
 function _relDate(iso){if(!iso)return'—';const d=Math.floor((Date.now()-new Date(iso))/60000);if(d<60)return d+'m ago';if(d<1440)return Math.floor(d/60)+'h ago';return Math.floor(d/1440)+'d ago';}
 function _esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
@@ -7520,6 +7525,45 @@ window.saveFacilityRegistration = async function() {
   if (statusEl) statusEl.innerHTML = statusHtml;
 };
 
+// §320 (Session 362): the two public links of the organisation, each with a Copy button -- the hospital's own sign-in page and the
+// teleconsultation timetable (consultant-availability.html). Built from DOM nodes; the links are public, nothing secret.
+const PUBLIC_SITE = 'https://ayurxpert.com';
+function _renderPublicLinks() {
+  const box = document.getElementById('orgp-links');
+  if (!box) return;
+  box.querySelectorAll('.orgp-link-row').forEach(n => n.remove());
+  const code = tenant?.tenant_code;
+  if (!code) return;
+  const links = [
+    { id: 'orgp-link-login', label: 'Sign-in page', url: `${PUBLIC_SITE}/login.html?t=${encodeURIComponent(code)}` },
+    { id: 'orgp-link-tele', label: 'Teleconsultation timetable (for patients)', url: `${PUBLIC_SITE}/consultant-availability.html?tenant=${encodeURIComponent(code)}` },
+  ];
+  for (const l of links) {
+    const row = document.createElement('div');
+    row.className = 'orgp-link-row';
+    row.style.cssText = 'display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:10px';
+    const lab = document.createElement('label');
+    lab.htmlFor = l.id; lab.textContent = l.label;
+    lab.style.cssText = 'flex-basis:100%;font-size:11px;font-weight:600;color:var(--text-mid);text-transform:uppercase;letter-spacing:.5px';
+    const inp = document.createElement('input');
+    inp.id = l.id; inp.type = 'text'; inp.readOnly = true; inp.value = l.url;
+    inp.style.cssText = 'flex:1;min-width:220px;height:40px;border:1.5px solid var(--border);border-radius:8px;padding:0 10px;font:inherit;font-size:13px;background:var(--cream)';
+    inp.addEventListener('focus', () => inp.select());
+    const btn = document.createElement('button');
+    btn.type = 'button'; btn.className = 'btn-outline btn-sm'; btn.textContent = 'Copy'; btn.style.minHeight = '44px';
+    btn.setAttribute('aria-label', `Copy the ${l.label.toLowerCase()} link`);
+    const st = document.createElement('span');
+    st.setAttribute('role', 'status'); st.style.cssText = 'font-size:12px;color:var(--green-deep);min-width:52px';
+    btn.addEventListener('click', async () => {
+      try { await navigator.clipboard.writeText(l.url); st.textContent = 'Copied'; }
+      catch { inp.focus(); inp.select(); st.textContent = 'Press Ctrl+C'; }
+      setTimeout(() => { st.textContent = ''; }, 2000);
+    });
+    row.append(lab, inp, btn, st);
+    box.append(row);
+  }
+}
+
 // Session 183 — "Organisation Profile" panel. register.html has a one-time logo/
 // tagline/address/GSTIN upload at signup; nothing ever let an already-registered
 // tenant edit or add these afterward (real gap, confirmed live — a tenant that
@@ -7552,6 +7596,7 @@ window.loadOrgProfile = function() {
   document.getElementById('orgp-save-btn').style.display = iAmSuperAdmin ? '' : 'none';
   document.getElementById('orgp-readonly-note').style.display = iAmSuperAdmin ? 'none' : '';
   document.getElementById('orgp-status').textContent = '';
+  _renderPublicLinks();   // §320 (Session 362)
   window.updateOrgPreview();
 };
 

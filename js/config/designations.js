@@ -124,6 +124,7 @@ export const ROLE_DUTY_FALLBACK = {
   student:         'Academic training placement — no independent clinical or administrative duties yet.',
   diet_staff:      'Ayurvedic Pathya-Apathya diet planning and kitchen indent fulfilment.',
   mrd_staff:       'Medical records filing, retrieval and MLC register upkeep.',
+  office_staff:    'Office administration — own profile, leave and the duty roster (view only); no patient, money or clinical records.',
 };
 
 // Session 350 (TODO §214): a DISPLAY copy of the server's single list _is_powerful_position()

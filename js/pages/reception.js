@@ -4508,7 +4508,7 @@ let _labOwed = {};   // Session 359: lab order id -> list_lab_outstanding() row
 async function loadPendingLabBills() {
   const { data: orders, error } = await supabase
     .from('lab_orders')
-    .select('id, priority, payment_status, created_at, due_timing, due_by, order_date, performed_outside, status, visits(token_number, patient_id, patients(name, phone)), lab_order_items(test_name, panel_label)')
+    .select('id, priority, payment_status, created_at, due_timing, due_by, order_date, performed_outside, status, visits(token_number, patient_id, patients(name, phone, uhid)), lab_order_items(test_name, panel_label)')
     .eq('tenant_id', tenantId)
     // Session 127 -- a trainee doctor's still-unreviewed draft order shouldn't
     // reach the payment counter at all until a supervising doctor finalizes it.
@@ -4574,14 +4574,20 @@ async function loadPendingLabBills() {
   }
 
   const rank = { stat: 0, urgent: 1, routine: 2 };
-  const sorted = nowOrders.slice().sort((a, b) =>
+  const sortedAll = nowOrders.slice().sort((a, b) =>
     (rank[a.priority] ?? 2) - (rank[b.priority] ?? 2) || new Date(a.created_at) - new Date(b.created_at));
 
-  const totalCount = sorted.length + deferred.length;
+  const totalCount = sortedAll.length + deferred.length;
   document.getElementById('labbills-count').textContent = totalCount ? `(${totalCount})` : '';
-  const list = document.getElementById('lab-bills-list');
-  if (!totalCount) {
-    list.innerHTML = `<div class="q-empty"><div class="q-empty-icon">✅</div><div class="q-empty-text">No pending lab/investigation bills</div></div>` + await _collectedLabBillsHtml();
+  // Session 362 (TODO §313): the search (name / UHID / phone) narrows all three groups; the tab count stays the full count
+  const q = _labSearchTerm();
+  const sorted = sortedAll.filter(o => _labMatches(o.visits?.patients, q));
+  const deferredShown = deferred.filter(o => _labMatches(o.visits?.patients, q));
+  document.getElementById('lab-bills-search-count').textContent = q ? `Showing ${sorted.length + deferredShown.length} of ${totalCount} pending` : '';
+  const list = document.getElementById('lab-bills-items');
+  if (!sorted.length && !deferredShown.length) {
+    const none = q ? 'No pending lab bill matches the search' : 'No pending lab/investigation bills';
+    list.innerHTML = `<div class="q-empty"><div class="q-empty-icon">✅</div><div class="q-empty-text">${_esc(none)}</div></div>` + await _collectedLabBillsHtml(q);
     return;
   }
 
@@ -4597,7 +4603,7 @@ async function loadPendingLabBills() {
       ? `<span class="badge" style="background:#ffe0cc;color:#7a1a1a">🚨 URGENT — UNPAID, lab proceeding</span>` : '';
     const owed = isWaived ? _labOwed[o.id] : null;
     const owedLine = owed
-      ? `<div class="q-row3" style="color:#7a1a1a">Owed ${_esc(String(owed.days_owed))} day${owed.days_owed === 1 ? '' : 's'} · ${_esc(owed.urgent_by_name || 'ordered STAT by the doctor')}${owed.reason ? ' — ' + _esc(owed.reason) : ''}</div>` : '';
+      ? `<div class="q-row3" style="color:#7a1a1a">Owed ${_esc(String(owed.days_owed))} day${owed.days_owed === 1 ? '' : 's'} · ${_esc(owed.urgent_by_name || (owed.reason ? 'ordered STAT by the doctor' : 'marked urgent before the log existed'))}${owed.reason ? ' — ' + _esc(owed.reason) : ''}</div>` : '';
 
     return `<div class="q-item">
       <div class="q-token waiting">${_esc(tokenNo)}</div>
@@ -4623,24 +4629,43 @@ async function loadPendingLabBills() {
         </div>
       </div>
     </div>`;
-  }).join('') + _deferredLabBillsHtml(deferred, estimateByOrder) + await _collectedLabBillsHtml();
+  }).join('') + _deferredLabBillsHtml(deferredShown, estimateByOrder) + await _collectedLabBillsHtml(q);
 }
 
+// Session 362 (TODO §313): the Lab Bills search -- at least 2 characters; a name part, the UHID or the phone digits
+function _labSearchTerm() {
+  const v = (document.getElementById('lab-bills-search')?.value || '').trim().toLowerCase();
+  return v.length >= 2 ? v : '';
+}
+function _labMatches(p, q) {
+  if (!q) return true;
+  const digits = q.replace(/\D/g, '');
+  return String(p?.name || '').toLowerCase().includes(q) || String(p?.uhid || '').toLowerCase().includes(q)
+    || (digits.length >= 4 && String(p?.phone || '').replace(/\D/g, '').includes(digits));
+}
+let _labSearchTimer = null;
+window.filterLabBills = function() {
+  clearTimeout(_labSearchTimer);
+  _labSearchTimer = setTimeout(loadPendingLabBills, 250);
+};
+
 // Today's collected lab / investigation bills, each reprintable with its receipt (Session 327).
-async function _collectedLabBillsHtml() {
+async function _collectedLabBillsHtml(q = '') {
   if (!_canReprint) return '';
   const start = new Date(istDayStartUTC(todayISTStr()));
   const { bills, payByBill } = await _billsWithReceipts(q => q.eq('bill_type', 'investigation').gte('created_at', start.toISOString()).limit(40));
   if (!bills.length) return '';
   const ids = [...new Set(bills.map(b => b.patient_id).filter(Boolean))];
-  const names = {};
+  const names = {}, pts = {};
   if (ids.length) {
-    const { data: pts } = await supabase.from('patients').select('id, name').eq('tenant_id', tenantId).in('id', ids);
-    (pts || []).forEach(p => { names[p.id] = p.name; });
+    const { data: rows } = await supabase.from('patients').select('id, name, uhid, phone').eq('tenant_id', tenantId).in('id', ids);
+    (rows || []).forEach(p => { names[p.id] = p.name; pts[p.id] = p; });
   }
+  const shown = bills.filter(b => _labMatches(pts[b.patient_id], q));   // Session 362 (TODO §313): the search applies here too
+  if (!shown.length) return '';
   const t = d => new Date(d).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
   return `<div style="padding:12px 12px 4px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted)">✅ Collected today — print again</div>`
-    + bills.map(b => `<div class="q-item" style="align-items:center">
+    + shown.map(b => `<div class="q-item" style="align-items:center">
         <div class="q-info">
           <div class="q-name">${_esc(names[b.patient_id] || '—')}</div>
           <div class="q-row3">${_esc(t(b.created_at))} · ${_esc(String(b.payment_mode || '').toUpperCase())} · <strong>₹${Number(b.final_amount || 0).toLocaleString('en-IN')}</strong></div>

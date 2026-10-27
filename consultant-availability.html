@@ -23,6 +23,11 @@ html,body{min-height:100%;font-family:'DM Sans',sans-serif;background:var(--crea
 .pub-header{background:var(--green-deep);padding:32px 24px;text-align:center}
 .pub-header h1{font-family:'Cormorant Garamond',serif;font-size:30px;font-weight:600;color:#fff;margin-bottom:4px}
 .org-type-lbl{font-size:13px;color:rgba(255,255,255,.6);margin-bottom:6px}
+/* §321 (Session 362): the organisation's logo (else its first letter), as on login.html */
+.org-logo-wrap{display:flex;justify-content:center;margin-bottom:12px}
+.org-logo-wrap:empty{display:none}
+.org-logo-img{width:72px;height:72px;object-fit:contain;border-radius:14px;background:#fff;padding:4px}
+.org-logo-letter{width:72px;height:72px;border-radius:14px;background:var(--gold);color:#fff;display:flex;align-items:center;justify-content:center;font-family:'Cormorant Garamond',serif;font-size:36px;font-weight:600}
 .org-tagline{font-size:13px;color:rgba(255,255,255,.75);font-style:italic;margin-bottom:10px}
 .ncism-tag{display:inline-block;background:rgba(201,144,42,.2);border:1px solid rgba(201,144,42,.4);color:#e8b84b;font-size:11px;font-weight:600;padding:3px 10px;border-radius:20px;letter-spacing:.4px}
 
@@ -111,6 +116,7 @@ html,body{min-height:100%;font-family:'DM Sans',sans-serif;background:var(--crea
 
 <!-- Public header — no navbar -->
 <div class="pub-header">
+  <div class="org-logo-wrap" id="org-logo-wrap"></div>
   <h1 id="org-name">Loading…</h1>
   <div class="org-type-lbl" id="org-type"></div>
   <div class="org-tagline" id="org-tagline" style="display:none"></div>

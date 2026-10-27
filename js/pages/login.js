@@ -2,6 +2,7 @@ import { login, verifyMfaAndFinishLogin, verifyBackupCodeAndFinishLogin } from '
 import { supabase } from '../core/db/supabaseClient.js';
 import { isValidEmail } from '../utils/validators.js';
 import { RETURN_KEY, safeReturnPath } from '../utils/signInGate.js';
+import { getRememberedOrgCode, forgetOrgCode } from '../utils/rememberedOrg.js';
 
 // §118 -- login.html?next=<print page>: after login, return to the document the user was trying to open.
 // Only our own print pages are accepted (safeReturnPath); a login without ?next= clears any older one.
@@ -24,14 +25,16 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') overlay.clas
 // ── Tenant branding ───────────────────────────────────────────────────────────
 (async () => {
   const params = new URLSearchParams(window.location.search);
-  const code   = (params.get('t') || params.get('org') || sessionStorage.getItem('pending_tenant_code') || '').toUpperCase().trim();
+  // §319 (Session 362): ?t= / ?org= first, then this tab's pending code, then the organisation this browser last signed in to
+  const fromLink = (params.get('t') || params.get('org') || sessionStorage.getItem('pending_tenant_code') || '').toUpperCase().trim();
+  const code     = fromLink || getRememberedOrgCode();
   if (!code) return;
 
   // Session 361: signed-out pages cannot read the tenants table -- one active organisation's branding, by its code, through the RPC
   const { data: rows } = await supabase.rpc('get_tenant_branding', { p_code: code });
   const tenant = rows?.[0] || null;
 
-  if (!tenant) return;
+  if (!tenant) { if (!fromLink) forgetOrgCode(); return; }   // a remembered code that is no longer active is forgotten
 
   sessionStorage.setItem('pending_tenant_code', tenant.tenant_code);
 
@@ -63,6 +66,19 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') overlay.clas
   document.getElementById('action-btns-tenant').classList.remove('hidden');
   document.getElementById('signup-link-tenant').href = `signup.html?t=${tenant.tenant_code}`;
   document.title = `${tenant.name} — Sign In`;
+
+  // §319: shown only when the branding came from this browser's memory (not from the hospital's own ?t= link)
+  if (!fromLink) {
+    const sw = document.getElementById('org-switch');
+    const b = document.getElementById('org-switch-btn');
+    b.textContent = `Not ${tenant.name}? Use another organisation`;
+    b.addEventListener('click', () => {
+      forgetOrgCode();
+      sessionStorage.removeItem('pending_tenant_code');
+      window.location.replace('login.html');
+    });
+    sw.classList.remove('hidden');
+  }
 })();
 
 // ── Login form (two-step) ─────────────────────────────────────────────────────

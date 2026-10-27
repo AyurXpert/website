@@ -200,6 +200,13 @@
     </ol>
     <p>Every submission, verification, rejection, correction and licence change is recorded in the audit log (who, when, old → new value).</p>
 
+    <h4 style="margin-top:14px">Your hospital's own links (set up before go-live)</h4>
+    <ul style="margin: 8px 0 14px 20px; line-height: 1.9;">
+      <li><strong>Admin → 🏢 Organisation Profile → 🔗 Public links</strong> shows two links, each with a <strong>Copy</strong> button: your own <strong>sign-in page</strong> (<code>login.html?t=&lt;your code&gt;</code>) and the patients' <strong>teleconsultation timetable</strong> (<code>consultant-availability.html?tenant=&lt;your code&gt;</code>, it shows your logo when one is set).</li>
+      <li><strong>At setup, install the sign-in link as the desktop shortcut / bookmark on every computer of the hospital.</strong> It opens the sign-in page with your hospital's name and logo.</li>
+      <li>After a successful sign-in, a browser also remembers the hospital (only its code — nothing about the person), so the next visit to the plain sign-in page shows your branding too. On a shared computer, <strong>“Not &lt;hospital&gt;? Use another organisation”</strong> under the name makes the browser forget it.</li>
+    </ul>
+
     <h3 id="hr-admissions" style="scroll-margin-top: 10px">4.3 Who Admits a Patient (set this up before go-live)</h3>
     <ul style="margin: 8px 0 14px 20px; line-height: 1.9;">
       <li><strong>Normal path</strong> — a consultant doctor advises the admission in the consultation; Reception admits from 🛏️ Admission Requests. The admitting doctor is always the advising doctor and the department is the advised one — Reception cannot change either. Trainees (PG scholars, interns) never advise an admission.</li>
@@ -225,7 +232,8 @@
       <li><strong>The role decides what a person may do</strong> — the login role or the second role, and only while the account is active.</li>
       <li><strong>Some designations need their role:</strong> Finance Manager → role Finance Manager; Nursing / Deputy Nursing Superintendent → Nurse Manager; Medical Record Officer / Technician → MRD Staff; Medical Superintendent / Medical Director / Principal → Dept Admin (primary or second role). Without it the save is refused: "Give the role … first".</li>
       <li><strong>HR → All Staff → 🔁 Change role</strong> (Super Admin only): choose the login role and the second role, give a reason, Save role. Every change is recorded. Not for your own account or another Super Admin.</li>
-      <li>An <strong>Administrative Officer</strong> has no default role — choose one when inviting. An <strong>Office Superintendent (OPD in-charge)</strong> defaults to Doctor.</li>
+      <li>An <strong>Administrative Officer</strong> and an <strong>Office Superintendent</strong> have no default role — choose one when inviting (usually <strong>Office Staff</strong>).</li>
+      <li><strong>Office Staff</strong> is a plain office role: the person sees their own profile, leave and security settings, the user manual and the duty roster (view only) — nothing else. No patient, clinical, lab, billing, payment, fee or other staff records, and no approvals. The server refuses everything else, not just the menus. If the person also needs, for example, accounts work, give that role as the second role.</li>
       <li>Only an active Super Admin gives or changes the Medical Superintendent, Medical Director, Principal, Finance Manager and Nursing Superintendent designations.</li>
     </ul>
 

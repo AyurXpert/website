@@ -1582,7 +1582,13 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
       <div class="q-empty"><div class="q-empty-icon">📅</div><div class="q-empty-text">Loading…</div></div>
     </div>
     <div class="queue-body" id="lab-bills-list" style="display:none">
-      <div class="q-empty"><div class="q-empty-icon">💰</div><div class="q-empty-text">Loading…</div></div>
+      <!-- Session 362 (TODO §313): search the lab bills by name / UHID / phone (kept across the 30-second refresh) -->
+      <div style="padding:8px 12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <input type="search" id="lab-bills-search" aria-label="Search lab bills by name, UHID or phone" placeholder="🔍 Name / UHID / phone"
+          data-oninput="filterLabBills" autocomplete="off" style="flex:1;min-width:180px;height:40px;border:1.5px solid var(--border);border-radius:8px;padding:0 10px;font:inherit;font-size:13px">
+        <span id="lab-bills-search-count" role="status" style="font-size:12px;color:var(--text-mid)"></span>
+      </div>
+      <div id="lab-bills-items"><div class="q-empty"><div class="q-empty-icon">💰</div><div class="q-empty-text">Loading…</div></div></div>
     </div>
     <div class="queue-body" id="admission-requests-list" style="display:none">
       <div class="q-empty"><div class="q-empty-icon">🛏️</div><div class="q-empty-text">Loading…</div></div>

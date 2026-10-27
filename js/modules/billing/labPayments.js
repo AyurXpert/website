@@ -68,6 +68,16 @@ export function buildLabReasonPanel({ supabase, mode, order, feeIds, onDone, onC
   return panel;
 }
 
+// Session 362 (TODO §313): the owed amount as shown -- the amount recorded when the order was marked urgent; otherwise today's price
+// from the fee master, marked as an estimate; "No price set" when a test has no fee (never a partial amount)
+export function owedAmountText(recorded, priced) {
+  if (recorded != null) return _rs(recorded);
+  if (!priced) return '—';
+  if (priced.unmatched?.length) return 'No price set';
+  if (!priced.feeIds?.length) return '—';
+  return `≈ ${_rs(priced.amount)} (today's price)`;
+}
+
 // the priced fee lines of some orders (the same pricing as reception's Collect): { [orderId]: { feeIds, amount, unmatched } }
 export async function priceLabOrders({ supabase, tenantId, orderIds }) {
   const out = {};
@@ -97,7 +107,9 @@ export async function loadLabOutstanding({ supabase, tenantId, profile, containe
   if (!data?.length) { msg.textContent = 'No urgent lab order is waiting for payment.'; return; }
   msg.textContent = `${data.length} urgent order${data.length > 1 ? 's' : ''} sent to the lab before payment — still owed (collect at reception → Lab Bills).`;
   const canWaive = canWaiveLabBill(profile);
-  const priced = canWaive ? await priceLabOrders({ supabase, tenantId, orderIds: data.map(r => r.lab_order_id) }) : {};
+  // Session 362 (TODO §313): priced for the Waive button AND for a row with no recorded amount (marked urgent before 362, or a test
+  // with no price) -- shown as "≈ ₹X (today's price)"; a recorded amount is shown as recorded
+  const priced = await priceLabOrders({ supabase, tenantId, orderIds: data.filter(r => canWaive || r.amount == null).map(r => r.lab_order_id) });
   const t = el('table', 'width:100%;border-collapse:collapse;font-size:12px');
   const hr = document.createElement('tr');
   for (const h of ['Patient', 'UHID', 'Tests', 'Urgent since', 'By', 'Reason', 'Days owed', 'Amount', '']) {
@@ -107,8 +119,8 @@ export async function loadLabOutstanding({ supabase, tenantId, profile, containe
   const tb = document.createElement('tbody');
   for (const r of data) {
     const tr = document.createElement('tr');
-    for (const v of [r.patient_name, r.uhid, r.tests, _date(r.urgent_at), r.urgent_by_name || 'Ordered STAT', r.reason || 'Ordered STAT by the doctor',
-                     String(r.days_owed ?? 0), r.amount != null ? _rs(r.amount) : '—']) {
+    for (const v of [r.patient_name, r.uhid, r.tests, _date(r.urgent_at), r.urgent_by_name || (r.reason ? 'Ordered STAT' : '—'),
+                     r.reason || 'Marked urgent before the log existed', String(r.days_owed ?? 0), owedAmountText(r.amount, priced[r.lab_order_id])]) {
       tr.append(el('td', 'padding:6px;border-bottom:1px solid var(--border);vertical-align:top', v || '—'));
     }
     const act = el('td', 'padding:6px;border-bottom:1px solid var(--border);vertical-align:top');

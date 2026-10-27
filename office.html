@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Office — AyurXpert</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob: https://*.supabase.co; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://cloudflareinsights.com https://static.cloudflareinsights.com; font-src 'self' https://fonts.gstatic.com https://fonts.googleapis.com; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'"/>
+<meta http-equiv="X-Content-Type-Options" content="nosniff"/>
+<link rel="icon" href="assets/icon.svg"/>
+<link rel="manifest" href="manifest.json"/>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --green-deep:#1a4a2e;--green-mid:#2d7a4f;--green-light:#e8f5ee;
+  --gold:#c9902a;--gold-light:#fdf3e2;
+  --cream:#faf8f3;--white:#ffffff;
+  --text-dark:#1c2b1f;--text-mid:#4a6352;--text-muted:#8a9e90;
+  --border:#d4e6da;--radius:14px;--shadow:0 2px 14px rgba(0,0,0,0.07);
+}
+html,body{min-height:100%;font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-dark)}
+.page{max-width:720px;margin:0 auto;padding:24px 16px 80px}
+.page-banner{background:var(--green-deep);border-radius:var(--radius);padding:20px 26px;margin-bottom:22px}
+.page-banner h1{font-family:'Cormorant Garamond',serif;font-size:24px;font-weight:600;color:#fff}
+.page-banner p{font-size:13px;color:rgba(255,255,255,.75);margin-top:4px}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px}
+.card{display:flex;flex-direction:column;gap:4px;min-height:88px;padding:16px 18px;background:var(--white);border:1.5px solid var(--border);
+  border-radius:var(--radius);box-shadow:var(--shadow);text-decoration:none;color:var(--text-dark)}
+.card:hover,.card:focus-visible{border-color:var(--green-mid);outline:none}
+.card:focus-visible{box-shadow:0 0 0 3px var(--green-light)}
+.card-ttl{font-size:15px;font-weight:600}
+.card-sub{font-size:12.5px;color:var(--text-mid)}
+.note{margin-top:22px;font-size:12.5px;color:var(--text-mid);background:var(--gold-light);border:1px solid var(--gold);border-radius:10px;padding:12px 14px}
+</style>
+</head>
+<body>
+<div id="navbar-placeholder"></div>
+<main class="page">
+  <div class="page-banner">
+    <h1>Office</h1>
+    <p id="office-welcome">Welcome.</p>
+  </div>
+  <nav class="cards" aria-label="Office links">
+    <a class="card" href="account-settings.html"><span class="card-ttl">👤 My profile</span><span class="card-sub">Your contact details and photo</span></a>
+    <a class="card" href="account-settings.html?tab=leave"><span class="card-ttl">🌴 Apply for leave</span><span class="card-sub">Request leave and see your requests</span></a>
+    <a class="card" href="account-settings.html?tab=security"><span class="card-ttl">🔒 Security</span><span class="card-sub">Two-step sign-in and backup codes</span></a>
+    <a class="card" href="roster.html"><span class="card-ttl">📅 Duty roster</span><span class="card-sub">Who is on duty this week (view only)</span></a>
+    <a class="card" href="user-manual.html"><span class="card-ttl">📖 User manual</span><span class="card-sub">How the system works</span></a>
+  </nav>
+  <p class="note">Your login role is <strong>Office Staff</strong>. It does not show patient, clinical, lab, billing or other staff records. If your work needs more, ask your Super Admin to give you a second role.</p>
+</main>
+<script type="module" src="./js/pwa/register-sw.js"></script>
+<script type="module" src="js/pages/office.js"></script>
+</body>
+</html>

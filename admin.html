@@ -613,6 +613,7 @@ tr:hover td{background:#fafff8}
               <option value="dept_admin">Dept Admin</option>
               <option value="diet_staff">Diet / Pathya Staff</option>
               <option value="mrd_staff">Medical Records Staff</option>
+              <option value="office_staff">Office Staff</option>
             </select>
             <select class="fi" id="hr-dept-filter" data-onchange="filterStaff">
               <option value="">All Departments</option>
@@ -1135,6 +1136,16 @@ tr:hover td{background:#fafff8}
 
           <div id="orgp-status" style="font-size:13px;margin-bottom:10px"></div>
           <button id="orgp-save-btn" class="btn-primary btn-sm" data-onclick="saveOrgProfile" style="height:44px">Save Organisation Profile</button>
+        </div>
+      </div>
+
+      <!-- §320 (Session 362): the organisation's two public links, each with a Copy button (Super Admin and Dept Admin) -->
+      <div class="cc" style="margin-bottom:16px">
+        <div class="cc-hd">
+          <span class="cc-title" style="display:flex;align-items:center;gap:8px">🔗 Public links</span>
+        </div>
+        <div style="padding:18px 22px" id="orgp-links">
+          <p style="font-size:12.5px;color:var(--text-mid);margin-bottom:12px">Your hospital's own sign-in page (install it as the shortcut / bookmark on every computer of the hospital) and the public teleconsultation timetable for patients.</p>
         </div>
       </div>
 

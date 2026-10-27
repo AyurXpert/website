@@ -41,9 +41,16 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
 .role-badge.super_admin{background:var(--gold-light);color:#7a5a10;border:1px solid #e8d08a}
 
 /* ── Stats ─────────────────────────────────────── */
-.stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:24px}
+.stats-row{display:grid;grid-template-columns:repeat(5,1fr);gap:16px;margin-bottom:24px}
 @media(max-width:700px){.stats-row{grid-template-columns:repeat(2,1fr)}}
 .stat-card{background:var(--white);border-radius:12px;padding:16px 18px;box-shadow:0 1px 8px rgba(0,0,0,0.05)}
+/* Session 362 (TODO §313): the count cards are buttons that filter the list by status */
+button.stat-card{font:inherit;text-align:left;width:100%;min-height:44px;border:2px solid transparent;cursor:pointer;color:inherit}
+button.stat-card:hover{border-color:var(--border)}
+button.stat-card:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
+button.stat-card[aria-pressed="true"]{border-color:var(--green-mid)}
+.stat-card.red .stat-val{color:#a01a1a}
+.status-filter{height:40px;border:1.5px solid var(--border);border-radius:8px;padding:0 10px;font:inherit;font-size:13px;background:var(--white);color:var(--text-dark)}
 .stat-val{font-family:'Cormorant Garamond',serif;font-size:28px;font-weight:600;color:var(--green-deep)}
 .stat-lbl{font-size:11px;color:var(--text-muted);margin-top:2px;text-transform:uppercase;letter-spacing:.6px}
 .stat-card.gold .stat-val{color:var(--gold)}
@@ -362,23 +369,28 @@ tr:hover td{background:rgba(232,245,238,.4)}
   </div>
 
   <!-- ── Stats ────────────────────────────────────── -->
-  <div class="stats-row">
-    <div class="stat-card">
+  <!-- Session 362 (TODO §313): each card shows only fees of that status (Total = all) -->
+  <div class="stats-row" role="group" aria-label="Show fees by status">
+    <button type="button" class="stat-card" data-status-card="active" aria-pressed="false" data-onclick="setFeeStatusFilter" data-onclick-a0="active">
       <div class="stat-val" id="stat-active">—</div>
       <div class="stat-lbl">Active Fees</div>
-    </div>
-    <div class="stat-card gold">
+    </button>
+    <button type="button" class="stat-card gold" data-status-card="pending" aria-pressed="false" data-onclick="setFeeStatusFilter" data-onclick-a0="pending">
       <div class="stat-val" id="stat-pending">—</div>
       <div class="stat-lbl">Pending Review</div>
-    </div>
-    <div class="stat-card blue">
+    </button>
+    <button type="button" class="stat-card blue" data-status-card="dept_approved" aria-pressed="false" data-onclick="setFeeStatusFilter" data-onclick-a0="dept_approved">
       <div class="stat-val" id="stat-dept">—</div>
       <div class="stat-lbl">Dept. Approved</div>
-    </div>
-    <div class="stat-card">
+    </button>
+    <button type="button" class="stat-card red" data-status-card="rejected" aria-pressed="false" data-onclick="setFeeStatusFilter" data-onclick-a0="rejected">
+      <div class="stat-val" id="stat-rejected">—</div>
+      <div class="stat-lbl">Rejected</div>
+    </button>
+    <button type="button" class="stat-card" data-status-card="" aria-pressed="true" data-onclick="setFeeStatusFilter" data-onclick-a0="">
       <div class="stat-val" id="stat-total">—</div>
       <div class="stat-lbl">Total Services</div>
-    </div>
+    </button>
   </div>
 
   <!-- ── Toolbar ───────────────────────────────────── -->
@@ -387,6 +399,15 @@ tr:hover td{background:rgba(232,245,238,.4)}
       <span class="search-icon">🔍</span>
       <input type="search" id="search-input" placeholder="Search services…" data-oninput="filterFees"/>
     </div>
+    <label for="status-filter" style="font-size:12px;color:var(--text-mid)">Status</label>
+    <select id="status-filter" class="status-filter" data-onchange="filterFees">
+      <option value="">All statuses</option>
+      <option value="pending">Pending</option>
+      <option value="dept_approved">Dept. Approved</option>
+      <option value="active">Active</option>
+      <option value="rejected">Rejected</option>
+    </select>
+    <span id="status-filter-count" role="status" style="font-size:12px;color:var(--text-mid)"></span>
   </div>
 
   <!-- ── Table ─────────────────────────────────────── -->

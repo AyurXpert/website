@@ -118,6 +118,21 @@ async function init() {
     return;
   }
 
+  // §321 (Session 362): the logo when one is set, else the first letter -- built from DOM nodes, as login.html does
+  const logoWrap = document.getElementById('org-logo-wrap');
+  if (tenant.logo_url) {
+    const img = document.createElement('img');
+    img.src = tenant.logo_url;
+    img.alt = `${tenant.name} logo`;
+    img.className = 'org-logo-img';
+    logoWrap.replaceChildren(img);
+  } else {
+    const letter = document.createElement('div');
+    letter.className = 'org-logo-letter';
+    letter.setAttribute('aria-hidden', 'true');
+    letter.textContent = String(tenant.name || '?').charAt(0).toUpperCase();
+    logoWrap.replaceChildren(letter);
+  }
   document.getElementById('org-name').textContent = tenant.name;
   document.getElementById('org-type').textContent = TYPE_LABEL[tenant.type] || tenant.type;
   document.getElementById('footer-org').textContent = tenant.name;

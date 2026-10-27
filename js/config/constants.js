@@ -28,6 +28,7 @@ export const ROLES = {
   MRD_STAFF:       'mrd_staff',
   NURSE_MANAGER:   'nurse_manager',
   TRAINEE_DOCTOR:  'trainee_doctor',
+  OFFICE_STAFF:    'office_staff',   // Session 362 (TODO §312): office work only -- no patient, money or clinical access
 };
 
 // ── Where each role lands after login ──
@@ -50,6 +51,7 @@ export const ROLE_HOME = {
   mrd_staff:       'mrd.html',
   nurse_manager:   'nursing-admin.html',
   trainee_doctor:  'doctor.html',
+  office_staff:    'office.html',
 };
 
 // ── Roles required to enroll in MFA (CERT-In §4.1 — privileged/sensitive accounts) ──

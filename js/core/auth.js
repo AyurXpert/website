@@ -15,6 +15,7 @@ import {
 import { logAudit } from './auditLogger.js';
 import { safeErrorMessage } from '../utils/errors.js';
 import { RETURN_KEY, safeReturnPath } from '../utils/signInGate.js';
+import { rememberOrgCode } from '../utils/rememberedOrg.js';
 import { getTabUser, setTabUser, clearTabUser, blockTab, isTabBlocked, onTabBlocked } from './tabUser.js';
 
 // TODO §253: a designation that has its own landing page (role home otherwise).
@@ -259,6 +260,9 @@ async function _finalizeLogin(user, profile) {
   sessionStorage.setItem(SESSION_KEYS.SECONDARY_ROLE, profile.secondary_role || '');
   sessionStorage.setItem(SESSION_KEYS.MONITORING_ACCESS, profile.has_monitoring_access ? '1' : '');
   setTabUser(profile.id); // §250: this tab now belongs to this user
+  // §319 (Session 362): this browser now remembers the account's OWN organisation for the login page's branding (only here: after a
+  // SUCCESSFUL sign-in, MFA done -- never from an email lookup)
+  rememberOrgCode(profile.tenants?.tenant_code);
 
   // §7h — the organisation's modules, decided by the server (type defaults + overrides, Session 331)
   await _loadModules();
