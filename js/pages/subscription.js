@@ -53,6 +53,38 @@ async function init() {
 
   renderStats();
   renderTable();
+  loadStaffCounts();
+}
+
+// TODO §325: one head count per organisation -- active profiles, the same rule as get_tenant_subscription_info (and the
+// signup block in auth.js: full at count >= max_users). count:'exact' + head:true, so no row-limit problem. undefined = still
+// loading, null = the count failed (shown as "—", never as 0).
+const _staffCounts = {};
+async function loadStaffCounts() {
+  await Promise.all(_tenants.map(async t => {
+    const { count, error } = await supabase.from('profiles')
+      .select('id', { count: 'exact', head: true })
+      .eq('tenant_id', t.id).eq('is_active', true);
+    _staffCounts[t.id] = error || typeof count !== 'number' ? null : count;
+  }));
+  renderTable();
+}
+
+function staffUsageCell(t) {
+  const max = Number(t.max_users) || 5;
+  const unlimited = max === 999;
+  const n = _staffCounts[t.id];
+  const shown = n === undefined ? '…' : n === null ? '—' : String(n);
+  let pct = 0, cls = '', note = '';
+  if (typeof n === 'number' && !unlimited) {
+    pct = Math.min(100, Math.round(n / max * 100));
+    if (n > max)       { cls = 'danger'; note = ' · over limit'; }
+    else if (n >= max) { cls = 'danger'; note = ' · full'; }
+    else if (pct >= 80) cls = 'warn';
+  }
+  const title = n === null ? ' title="Could not count this organisation\'s staff"' : '';
+  return `<div style="font-size:12px;color:${cls === 'danger' ? 'var(--red)' : 'var(--text-muted)'};margin-bottom:3px"${title}>${shown} / ${unlimited ? '∞' : max}${note}</div>
+        <div class="progress-wrap"><div class="progress-bar${cls ? ' ' + cls : ''}" style="width:${pct}%"></div></div>`;
 }
 
 function renderStats() {
@@ -96,7 +128,6 @@ window.renderTable = function() {
   tbody.innerHTML = filtered.map(t => {
     const pCls = `chip plan-${t.plan_type}`;
     const sCls = `chip status-${t.subscription_status}`;
-    const max  = t.max_users || 5;
     const rowCls = t.subscription_status === 'expired' ? 'row-expired' : t.subscription_status === 'expiring' ? 'row-expiring' : '';
     return `<tr class="${rowCls}">
       <td><strong>${_esc(t.name)}</strong>${t.is_demo?' <span class="chip" title="Demo organisation: may go GST-live for testing while other bill paths are not ready. Set by a platform admin only (platform_set_tenant_demo)." style="border:1px solid var(--gold);color:var(--gold)">🧪 DEMO</span>':''}${!t.is_active?'<br><span style="font-size:11px;color:var(--text-muted)">Inactive</span>':''}</td>
@@ -106,8 +137,7 @@ window.renderTable = function() {
       <td><span class="${sCls}">${t.subscription_status === 'expired' ? '⚠ ' : t.subscription_status === 'expiring' ? '⏰ ' : ''}${_esc(STATUS_LABEL[t.subscription_status]||t.subscription_status)}${t.daysLeft!==null&&t.daysLeft<=30&&t.daysLeft>0?` · ${t.daysLeft}d`:''}</span></td>
       <td style="font-size:12px">${t.endDate?t.endDate.toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'})+'<br><span style="color:var(--text-muted)">'+(t.subscription_expiry?'Paid expiry':'Trial end')+'</span>':'<span style="color:var(--text-muted)">—</span>'}</td>
       <td style="min-width:120px">
-        <div style="font-size:12px;color:var(--text-muted);margin-bottom:3px">— / ${max===999?'∞':max}</div>
-        <div class="progress-wrap"><div class="progress-bar" style="width:0%"></div></div>
+        ${staffUsageCell(t)}
       </td>
       <td>
         <button class="btn btn-outline" data-onclick="openEdit" data-onclick-a0="${t.id}">✏ Edit</button>
