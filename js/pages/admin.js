@@ -5704,7 +5704,7 @@ window.loadMonthlyReport = async function() {
   document.getElementById('mr-csv-btn').style.display = 'none';
 
   const [visRes, ipdRes, bedRes, deptRes, billRes, pkRes, labRes, imgRes, tRow, actRes] = await Promise.all([
-    supabase.from('visits').select('id,status,opd_id,created_at').eq('tenant_id',tenantId).gte('created_at',start).lte('created_at',end),
+    supabase.from('visits').select('id,status,opd_id,created_at').eq('tenant_id',tenantId).or('visit_category.is.null,visit_category.neq.lab_only').gte('created_at',start).lte('created_at',end),   /* Session 363 (owner Q8): a walk-in lab patient (visit_category 'lab_only') is not an OPD patient */
     supabase.from('ipd_admissions').select('id,department_id,status,admitted_at,discharged_at').eq('tenant_id',tenantId).gte('admitted_at',start).lte('admitted_at',end),
     supabase.from('beds').select('id,department_id,status').eq('tenant_id',tenantId),
     supabase.from('departments').select('id,name,ncism_code').eq('tenant_id',tenantId).eq('is_active',true).order('name'),
@@ -7242,7 +7242,7 @@ window.generateSDF = async function() {
   const el = document.getElementById('sdf-content');
   el.textContent = 'Generating…';
   const [visitsRes, admRes, staffRes] = await Promise.all([
-    supabase.from('visits').select('id,is_teleconsultation,visit_category,opds(ncism_code)').eq('tenant_id',tenantId).gte('created_at',from+'T00:00:00+05:30').lte('created_at',to+'T23:59:59.999+05:30'),
+    supabase.from('visits').select('id,is_teleconsultation,visit_category,opds(ncism_code)').eq('tenant_id',tenantId).or('visit_category.is.null,visit_category.neq.lab_only').gte('created_at',from+'T00:00:00+05:30').lte('created_at',to+'T23:59:59.999+05:30'),
     supabase.from('ipd_admissions').select('id,departments(ncism_code)').eq('tenant_id',tenantId).gte('admission_date',from).lte('admission_date',to),
     supabase.from('profiles').select('id,role').eq('tenant_id',tenantId).eq('is_active',true),
   ]);
@@ -7277,7 +7277,7 @@ window.generateMonthlyStats = async function() {
   const el = document.getElementById('stat-body');
   el.innerHTML = '<div style="color:var(--text-muted)">Generating…</div>';
   const [v, adm, bills, del, lab, act] = await Promise.all([
-    supabase.from('visits').select('id,is_teleconsultation').eq('tenant_id',tenantId).gte('created_at',from+'T00:00:00+05:30').lte('created_at',to+'T23:59:59.999+05:30'),
+    supabase.from('visits').select('id,is_teleconsultation').eq('tenant_id',tenantId).or('visit_category.is.null,visit_category.neq.lab_only').gte('created_at',from+'T00:00:00+05:30').lte('created_at',to+'T23:59:59.999+05:30'),
     supabase.from('ipd_admissions').select('id').eq('tenant_id',tenantId).gte('admission_date',from).lte('admission_date',to),
     supabase.from('bills').select('id,final_amount,status,bill_type,payer_type,document_status,payment_mode,payment_method,created_at').eq('tenant_id',tenantId).gte('created_at',from+'T00:00:00+05:30').lte('created_at',to+'T23:59:59.999+05:30'),
     supabase.from('deliveries').select('id').eq('tenant_id',tenantId).is('superseded_by',null).gte('delivery_date',from).lte('delivery_date',to),

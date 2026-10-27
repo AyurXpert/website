@@ -10,7 +10,7 @@
 // Print: js/modules/ipd/dischargePrint.js (shared with ipd.html).
 import { fetchSamsarjanaHomeChart, buildDischargeSummaryHtml, printDischargeHtml, loadDischargeSigner } from './dischargePrint.js';
 import { istDateStr } from '../../utils/dateUtils.js';
-import { AWAITING_SIGNOFF, isAwaitingSignOff } from '../lab/signOff.js';
+import { AWAITING_SIGNOFF, isAwaitingSignOff, hiddenValueText } from '../lab/signOff.js';   // §267: a re-opened value is hidden
 
 let _c = null;      // { supabase, esc, tenantId, userId, isTrainee, toast }
 let _adm = null;
@@ -159,7 +159,7 @@ async function _prefillFromStay() {
   (lab.data || []).forEach(o => {
     const items = (o.lab_order_items || []).filter(i => i.result_value);
     if (!items.length) return;
-    inv.push(`${_fmtD(o.order_date)}: ` + items.map(i => `${i.test_name} ${i.result_value}${i.is_critical ? ' (CRITICAL)' : i.is_abnormal ? ' (abnormal)' : ''}${isAwaitingSignOff(i, o) ? ' (' + AWAITING_SIGNOFF.toLowerCase() + ')' : ''}`).join('; '));
+    inv.push(`${_fmtD(o.order_date)}: ` + items.map(i => hiddenValueText(i, o) ? `${i.test_name}: ${hiddenValueText(i, o).toLowerCase()}` : `${i.test_name} ${i.result_value}${i.is_critical ? ' (CRITICAL)' : i.is_abnormal ? ' (abnormal)' : ''}${isAwaitingSignOff(i, o) ? ' (' + AWAITING_SIGNOFF.toLowerCase() + ')' : ''}`).join('; '));
   });
   (img.data || []).forEach(o => {
     if (!o.impression && !o.findings) return;

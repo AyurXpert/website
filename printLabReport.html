@@ -4,112 +4,23 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
 <title>Lab Report — AyurXpert</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' https://cdn.jsdelivr.net https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob: https://*.supabase.co; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://cloudflareinsights.com https://static.cloudflareinsights.com; font-src 'self' https://fonts.gstatic.com https://fonts.googleapis.com; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'"/>
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src 'self' https://cloudflareinsights.com; base-uri 'self'; form-action 'none'; object-src 'none'"/>
 <meta http-equiv="X-Content-Type-Options" content="nosniff"/>
+<!-- Session 363 (owner Q9, TODO §142 b): this old print page is RETIRED. It loaded a report by URL, printed editable name boxes, a
+     hard-coded qualification and its own flags, and numbered no copy. The lab report is printed from lab.html (Print Report), which
+     the server numbers (record_document_print 'lab_report') and which carries the verified signatories. -->
 <style>
-/* @import must be the first rule in a stylesheet — it sat at the end, so browsers ignored it
-   and the report never loaded its fonts. */
-@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600&family=DM+Sans:wght@300;400;500&display=swap');
-*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-body{font-family:'DM Sans',Arial,sans-serif;background:#f5f5f5;color:#1a1a1a;font-size:13px}
-.report-wrap{max-width:820px;margin:20px auto;background:#fff;padding:0;box-shadow:0 2px 20px rgba(0,0,0,.12)}
-
-/* ── NABL Header ── */
-.rpt-header{padding:18px 24px 12px;border-bottom:3px solid #1a4a2e;display:flex;justify-content:space-between;align-items:flex-start;gap:16px}
-.rpt-org{flex:1;display:flex;align-items:flex-start;gap:10px}
-.rpt-logo{width:40px;height:40px;object-fit:contain;border-radius:6px;flex-shrink:0;border:1px solid #ddd}
-.rpt-org-name{font-size:20px;font-weight:700;color:#1a4a2e;font-family:'Cormorant Garamond',Georgia,serif;margin-bottom:2px}
-.rpt-org-sub{font-size:11px;color:#4a6352;line-height:1.7}
-.rpt-org-tagline{font-size:10.5px;color:#4a6352;font-style:italic;margin-top:1px}
-.rpt-org-address{font-size:10.5px;color:#4a6352;margin-top:2px}
-.rpt-org-gstin{font-size:10px;color:#4a6352;margin-top:1px}
-.nabl-block{text-align:right;flex-shrink:0}
-.nabl-cert-box{border:1.5px solid #1565c0;border-radius:6px;padding:6px 10px;text-align:center;min-width:130px}
-.nabl-cert-num{font-size:13px;font-weight:700;color:#1565c0;font-family:monospace}
-.nabl-label{font-size:9px;color:#666;text-transform:uppercase;letter-spacing:.5px;margin-top:2px}
-.nabl-cert-input{border:none;border-bottom:1px dashed #90caf9;font-size:13px;font-weight:700;color:#1565c0;font-family:monospace;width:120px;min-width:120px;max-width:100%;field-sizing:content;text-align:center;outline:none;background:transparent}
-/* NABL elements: the accreditation line + footer number only exist with a certificate number;
-   the header box stays on screen (to type one) but never prints empty. */
-.no-nabl-cert .rpt-org-sub .nabl-only,.no-nabl-cert .rpt-footer .nabl-only,.no-nabl-cert .auth-desig .nabl-only{display:none}
-@media print{.no-nabl-cert .nabl-cert-box{display:none!important}}
-
-/* ── Report title strip ── */
-.rpt-title-strip{background:#1a4a2e;color:#fff;padding:6px 24px;display:flex;justify-content:space-between;align-items:center}
-.rpt-title{font-size:13px;font-weight:600;letter-spacing:.5px}
-.rpt-barcode{font-family:monospace;font-size:12px;color:#a5d6b8}
-
-/* ── Patient + specimen info ── */
-.rpt-info{display:grid;grid-template-columns:1fr 1fr;gap:0;border-bottom:1px solid #d4e6da}
-.rpt-info-block{padding:10px 24px;border-right:1px solid #d4e6da}
-.rpt-info-block:last-child{border-right:none}
-.info-row{display:flex;gap:6px;margin-bottom:4px;font-size:12px}
-.info-lbl{color:#4a6352;font-weight:500;min-width:110px;flex-shrink:0}
-.info-val{color:#1a1a1a;font-weight:600}
-
-/* ── Results table ── */
-.results-section{padding:0 0 0}
-.section-header{background:#e8f5ee;padding:7px 24px;font-size:11px;font-weight:700;color:#1a4a2e;text-transform:uppercase;letter-spacing:.5px;border-top:1px solid #d4e6da;border-bottom:1px solid #d4e6da}
-table{width:100%;border-collapse:collapse}
-th{background:#f0f9f4;color:#1a4a2e;padding:7px 12px;text-align:left;font-size:11px;font-weight:600;border-bottom:2px solid #d4e6da;white-space:nowrap}
-td{padding:7px 12px;border-bottom:1px solid #f0f0f0;vertical-align:middle;font-size:12.5px}
-tr:hover td{background:#fafdfb}
-.result-critical{color:#c0392b;font-weight:700}
-.result-abnormal{color:#c9902a;font-weight:600}
-.result-normal{color:#2d7a4f}
-.flag-crit{color:#c0392b;font-weight:700;font-size:14px}
-.flag-high{color:#c9902a;font-weight:700}
-.flag-low{color:#1565c0;font-weight:700}
-.ref-range{font-size:11px;color:#6b7280}
-.no-result{color:#9ca3af;font-style:italic}
-
-/* ── Authorization strip ── */
-.auth-strip{display:flex;justify-content:space-between;align-items:flex-end;padding:16px 24px;border-top:2px solid #1a4a2e;margin-top:4px}
-.auth-block{text-align:center;flex:1;padding:0 12px;border-right:1px dashed #d4e6da}
-.auth-block:last-child{border-right:none}
-.auth-sig-line{border-bottom:1px solid #1a4a2e;margin-bottom:4px;height:32px}
-.auth-name{font-size:12px;font-weight:600;color:#1a4a2e}
-.auth-desig{font-size:10.5px;color:#4a6352}
-.auth-editable{border:none;border-bottom:1px dashed #1a4a2e;width:100%;font-size:12px;font-weight:600;color:#1a4a2e;outline:none;text-align:center;background:transparent;font-family:inherit}
-
-/* ── Footer ── */
-.rpt-footer{padding:10px 24px;background:#f8fdf9;border-top:1px solid #d4e6da;font-size:10px;color:#6b7280;line-height:1.7}
-
-/* ── Print controls (hidden on print) ── */
-.print-controls{max-width:820px;margin:0 auto 16px;padding:12px 20px;background:#fff3cd;border:1px solid #ffe082;border-radius:6px;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
-.print-controls button{padding:8px 18px;border-radius:6px;font-size:13px;font-weight:500;cursor:pointer;border:none;font-family:inherit}
-.btn-print{background:#1a4a2e;color:#fff}
-.btn-print:hover{background:#1f5c37}
-.loading-msg{text-align:center;padding:60px;color:#4a6352;font-size:14px}
-
-/* ── PRINT ── */
-@media print {
-  body   { background:#fff; font-size:11pt }
-  .print-controls { display:none !important }
-  .report-wrap { box-shadow:none; margin:0 }
-  .auth-editable,.nabl-cert-input { border-bottom:1px solid #1a4a2e !important; -webkit-print-color-adjust:exact; print-color-adjust:exact }
-  .rpt-title-strip { background:#1a4a2e !important; -webkit-print-color-adjust:exact; print-color-adjust:exact }
-  th { background:#f0f9f4 !important; -webkit-print-color-adjust:exact; print-color-adjust:exact }
-  .nabl-cert-box { border:1.5px solid #1565c0 !important; -webkit-print-color-adjust:exact; print-color-adjust:exact }
-  tr { page-break-inside: avoid }
-}
-
+body{font-family:'DM Sans',Arial,sans-serif;background:#faf8f3;color:#1a1a1a;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;padding:16px}
+.card{max-width:520px;background:#fff;border:1.5px solid #d9e2dc;border-radius:12px;padding:24px;text-align:center}
+h1{font-family:'Cormorant Garamond',Georgia,serif;color:#1a4a2e;font-size:24px;margin:0 0 10px}
+a{display:inline-block;margin-top:14px;min-height:44px;line-height:44px;padding:0 18px;border-radius:8px;background:#1a4a2e;color:#fff;text-decoration:none;font-weight:600}
 </style>
-<link rel="stylesheet" href="css/print.css"/>
 </head>
-<!-- ax-printing + .ax-print-root (css/print.css): only the report prints, never the controls bar. -->
-<body class="ax-printing">
-
-<!-- Print controls (hidden in print) -->
-<div class="print-controls" id="print-controls">
-  <span style="font-size:13px;font-weight:500;color:#7a5200">📄 NABL Lab Report</span>
-  <span style="font-size:12px;color:#7a5200">Edit NABL cert number and signatory fields below before printing.</span>
-  <button class="btn-print" data-onclick="print">🖨 Print / Save PDF</button>
-</div>
-
-<div id="report-wrap" class="report-wrap ax-print-root">
-  <div id="report-content" class="loading-msg">Loading report…</div>
-</div>
-
-<script type="module" src="js/pages/printLabReport.js"></script>
+<body>
+<main class="card">
+  <h1>This page is no longer used</h1>
+  <p>Lab reports are printed from the Laboratory page: open the order and press <strong>Print Report</strong>. Each print is numbered (Original / Duplicate copy) and carries the signing pathologist / lab in-charge.</p>
+  <a href="lab.html">Open the Laboratory</a>
+</main>
 </body>
 </html>

@@ -793,6 +793,27 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
 <link rel="stylesheet" href="css/correct-patient.css"/>
 <link rel="stylesheet" href="css/credit-notes.css"/>
 <link rel="stylesheet" href="css/print.css"/>
+<style>
+/* Session 363: the walk-in lab booking panel (js/modules/lab/walkinPanel.js) */
+/* B3: the cashier's Lab Bills-only view -- the registration panel and every other tab hidden */
+body.lab-bills-only .page > .panel:first-of-type{display:none!important}
+body.lab-bills-only .q-tab:not(#tab-labbills):not(#tab-shiftclose){display:none!important}
+body.lab-bills-only .page{grid-template-columns:1fr!important}
+.wk-panel [hidden],#wk-open[hidden]{display:none!important}
+.wk-panel{border:1.5px solid var(--green-mid);border-radius:10px;padding:10px 12px;margin:6px 0 10px;background:var(--cream,#faf8f3);display:flex;flex-direction:column;gap:8px}
+.wk-title{font-weight:700;color:var(--green-deep)}
+.wk-lbl{font-size:12px;font-weight:600;color:var(--text-mid)}
+.wk-row,.wk-ref,.wk-out,.wk-actions,.wk-found{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.wk-panel input[type=text],.wk-panel input[type=tel],.wk-panel input[type=number],.wk-panel input[type=search],.wk-panel select{min-height:40px;border:1.5px solid var(--border);border-radius:7px;padding:0 8px;font:inherit;font-size:13px}
+.wk-panel .q-edit-btn{width:auto;min-height:40px;padding:0 10px}
+.wk-sec-t{font-size:11px;font-weight:700;color:var(--text-mid);text-transform:uppercase;letter-spacing:.3px;margin-top:4px}
+.wk-chips{display:flex;flex-wrap:wrap;gap:5px}
+.wk-chip{display:inline-flex;align-items:center;gap:4px;font-size:12px;padding:4px 8px;border:1.5px solid var(--border);border-radius:12px;background:var(--white,#fff);min-height:32px}
+.wk-chip.off{opacity:.55}
+.wk-consent{font-size:12px;font-weight:600;color:#7a1a1a}
+.wk-msg,.wk-err{color:#a01a1a;font-size:12px}
+.wk-tests{max-height:320px;overflow-y:auto}
+</style>
 </head>
 <body>
 
@@ -1587,7 +1608,10 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
         <input type="search" id="lab-bills-search" aria-label="Search lab bills by name, UHID or phone" placeholder="🔍 Name / UHID / phone"
           data-oninput="filterLabBills" autocomplete="off" style="flex:1;min-width:180px;height:40px;border:1.5px solid var(--border);border-radius:8px;padding:0 10px;font:inherit;font-size:13px">
         <span id="lab-bills-search-count" role="status" style="font-size:12px;color:var(--text-mid)"></span>
+        <!-- Session 363 (TODO §259): a walk-in patient who comes only for tests -->
+        <button type="button" class="q-edit-btn" id="wk-open" data-onclick="openWalkinLab" style="width:auto;min-height:44px;padding:0 12px;background:var(--green-mid);color:#fff">🧪 Lab only (walk-in)</button>
       </div>
+      <div id="wk-slot" style="padding:0 12px"></div>
       <div id="lab-bills-items"><div class="q-empty"><div class="q-empty-icon">💰</div><div class="q-empty-text">Loading…</div></div></div>
     </div>
     <div class="queue-body" id="admission-requests-list" style="display:none">

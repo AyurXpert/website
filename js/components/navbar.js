@@ -44,6 +44,8 @@ function _buildGroups(role, type, secondaryRole, hasMonitoringAccess, isDeptScop
       label: 'OPD', icon: '🩺',
       items: [
         { href:'reception.html',     label:'Reception',     roles:FRONT_DESK,                    types:null, module:'opd'        },
+        // Session 363 (owner B3): the cashier collects lab bills on reception.html (Lab Bills only -- reception.js _labBillsOnly)
+        { href:'reception.html',     label:'Lab Bills',     roles:['cashier'],                   types:null, module:'lab'        },
         // Session 205 real bug fix, live-confirmed on SDM: CLINICAL includes 'nurse', but
         // doctor.js's own requireAuth() only ever allowed
         // ['doctor','trainee_doctor','super_admin','dept_admin'] -- a nurse clicking this got

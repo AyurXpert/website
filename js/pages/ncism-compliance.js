@@ -200,6 +200,7 @@ async function loadAll() {
     supabase.from('visits')
       .select('id,opd_id,created_at,is_teleconsultation,visit_category')
       .eq('tenant_id', tenantId)
+      .or('visit_category.is.null,visit_category.neq.lab_only')   /* Session 363 (owner Q8): a walk-in lab patient (visit_category 'lab_only') is not an OPD patient */
       .gte('created_at', from + 'T00:00:00+05:30')
       .lte('created_at', to + 'T23:59:59.999+05:30'),
     supabase.from('beds')

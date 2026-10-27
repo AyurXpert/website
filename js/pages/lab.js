@@ -11,7 +11,10 @@ import { initCorrections, defineCorrection, corrRowClass, corrCell } from '../mo
 import { uhidOf } from '../utils/uhid.js';
 import { notify } from '../components/notify.js';
 import { printDocument, docHeader } from '../utils/printDocument.js';
-import { AWAITING_SIGNOFF, PROVISIONAL_REPORT, anyAwaitingSignOff } from '../modules/lab/signOff.js';
+import { AWAITING_SIGNOFF, PROVISIONAL_REPORT, anyAwaitingSignOff, isAwaitingSignOff, hiddenValueText } from '../modules/lab/signOff.js';
+import { loadLabCatalogue, findTest, SECTION_LABELS } from '../modules/lab/catalogue.js';
+import { flagFor, itemFlag, itemRangeText, FLAG_TEXT, NOTE_TEXT } from '../modules/lab/ranges.js';
+import { initCatalogueTab } from '../modules/lab/catalogueTab.js';
 
 // Session 113 -- receptionist added so front-desk staff can check whether a patient's
 // report is ready when they call in (Dr. Venkatesh's ask). Deliberately read-only and
@@ -81,94 +84,15 @@ const CAT_LABELS = {
 };
 
 // critical_low/critical_high cause ⚠ alert when exceeded
-const TEST_REF = {
-  // Haematology
-  'Haemoglobin (Hb)':{cat:'haematology',unit:'g/dL',ref:'M: 13.0–17.0 | F: 11.0–15.0',cl:7,ch:null},
-  'Total Leucocyte Count (TLC)':{cat:'haematology',unit:'/mm³',ref:'4000–11000',cl:2000,ch:30000},
-  'Differential Leucocyte Count (DLC)':{cat:'haematology',unit:'%',ref:'N:40-70, L:20-40, M:2-8, E:1-6, B:0-1',cl:null,ch:null},
-  'Platelet Count':{cat:'haematology',unit:'/mm³',ref:'1.5–4.5 lakhs',cl:50000,ch:null},
-  'PCV / Haematocrit':{cat:'haematology',unit:'%',ref:'M: 40–54 | F: 37–47',cl:null,ch:null},
-  'ESR (Westergren)':{cat:'haematology',unit:'mm/hr',ref:'M: 0–15 | F: 0–20',cl:null,ch:null},
-  'Peripheral Blood Smear':{cat:'haematology',unit:'',ref:'Normal morphology',cl:null,ch:null},
-  'Reticulocyte Count':{cat:'haematology',unit:'%',ref:'0.5–2.0',cl:null,ch:null},
-  'Blood Group & Rh Type':{cat:'haematology',unit:'',ref:'',cl:null,ch:null},
-  // Biochemistry
-  'Fasting Blood Sugar (FBS)':{cat:'biochemistry',unit:'mg/dL',ref:'70–100',cl:40,ch:500},
-  'Post-Prandial Blood Sugar (PPBS)':{cat:'biochemistry',unit:'mg/dL',ref:'<140',cl:40,ch:500},
-  'Random Blood Sugar (RBS)':{cat:'biochemistry',unit:'mg/dL',ref:'80–140',cl:40,ch:500},
-  'HbA1c':{cat:'biochemistry',unit:'%',ref:'<5.7 Normal | 5.7–6.4 Pre-DM | ≥6.5 DM',cl:null,ch:null},
-  'Serum Creatinine':{cat:'biochemistry',unit:'mg/dL',ref:'M: 0.7–1.2 | F: 0.5–1.1',cl:null,ch:10},
-  'Blood Urea':{cat:'biochemistry',unit:'mg/dL',ref:'15–40',cl:null,ch:200},
-  'Serum Uric Acid':{cat:'biochemistry',unit:'mg/dL',ref:'M: 3.5–7.2 | F: 2.6–6.0',cl:null,ch:null},
-  'SGOT (AST)':{cat:'biochemistry',unit:'U/L',ref:'10–40',cl:null,ch:null},
-  'SGPT (ALT)':{cat:'biochemistry',unit:'U/L',ref:'7–45',cl:null,ch:null},
-  'Serum Bilirubin Total':{cat:'biochemistry',unit:'mg/dL',ref:'0.2–1.2',cl:null,ch:null},
-  'Serum Bilirubin Direct':{cat:'biochemistry',unit:'mg/dL',ref:'0.0–0.3',cl:null,ch:null},
-  'Alkaline Phosphatase (ALP)':{cat:'biochemistry',unit:'U/L',ref:'44–147',cl:null,ch:null},
-  'Serum Albumin':{cat:'biochemistry',unit:'g/dL',ref:'3.5–5.0',cl:null,ch:null},
-  'Total Protein':{cat:'biochemistry',unit:'g/dL',ref:'6.0–8.3',cl:null,ch:null},
-  'Serum Sodium':{cat:'biochemistry',unit:'mEq/L',ref:'136–145',cl:120,ch:160},
-  'Serum Potassium':{cat:'biochemistry',unit:'mEq/L',ref:'3.5–5.0',cl:2.5,ch:6.5},
-  'Serum Calcium':{cat:'biochemistry',unit:'mg/dL',ref:'8.5–10.5',cl:6.5,ch:13},
-  'Serum Iron':{cat:'biochemistry',unit:'μg/dL',ref:'M: 60–170 | F: 50–150',cl:null,ch:null},
-  'TIBC':{cat:'biochemistry',unit:'μg/dL',ref:'250–370',cl:null,ch:null},
-  'Vitamin D (25-OH)':{cat:'biochemistry',unit:'ng/mL',ref:'>30 sufficient | 20–30 insufficient | <20 deficient',cl:null,ch:null},
-  'Vitamin B12':{cat:'biochemistry',unit:'pg/mL',ref:'200–900',cl:null,ch:null},
-  'CRP (C-Reactive Protein)':{cat:'biochemistry',unit:'mg/L',ref:'<5',cl:null,ch:null},
-  // Lipid
-  'Total Cholesterol':{cat:'lipid',unit:'mg/dL',ref:'<200 desirable',cl:null,ch:300},
-  'Triglycerides (TG)':{cat:'lipid',unit:'mg/dL',ref:'<150',cl:null,ch:500},
-  'HDL Cholesterol':{cat:'lipid',unit:'mg/dL',ref:'M: >40 | F: >50',cl:25,ch:null},
-  'LDL Cholesterol':{cat:'lipid',unit:'mg/dL',ref:'<100 optimal | <130 near-optimal',cl:null,ch:null},
-  'VLDL Cholesterol':{cat:'lipid',unit:'mg/dL',ref:'5–40',cl:null,ch:null},
-  // Thyroid
-  'TSH':{cat:'thyroid',unit:'μIU/mL',ref:'0.4–4.0',cl:null,ch:100},
-  'T3 (Triiodothyronine)':{cat:'thyroid',unit:'ng/dL',ref:'80–200',cl:null,ch:null},
-  'T4 (Thyroxine)':{cat:'thyroid',unit:'μg/dL',ref:'5.0–12.0',cl:null,ch:null},
-  // Urine
-  'Urine Routine & Microscopy':{cat:'urine',unit:'',ref:'See individual parameters',cl:null,ch:null},
-  'Urine — Albumin (Protein)':{cat:'urine',unit:'',ref:'Nil / Negative',cl:null,ch:null},
-  'Urine — Sugar (Glucose)':{cat:'urine',unit:'',ref:'Nil / Negative',cl:null,ch:null},
-  'Urine — Pus Cells (WBCs)':{cat:'urine',unit:'/hpf',ref:'0–5',cl:null,ch:50},
-  'Urine — RBCs':{cat:'urine',unit:'/hpf',ref:'0–2',cl:null,ch:null},
-  'Urine — pH':{cat:'urine',unit:'',ref:'4.5–8.0',cl:null,ch:null},
-  'Urine — Specific Gravity':{cat:'urine',unit:'',ref:'1.005–1.030',cl:null,ch:null},
-  'Urine — Ketone Bodies':{cat:'urine',unit:'',ref:'Negative',cl:null,ch:null},
-  'Urine — Bile Salts/Pigments':{cat:'urine',unit:'',ref:'Negative',cl:null,ch:null},
-  'Urine — Casts':{cat:'urine',unit:'',ref:'Nil',cl:null,ch:null},
-  'Urine Culture & Sensitivity':{cat:'urine',unit:'',ref:'No growth (sterile)',cl:null,ch:null},
-  'Urine Pregnancy Test (UPT)':{cat:'urine',unit:'',ref:'Negative',cl:null,ch:null},
-  // Stool
-  'Stool Routine & Microscopy':{cat:'stool',unit:'',ref:'No ova / cysts / parasites',cl:null,ch:null},
-  'Stool — Occult Blood':{cat:'stool',unit:'',ref:'Negative',cl:null,ch:null},
-  // Serology
-  'Widal Test (TO + TH)':{cat:'serology',unit:'',ref:'<1:80 baseline',cl:null,ch:null},
-  'RA Factor (Rheumatoid Factor)':{cat:'serology',unit:'IU/mL',ref:'<14',cl:null,ch:null},
-  'ASO Titre':{cat:'serology',unit:'IU/mL',ref:'<200',cl:null,ch:null},
-  'HIV I & II (Rapid)':{cat:'serology',unit:'',ref:'Non-reactive',cl:null,ch:null},
-  'HBsAg (Hepatitis B)':{cat:'serology',unit:'',ref:'Non-reactive',cl:null,ch:null},
-  'Anti-HCV (Hepatitis C)':{cat:'serology',unit:'',ref:'Non-reactive',cl:null,ch:null},
-  'Malaria (MP / RDT)':{cat:'serology',unit:'',ref:'Negative',cl:null,ch:null},
-  'Dengue NS1 Antigen':{cat:'serology',unit:'',ref:'Negative',cl:null,ch:null},
-  'Dengue IgM / IgG':{cat:'serology',unit:'',ref:'Negative',cl:null,ch:null},
-  'Leptospira IgM':{cat:'serology',unit:'',ref:'Negative',cl:null,ch:null},
-  'ANA (Antinuclear Antibody)':{cat:'serology',unit:'',ref:'Negative',cl:null,ch:null},
-  'Blood Culture & Sensitivity':{cat:'serology',unit:'',ref:'No growth',cl:null,ch:null},
-  'Sputum AFB (ZN Stain)':{cat:'serology',unit:'',ref:'No AFB seen',cl:null,ch:null},
-  // Imaging/ECG
-  'X-Ray Chest (PA view)':{cat:'imaging_ecg',unit:'',ref:'Report findings',cl:null,ch:null},
-  'X-Ray (specify area)':{cat:'imaging_ecg',unit:'',ref:'Report findings',cl:null,ch:null},
-  'USG Abdomen & Pelvis':{cat:'imaging_ecg',unit:'',ref:'Report findings',cl:null,ch:null},
-  'USG Pelvis (Obstetric)':{cat:'imaging_ecg',unit:'',ref:'Report findings',cl:null,ch:null},
-  'ECG (12-lead)':{cat:'imaging_ecg',unit:'',ref:'Report findings',cl:null,ch:null},
-  'ECHO (Echocardiography)':{cat:'imaging_ecg',unit:'',ref:'Report findings',cl:null,ch:null},
-  // Other
-  'Coagulation Profile (PT/INR/aPTT)':{cat:'other',unit:'',ref:'PT: 11-13.5 sec | INR: 0.8-1.2 | aPTT: 25-35 sec',cl:null,ch:null},
-  'PAP Smear':{cat:'other',unit:'',ref:'Negative for intraepithelial lesion',cl:null,ch:null},
-  'FNAC (specify site)':{cat:'other',unit:'',ref:'Report findings',cl:null,ch:null},
-  'Biopsy (specify site)':{cat:'other',unit:'',ref:'Report findings',cl:null,ch:null},
-  'Procalcitonin (PCT)':{cat:'other',unit:'ng/mL',ref:'<0.5 low sepsis risk',cl:null,ch:null},
-};
+// Session 363 (§266): the reference ranges, units and flags come from the organisation's lab test catalogue (lab_tests /
+// lab_test_ranges); the flag of a saved result is decided by the SERVER (lab_order_items.flag / range_used). The old hard-coded
+// TEST_REF list (text ranges such as "<140" that were never compared) is gone.
+let _cat = { tests: [], byName: new Map() };
+async function loadCatalogue() {
+  const c = await loadLabCatalogue(supabase, tenantId);
+  if (c.error) { _alert('error', safeErrorMessage(c.error, 'Could not load the lab test catalogue.')); return; }
+  _cat = c;
+}
 
 // ── Date helpers ──────────────────────────────────────────────────────────────
 function getViewDate() {
@@ -355,7 +279,7 @@ function renderOrderDetail() {
   document.getElementById('active-order').style.display  = 'block';
   document.getElementById('r-pt-name').textContent = p.name || '—';
   document.getElementById('r-pt-meta').textContent =
-    `Age ${p.age||'—'} · ${(p.gender||'').charAt(0).toUpperCase()||'—'} · ${p.phone||'—'} · Ordered by: Dr. ${o.profiles?.full_name||'—'} · ${_fmtDate(o.order_date)}${o.order_time?' '+o.order_time.slice(0,5):''}`;
+    `Age ${p.age||'—'} · ${(p.gender||'').charAt(0).toUpperCase()||'—'} · ${p.phone||'—'} · ${referralText(o) ? '🧪 Lab only (walk-in) · Referred by: ' + referralText(o) : 'Ordered by: Dr. ' + (o.profiles?.full_name||'—')} · ${_fmtDate(o.order_date)}${o.order_time?' '+o.order_time.slice(0,5):''}`;
 
   const pb = document.getElementById('r-priority-badge');
   pb.textContent = o.priority.toUpperCase();
@@ -417,7 +341,8 @@ function renderOrderDetail() {
   document.getElementById('ph-hospital').textContent = o.tenant_name || tenant?.name || '';
   document.getElementById('ph-pt').textContent  = p.name || '—';
   document.getElementById('ph-age').textContent = `${p.age||'—'} / ${(p.gender||'').charAt(0).toUpperCase()}`;
-  document.getElementById('ph-doctor').textContent = `Dr. ${o.profiles?.full_name||'—'}`;
+  document.getElementById('ph-doctor-lbl').textContent = referralText(o) ? 'Referred by:' : 'Ordered by:';
+  document.getElementById('ph-doctor').textContent = referralText(o) || `Dr. ${o.profiles?.full_name||'—'}`;
   document.getElementById('ph-collect').textContent= o.collected_at ? new Date(o.collected_at).toLocaleString('en-IN') : '—';
   document.getElementById('ph-rdate').textContent  = new Date().toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'});
 
@@ -466,11 +391,16 @@ function _applyReceptionistOrderView() {
 }
 
 function renderTestRow(item) {
-  const ref  = TEST_REF[item.test_name] || { unit:'', ref:item.reference_range||'' };
-  const rowCls = item.is_critical ? 'critical' : item.is_abnormal ? 'abnormal' : '';
-  const flag  = item.is_critical ? 'critical' : item.is_abnormal ? 'abnormal' : 'normal';
-  const flagLabel = item.is_critical ? '⚠ CRITICAL' : item.is_abnormal ? 'Abnormal' : 'Normal';
-  const inputCls  = item.is_critical ? 'critical-val' : item.is_abnormal ? 'abnormal-val' : '';
+  // Session 363: the saved (server) flag; the unit / range from the frozen band, else the catalogue, else the stored text
+  const test = findTest(_cat, item.test_name);
+  const pt = _activeOrder?.patients || {};
+  const preview = test ? flagFor(test, '', pt.gender, pt.age) : null;
+  const ref  = { unit: item.result_unit || item.range_used?.unit || test?.unit || '', ref: itemRangeText(item) || preview?.range_text || '' };
+  const f = itemFlag(item);
+  const rowCls = f.cls === 'critical' ? 'critical' : f.cls === 'abnormal' ? 'abnormal' : '';
+  const flag  = f.cls;
+  const flagLabel = f.text + (f.note ? ' · ' + f.note : '') + (!test && !item.range_used ? '' : '');
+  const inputCls  = f.cls === 'critical' ? 'critical-val' : f.cls === 'abnormal' ? 'abnormal-val' : '';
   const auth = item.authorisation_status || 'pending';
   const isComplete = !_isLabWriter || (_activeOrder?.status === 'completed' && !_backToPending.has(item.id)) || auth !== 'pending';   // §261: read-only for non-lab roles
   // §263 (e): amber, not green -- the result is NOT authorised yet
@@ -485,7 +415,7 @@ function renderTestRow(item) {
       ${isComplete?'readonly style="background:#f5f5f5"':''}/>
     <div class="test-unit">${ref.unit}</div>
     <div class="test-ref">${ref.ref || item.reference_range || ''}</div>
-    <span class="flag-badge flag-${flag}" id="flag-${item.id}">${flagLabel}</span>
+    <span class="flag-badge flag-${flag}" id="flag-${item.id}">${_esc(flagLabel)}</span>
     <input class="test-remarks" id="rem-${item.id}" type="text" value="${_esc(item.remarks||'')}" placeholder="Remarks"
       ${isComplete?'readonly style="background:#f5f5f5"':''}/>
     ${authNote ? `<div class="test-auth">${authNote}</div>` : ''}
@@ -504,39 +434,27 @@ window.backToPending = async function(itemId) {
 
 // ── Auto-evaluate result ──────────────────────────────────────────────────────
 window.evalResult = function(id, testName, val) {
-  const ref    = TEST_REF[testName];
-  const numVal = parseFloat(val);
-  let isCrit = false, isAbn = false;
-
-  if (ref && !isNaN(numVal)) {
-    if ((ref.cl !== null && numVal <= ref.cl) || (ref.ch !== null && numVal >= ref.ch)) {
-      isCrit = true; isAbn = true;
-    } else {
-      isAbn = false; // could add range check for abnormal (non-critical) here
-    }
-  }
-  // Text result abnormal keywords
-  if (!isCrit && typeof val === 'string') {
-    const lv = val.toLowerCase();
-    if (/positive|reactive|detected|growth|found|abnormal|malignant/i.test(lv)) isAbn = true;
-    if (/critical|emergency|urgent/i.test(lv)) isCrit = isAbn = true;
-  }
-
+  // Session 363: a PREVIEW while typing (the twin of the server rule); the saved flag is the server's
+  const pt = _activeOrder?.patients || {};
+  const pv = flagFor(findTest(_cat, testName), val, pt.gender, pt.age);
+  const isCrit = !!pv.flag && pv.flag.startsWith('critical');
+  const isAbn  = !!pv.flag && pv.flag !== 'normal';
   const flagEl  = document.getElementById(`flag-${id}`);
   const inputEl = document.getElementById(`val-${id}`);
   const rowEl   = document.getElementById(`tr-${id}`);
   if (!flagEl) return;
-  flagEl.className   = `flag-badge flag-${isCrit?'critical':isAbn?'abnormal':'normal'}`;
-  flagEl.textContent = isCrit?'⚠ CRITICAL':isAbn?'Abnormal':'Normal';
+  flagEl.className   = `flag-badge flag-${isCrit?'critical':isAbn?'abnormal':pv.flag?'normal':'none'}`;
+  flagEl.textContent = (pv.flag ? FLAG_TEXT[pv.flag] + (pv.band_label && pv.flag !== 'normal' ? ' · ' + pv.band_label : '') : '—')
+    + (NOTE_TEXT[pv.note] ? ' · ' + NOTE_TEXT[pv.note] : '');
   inputEl.className  = `test-input ${isCrit?'critical-val':isAbn?'abnormal-val':''}`;
   rowEl.className    = `test-row ${isCrit?'critical':isAbn?'abnormal':''}`;
 
-  // Update in-memory
+  // the preview only (the saved row's flag stays the server's until the result is saved)
   const item = _activeItems.find(i => i.id === id);
-  if (item) { item.is_critical = isCrit; item.is_abnormal = isAbn; item.result_value = val; }
+  if (item) { item._preview_critical = isCrit; item.result_value = val; }
 
   // Update critical banner
-  const criticals = _activeItems.filter(i => i.is_critical && i.result_value);
+  const criticals = _activeItems.filter(i => (i._preview_critical ?? i.is_critical) && i.result_value);
   document.getElementById('critical-list').textContent = criticals.map(i => i.test_name + ' = ' + i.result_value).join(' | ');
   criticals.length
     ? document.getElementById('critical-banner').classList.add('show')
@@ -586,11 +504,7 @@ window.saveResults = async function(status) {
     id:            item.id,
     result_value:  _val(item) || _stored[item.id]?.v || null,
     remarks:       _rem(item),
-    is_abnormal:   item.is_abnormal || false,
-    is_critical:   item.is_critical || false,
-    entered_by:    userId,
-    entered_at:    new Date().toISOString(),
-  }));
+  }));   // Session 363: the flag / range / entrant are set by the server
 
   // Upsert items -- Session 353B: every row's answer is checked (a refused row -- e.g. a signed, frozen result -- is shown, never a false
   // "saved"); entered_by / entered_at are set by the server
@@ -608,8 +522,11 @@ window.saveResults = async function(status) {
   }
 
   for (const u of updates) {
-    const { data: iData, error: iErr } = await supabase.from('lab_order_items').update(u).eq('id', u.id).select('id');
+    const { data: iData, error: iErr } = await supabase.from('lab_order_items').update(u).eq('id', u.id)
+      .select('id, flag, is_abnormal, is_critical, range_used, reference_range, result_unit');
     if (iErr || !iData?.length) { _alert('error', safeErrorMessage(iErr, 'Could not save the result for ' + (_activeItems.find(i => i.id === u.id)?.test_name || 'a test') + '.')); return; }
+    const it = _activeItems.find(i => i.id === u.id);
+    if (it) { Object.assign(it, iData[0]); delete it._preview_critical; }   // the server's flag
   }
 
   // Update order status
@@ -643,7 +560,7 @@ window.saveResults = async function(status) {
 
   // Fire critical alerts to ordering doctor
   const criticals = _activeItems.filter(i => i.is_critical && i.result_value);
-  if (criticals.length && realRelease) {
+  if (criticals.length && realRelease && _activeOrder.ordered_by) {   // a walk-in has no ordering doctor (Session 363)
     await supabase.from('doctor_alerts').insert({
       tenant_id:    tenantId,
       doctor_id:    _activeOrder.ordered_by,
@@ -752,38 +669,107 @@ async function _abdmCareContextLabReport(order) {
 }
 
 // ── Print ─────────────────────────────────────────────────────────────────────
-window.printReport = function() {
+// Session 363 (§263 b, owner Q9): the lab report is numbered by the SERVER (record_document_print('lab_report') -> ORIGINAL /
+// DUPLICATE COPY · No. N, the same marking in the header and the footer); it fails closed when that cannot be recorded. Each result's
+// signer is printed with the qualification / registration number from VERIFIED credentials only (get_lab_report_signers) and the
+// sign-off date / time; a walk-in prints "Referred by: Self" (or the outside doctor). §267: a result back at pending is never printed
+// with its value. Built from DOM nodes + textContent only.
+const _dt = iso => iso ? new Date(iso).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
+function _el(tag, attrs, ...kids) {
+  const e = document.createElement(tag);
+  Object.entries(attrs || {}).forEach(([k, v]) => { if (v !== null && v !== undefined) e.setAttribute(k, v); });
+  kids.flat().forEach(k => { if (k !== null && k !== undefined && k !== false) e.append(k instanceof Node ? k : String(k)); });
+  return e;
+}
+function referralText(o, sig) {
+  const r = sig || o || {};
+  if (!(r.walk_in ?? o?.walk_in)) return null;
+  const type = r.referral_type ?? o?.referral_type;
+  if (type === 'self') return 'Self';
+  const name = r.referred_by_name ?? o?.referred_by_name;
+  const reg = r.referred_by_reg_no ?? o?.referred_by_reg_no;
+  return name ? `${name}${reg ? ', Reg. No. ' + reg : ''} (outside)` : '—';
+}
+window.printReport = async function() {
+  if (!_activeOrder) return;
+  const o = _activeOrder;
+  const rec = await supabase.rpc('record_document_print', { p_doc_type: 'lab_report', p_doc_id: o.id });
+  if (rec.error || !rec.data) { _alert('error', safeErrorMessage(rec.error, 'Could not record this print -- the report was not printed. Please try again.')); return; }
+  const sigRes = await supabase.rpc('get_lab_report_signers', { p_order: o.id });
+  if (sigRes.error || !sigRes.data) { _alert('error', safeErrorMessage(sigRes.error, 'Could not load the report signatories -- the report was not printed.')); return; }
+  const sig = sigRes.data;
+  const copyNo = Number(rec.data.print_no) || 1;
+  const copyText = rec.data.copy === 'ORIGINAL' ? 'Original' : `DUPLICATE COPY · No. ${copyNo}`;
+
   const aiText  = document.getElementById('lab-ayurveda').value.trim();
   const sigId   = document.getElementById('lab-signed-by').value;
   const sigName = sigId ? (_signatories.find(p => p.id === sigId)?.full_name || '—') : '—';
   document.getElementById('ph-ayurveda').textContent         = aiText || '(Not entered)';
-  document.getElementById('ph-ayurveda-wrap').style.display  = 'block';
+  document.getElementById('ph-ayurveda-wrap').style.display  = aiText ? 'block' : 'none';
   document.getElementById('ph-signatory').textContent        = sigName;
-  // Report = #print-header's hospital/patient block, then the result rows (typed values
-  // frozen to text by printDocument), then the Ayurvedic interpretation + signature. The
-  // two blocks live at opposite ends of the page, so they're assembled in reading order
-  // here rather than printed where they sit (which put the header under the results).
-  const hdr    = document.getElementById('print-header');
-  const top    = hdr.cloneNode(true);
-  const bottom = document.createElement('div');
-  bottom.append(...[...top.children].slice(2));          // ph-ayurveda-wrap + signature row
-  const crit   = document.getElementById('critical-banner');
-  const parts  = [top];
-  // §263 (e): a result not yet signed off by the pathologist / lab in-charge -> the whole print is PROVISIONAL (DOM nodes + textContent)
-  if (anyAwaitingSignOff(_activeItems, _activeOrder)) {
-    const prov = document.createElement('div');
-    prov.className = 'lab-provisional';
-    prov.style.cssText = 'background:#fdf3e2;color:#7a4a00;border:2px solid #c9902a;border-radius:8px;padding:8px 14px;margin-bottom:12px;font-size:12px;font-weight:600';
-    const h = document.createElement('div');
-    h.style.cssText = 'font-size:14px;font-weight:800;letter-spacing:.5px';
-    h.textContent = PROVISIONAL_REPORT;
-    const sub = document.createElement('div');
-    sub.textContent = '⏳ ' + AWAITING_SIGNOFF + ' — not yet authorised by the pathologist / lab in-charge.';
-    prov.append(h, sub);
-    parts.push(prov);
-  }
+  const ref = referralText(o, sig);
+  document.getElementById('ph-doctor-lbl').textContent = ref ? 'Referred by:' : 'Ordered by:';
+  document.getElementById('ph-doctor').textContent = ref || `Dr. ${o.profiles?.full_name || '—'}`;
+  const top = document.getElementById('print-header').cloneNode(true);
+  top.removeAttribute('id');
+  top.style.display = 'block';
+  const tail = [...top.children].slice(2);          // the Ayurvedic interpretation + its signatory (NCISM §43(4))
+  tail.forEach(c => c.remove());
+  const interp = _el('div', null, ...tail);
+  const strip = () => _el('div', { class: 'lab-copy-strip', style: 'text-align:right;font-size:11px;font-weight:700;letter-spacing:.4px;margin:4px 0 8px;color:' + (copyNo > 1 ? '#7a1a1a' : '#1a4a2e') }, copyText);
+  const parts = [top, strip()];
+  const crit = document.getElementById('critical-banner');
   if (crit.classList.contains('show')) parts.push(crit);
-  parts.push(document.getElementById('test-categories'), bottom);
+  if (anyAwaitingSignOff(_activeItems, o)) {
+    parts.push(_el('div', { class: 'lab-provisional', style: 'background:#fdf3e2;color:#7a4a00;border:2px solid #c9902a;border-radius:8px;padding:8px 14px;margin-bottom:12px;font-size:12px;font-weight:600' },
+      _el('div', { style: 'font-size:14px;font-weight:800;letter-spacing:.5px' }, PROVISIONAL_REPORT),
+      _el('div', null, '⏳ ' + AWAITING_SIGNOFF + ' — not yet authorised by the pathologist / lab in-charge.')));
+  }
+  // the results, by section
+  const bySec = {};
+  _activeItems.forEach(i => { (bySec[i.test_category || 'other'] ||= []).push(i); });
+  const th = t => _el('th', { style: 'text-align:left;border-bottom:1.5px solid #1a4a2e;padding:4px 6px;font-size:11px' }, t);
+  const td = (t, st = '') => _el('td', { style: 'border-bottom:1px solid #ddd;padding:4px 6px;font-size:11.5px;vertical-align:top;' + st }, t);
+  const results = _el('div', { class: 'lab-print-results' });
+  Object.entries(bySec).forEach(([sec, items]) => {
+    results.append(_el('div', { style: 'font-weight:700;color:#1a4a2e;font-size:12px;margin:10px 0 4px;text-transform:uppercase;letter-spacing:.4px' }, SECTION_LABELS[sec] || CAT_LABELS[sec] || sec));
+    results.append(_el('table', { style: 'width:100%;border-collapse:collapse' },
+      _el('thead', null, _el('tr', null, th('Test'), th('Result'), th('Unit'), th('Flag'), th('Reference range'))),
+      _el('tbody', null, items.map(i => {
+        const hidden = hiddenValueText(i, o);
+        const f = hidden ? { text: '', note: '', cls: 'none' } : itemFlag(i);
+        const isCrit = f.cls === 'critical', isAbn = f.cls === 'abnormal';
+        return _el('tr', { 'data-test': i.test_name }, td(i.test_name),
+          td(hidden || i.result_value || '—', hidden ? 'font-style:italic;color:#6b7280' : 'font-weight:700;' + (isCrit ? 'color:#a01a1a' : isAbn ? 'color:#7a5c00' : '')),
+          td(hidden ? '' : (i.result_unit || i.range_used?.unit || '')),
+          td(f.text === '—' ? '' : f.text, isCrit ? 'color:#a01a1a;font-weight:700' : isAbn ? 'color:#7a5c00;font-weight:600' : ''),
+          td(itemRangeText(i) + (f.note ? ` (${f.note})` : '')));
+      }))));
+  });
+  parts.push(results);
+  if (aiText) parts.push(interp);
+  // the signatory block: every signer once, with VERIFIED credentials only, and when they signed
+  const signers = new Map();
+  (sig.items || []).forEach(it => {
+    if (!it.signer || !it.authorised_at) return;
+    const cur = signers.get(it.signer.name);
+    if (!cur || new Date(it.authorised_at) > new Date(cur.at)) signers.set(it.signer.name, { ...it.signer, at: it.authorised_at });
+  });
+  const techs = [...new Set((sig.items || []).map(it => it.entered_by).filter(Boolean))];
+  const block = _el('div', { class: 'lab-signatories', style: 'display:flex;flex-wrap:wrap;gap:18px;justify-content:flex-end;margin-top:14px;border-top:1px dashed #ccc;padding-top:10px;font-size:11px' });
+  if (techs.length) block.append(_el('div', { style: 'min-width:180px' }, _el('div', { style: 'height:30px' }), _el('div', { style: 'font-weight:600' }, techs.join(', ')),
+    _el('div', { style: 'color:#666' }, 'Laboratory technician (results entered)')));
+  if (!signers.size) block.append(_el('div', { class: 'lab-signer-none', style: 'min-width:220px;color:#7a4a00;font-weight:600' }, 'Not yet signed off by the pathologist / lab in-charge'));
+  signers.forEach(sg => block.append(_el('div', { class: 'lab-signer', style: 'min-width:220px;text-align:right' },
+    _el('div', { style: 'height:30px;border-bottom:1px solid #333' }),
+    _el('div', { style: 'font-weight:700;color:#1a4a2e;margin-top:3px' }, sg.name),
+    sg.credentials_verified
+      ? [sg.qualification ? _el('div', null, sg.qualification) : null,
+         sg.registration_number ? _el('div', null, 'Reg. No. ' + sg.registration_number + (sg.registration_council ? ' — ' + sg.registration_council : '')) : null]
+      : _el('div', { style: 'color:#6b7280' }, '(credentials not verified)'),
+    _el('div', { style: 'color:#666' }, 'Authorised signatory — signed off ' + _dt(sg.at)))));
+  parts.push(block);
+  parts.push(strip());   // the footer carries the SAME copy marking as the header
   const ptName = document.getElementById('ph-pt').textContent;
   printDocument(parts, { title: `Lab Report — ${ptName}` });
   document.getElementById('ph-ayurveda-wrap').style.display  = 'none';
@@ -798,7 +784,7 @@ function _alert(type, msg) { notify(msg, type); }   // Session 323: shared top-l
 window.switchModule = function(mod, el) {
   document.querySelectorAll('.module-tab').forEach(b => b.classList.remove('active'));
   el.classList.add('active');
-  ['pathology','imaging','aerb','pcpndt'].forEach(m => {
+  ['pathology','imaging','aerb','pcpndt','catalogue'].forEach(m => {
     const t = document.getElementById('tab-'+m);
     if (t) t.hidden = m !== mod;
   });
@@ -1326,13 +1312,15 @@ function _monthLabel(id) {
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 updateDateLabel();
+await loadCatalogue();
 await loadOrders();
+initCatalogueTab({ supabase, tenantId, profile, onChange: loadCatalogue });
 
 if (_isReceptionist) {
   // Reception's Clinical Lab access is Pathology-status-checking only -- Imaging/AERB/
   // PCPNDT are unrelated to front-desk work (AERB/PCPNDT are radiation-safety/PCPNDT-Act
   // registers with their own access expectations independent of this app).
-  document.querySelectorAll('.module-tab[data-onclick-a0="imaging"],.module-tab[data-onclick-a0="aerb"],.module-tab[data-onclick-a0="pcpndt"]')
+  document.querySelectorAll('.module-tab[data-onclick-a0="imaging"],.module-tab[data-onclick-a0="aerb"],.module-tab[data-onclick-a0="pcpndt"],.module-tab[data-onclick-a0="catalogue"]')
     .forEach(btn => { btn.style.display = 'none'; });
 } else {
   await loadSignatories();

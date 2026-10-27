@@ -1,5 +1,5 @@
 import { todayISTStr } from '../../utils/dateUtils.js';
-import { AWAITING_SIGNOFF, isAwaitingSignOff } from '../lab/signOff.js';
+import { AWAITING_SIGNOFF, isAwaitingSignOff, hiddenValueText } from '../lab/signOff.js';   // §267
 // Follow-up consultation layout, phase 4b (Session 295) -- "⏳ Investigations advised
 // last visit" card on doctor.html's History tab + outside-lab result entry.
 //
@@ -84,7 +84,7 @@ function _testsSummary(o, esc) {
   const items = o.lab_order_items || [];
   const withResult = items.filter(i => i.result_value !== null && i.result_value !== '');
   if (withResult.length) {
-    return withResult.map(i => `<span class="inv-res${i.is_critical ? ' crit' : i.is_abnormal ? ' abn' : ''}">${esc(i.test_name)} <strong>${esc(i.result_value)}</strong>${i.result_unit ? ' ' + esc(i.result_unit) : ''}${i.is_critical ? ' ⚠ critical' : i.is_abnormal ? ' ⚠' : ''}${isAwaitingSignOff(i, o) ? ' · ⏳ ' + esc(AWAITING_SIGNOFF) : ''}</span>`).join(' · ');
+    return withResult.map(i => hiddenValueText(i, o) ? `<span class="inv-res">${esc(i.test_name)} <em>${esc(hiddenValueText(i, o))}</em></span>` : `<span class="inv-res${i.is_critical ? ' crit' : i.is_abnormal ? ' abn' : ''}">${esc(i.test_name)} <strong>${esc(i.result_value)}</strong>${i.result_unit ? ' ' + esc(i.result_unit) : ''}${i.is_critical ? ' ⚠ critical' : i.is_abnormal ? ' ⚠' : ''}${isAwaitingSignOff(i, o) ? ' · ⏳ ' + esc(AWAITING_SIGNOFF) : ''}</span>`).join(' · ');
   }
   const byPanel = {}, single = [];
   items.forEach(i => i.panel_label ? (byPanel[i.panel_label] = 1) : single.push(i.test_name));

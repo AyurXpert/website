@@ -23,7 +23,8 @@ import { printDocument } from '../utils/printDocument.js';
 import { aggregateByMedicine } from '../modules/inventory/stockByMedicine.js';
 import { identityLines } from '../utils/signerIdentity.js';
 import { getOpdWorkflow, screeningOpdId } from '../modules/opd/screeningOpd.js';
-import { AWAITING_SIGNOFF, isAwaitingSignOff, anyAwaitingSignOff } from '../modules/lab/signOff.js';
+import { AWAITING_SIGNOFF, isAwaitingSignOff, anyAwaitingSignOff, hiddenValueText } from '../modules/lab/signOff.js';   // §267
+import { loadLabCatalogue, namesBySection } from '../modules/lab/catalogue.js';
 import { loadMyPkSessions, resetMyPkSessions } from '../modules/panchakarma/myPkSessions.js';
 import { initAlertBell } from '../components/alertBell.js';
 import { loadAwaitingDeposit, loadDepositWaivers } from '../modules/ipd/admissionCounter.js';
@@ -8759,7 +8760,9 @@ const LAB_CAT_LABEL = {
   thyroid:'🦋 Thyroid', urine:'💧 Urine', stool:'🟤 Stool',
   serology:'🛡 Serology', imaging_ecg:'📡 Imaging / ECG', other:'🔬 Other'
 };
-const LAB_CATALOG = {
+// Session 363 (§266): the order list comes from the organisation's lab test catalogue (lab_tests, js/modules/lab/catalogue.js); this
+// built-in list is used only until that catalogue has loaded or when the organisation has none
+let LAB_CATALOG = {
   haematology:['Haemoglobin (Hb)','Total Leucocyte Count (TLC)','Differential Leucocyte Count (DLC)','Platelet Count','PCV / Haematocrit','ESR (Westergren)','Peripheral Blood Smear','Reticulocyte Count','Blood Group & Rh Type'],
   biochemistry:['Fasting Blood Sugar (FBS)','Post-Prandial Blood Sugar (PPBS)','Random Blood Sugar (RBS)','HbA1c','Serum Creatinine','Blood Urea','Serum Uric Acid','SGOT (AST)','SGPT (ALT)','Serum Bilirubin Total','Serum Bilirubin Direct','Alkaline Phosphatase (ALP)','Serum Albumin','Total Protein','Serum Sodium','Serum Potassium','Serum Calcium','Serum Iron','TIBC','Vitamin D (25-OH)','Vitamin B12','CRP (C-Reactive Protein)'],
   lipid:['Total Cholesterol','Triglycerides (TG)','HDL Cholesterol','LDL Cholesterol','VLDL Cholesterol'],
@@ -8825,7 +8828,15 @@ let _labOrderIpdAdm = null;
 // nothing for every doctor, ever, since this Assessment-tab entry point was built. This is the
 // only lab-ordering entry point in doctor.html. Every sibling handler here (closeLabOrderModal,
 // submitLabOrder, selectPanel, etc.) is correctly assigned to window — this one was missed.
-window.openLabOrderModal = function openLabOrderModal() {
+let _labCatalogLoaded = false;
+async function _loadLabOrderCatalog() {
+  if (_labCatalogLoaded) return;
+  const cat = await loadLabCatalogue(supabase, tenantId, { activeOnly: true });
+  if (!cat.error && cat.tests.length) LAB_CATALOG = namesBySection(cat);
+  _labCatalogLoaded = !cat.error;
+}
+window.openLabOrderModal = async function openLabOrderModal() {
+  await _loadLabOrderCatalog();   // Session 363: the organisation's catalogue
   // Session 297 -- reused as-is from an open IPD ward round: borrow the admission's
   // patient/visit the same way openPkWizardForAdmission() does (see that function's
   // comment). Only kicks in when no OPD consultation is already the active context.
@@ -9031,7 +9042,7 @@ async function loadLabResults() {
   const orderIds = orders.map(o => o.id);
   const { data: allItems } = await supabase
     .from('lab_order_items')
-    .select('order_id,test_name,result_value,is_abnormal,is_critical,authorisation_status')
+    .select('order_id,test_name,result_value,is_abnormal,is_critical,authorisation_status,flag,range_used')
     .in('order_id', orderIds);
   const itemsByOrder = {};
   (allItems || []).forEach(i => { (itemsByOrder[i.order_id] = itemsByOrder[i.order_id] || []).push(i); });
@@ -9054,7 +9065,7 @@ async function loadLabResults() {
         ${criticals.length ? '<span style="color:var(--red);font-size:11px;font-weight:700">⚠ CRITICAL</span>' : ''}
         ${anyAwaitingSignOff(items, o) ? `<span style="font-size:10px;font-weight:700;padding:1px 6px;border-radius:6px;background:var(--gold-light,#fdf3e2);color:#7a4a00" title="Released by the lab; the pathologist / lab in-charge has not signed it off yet">⏳ ${_esc(AWAITING_SIGNOFF.toUpperCase())}</span>` : ''}
       </div>
-      <div style="line-height:1.8">${items.map(i => `<span style="font-size:11px;${i.is_critical?'color:var(--red);font-weight:700':i.is_abnormal?'color:#7a5c00':''}">${_esc(i.test_name)}${i.result_value?' = <strong>'+_esc(i.result_value)+'</strong>':''}${isAwaitingSignOff(i, o) ? ' <span title="' + _esc(AWAITING_SIGNOFF) + '">⏳</span>' : ''}</span>`).join(' · ')}</div>
+      <div style="line-height:1.8">${items.map(i => `<span style="font-size:11px;${i.is_critical?'color:var(--red);font-weight:700':i.is_abnormal?'color:#7a5c00':''}">${_esc(i.test_name)}${hiddenValueText(i, o) ? ' — <em>' + _esc(hiddenValueText(i, o)) + '</em>' : i.result_value?' = <strong>'+_esc(i.result_value)+'</strong>':''}${!hiddenValueText(i, o) && isAwaitingSignOff(i, o) ? ' <span title="' + _esc(AWAITING_SIGNOFF) + '">⏳</span>' : ''}</span>`).join(' · ')}</div>
     </div>`;
   }).join('');
   document.getElementById('lab-results-body').innerHTML = html;

@@ -21,7 +21,7 @@
 // Imaging has no payment_status column (TODO_LATER.md §80) — shown as "Billing not tracked".
 
 import { todayISTStr, istDayRangeUTC } from '../../utils/dateUtils.js';
-import { AWAITING_SIGNOFF, isAwaitingSignOff } from '../lab/signOff.js';
+import { AWAITING_SIGNOFF, isAwaitingSignOff, hiddenValueText } from '../lab/signOff.js';   // §267
 
 let _sb = null, _esc = s => String(s ?? '');
 let _tenantId = null, _userId = null;
@@ -304,7 +304,7 @@ function _labHtml(l) {
       <span><span class="badge" style="background:${payBg};color:${payColor}">${_esc(_nice(l.payment_status) || 'Fee: —')}</span> <span class="vh-muted">${l.performed_outside ? '🔗 Outside lab' : _esc(_nice(l.status) || '')}</span></span></div>
     ${l.performed_outside ? `<div class="vh-muted" style="margin-bottom:4px">🔗 ${_esc(l.outside_lab_name || 'Outside lab')}${l.outside_report_date ? ', ' + _fmtD(l.outside_report_date) : ''}${l.outside_report_path ? ` · <button type="button" class="vh-link" data-onclick="openLabReportFile" data-onclick-a0="${_esc(l.outside_report_path)}">📄 View report</button>` : ''}</div>` : ''}
     ${items.length ? `<table class="vh-res"><tbody>${items.map(i => `<tr>
-      <td>${_esc(i.test_name)}</td><td><strong>${_esc(i.result_value)}</strong> ${_esc(i.result_unit || '')} ${flag(i)}${isAwaitingSignOff(i, l) ? ' ' + `<span class="vh-flag" title="Released by the lab; the pathologist / lab in-charge has not signed it off yet">⏳ ${AWAITING_SIGNOFF}</span>` : ''}</td>
+      <td>${_esc(i.test_name)}</td><td>${hiddenValueText(i, l) ? `<em class="vh-muted">${_esc(hiddenValueText(i, l))}</em>` : `<strong>${_esc(i.result_value)}</strong> ${_esc(i.result_unit || '')} ${flag(i)}${isAwaitingSignOff(i, l) ? ' ' + `<span class="vh-flag" title="Released by the lab; the pathologist / lab in-charge has not signed it off yet">⏳ ${AWAITING_SIGNOFF}</span>` : ''}`}</td>
       <td class="vh-muted">${_esc(i.reference_range || '')}</td></tr>`).join('')}</tbody></table>`
       : '<div class="vh-muted">Report not available yet.</div>'}
   </div>`;

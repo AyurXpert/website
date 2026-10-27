@@ -25,6 +25,7 @@ import { loadPendingFollowups } from '../modules/patient/pendingFollowups.js';  
 import { noAutofill } from '../utils/noAutofill.js';                               // Session 358 (§285)
 import { canMarkLabUrgent, canSeeLabOutstanding } from '../utils/staffPowers.js';   // Session 359 (§293 / §295)
 import { buildLabReasonPanel } from '../modules/billing/labPayments.js';           // Session 359 (§295)
+import { openWalkinPanel, canBookWalkin, walkinBadgeText } from '../modules/lab/walkinPanel.js';   // Session 363 (§259)
 import { stageChip, awaitingRows, buildCounterPanel, canWaiveDeposit, SCHEMES } from '../modules/ipd/admissionCounter.js';
 import {
   requestABHAOtp, enrollABHA,
@@ -50,7 +51,7 @@ window._getAbhaProfileFull = getAbhaProfileFull;
 window._loginVerifyUser = loginVerifyUser;
 window._getAbhaQrCode = getAbhaQrCode;
 
-await requireAuth(['receptionist', 'nurse', 'super_admin', 'dept_admin', 'doctor']);
+await requireAuth(['receptionist', 'nurse', 'super_admin', 'dept_admin', 'doctor', 'cashier']);   // Session 363 (B3): cashier = Lab Bills only
 initNavbar();
 wireDelegatedEvents();
 
@@ -4508,7 +4509,7 @@ let _labOwed = {};   // Session 359: lab order id -> list_lab_outstanding() row
 async function loadPendingLabBills() {
   const { data: orders, error } = await supabase
     .from('lab_orders')
-    .select('id, priority, payment_status, created_at, due_timing, due_by, order_date, performed_outside, status, visits(token_number, patient_id, patients(name, phone, uhid)), lab_order_items(test_name, panel_label)')
+    .select('id, priority, payment_status, created_at, due_timing, due_by, order_date, performed_outside, status, walk_in, referral_type, referred_by_name, visits(token_number, patient_id, patients(name, phone, uhid)), lab_order_items(test_name, panel_label)')
     .eq('tenant_id', tenantId)
     // Session 127 -- a trainee doctor's still-unreviewed draft order shouldn't
     // reach the payment counter at all until a supervising doctor finalizes it.
@@ -4608,7 +4609,7 @@ async function loadPendingLabBills() {
     return `<div class="q-item">
       <div class="q-token waiting">${_esc(tokenNo)}</div>
       <div class="q-info">
-        <div class="q-name">${_esc(name)} ${priorityBadge}${waivedBadge}</div>
+        <div class="q-name">${_esc(name)} ${priorityBadge}${waivedBadge}${o.walk_in ? `<span class="badge" style="background:#e8f5ee;color:#1a4a2e">${_esc(walkinBadgeText(o))}</span>` : ''}</div>
         <div class="q-row2"><span style="color:var(--text-mid)">${tests}</span></div>
         <div class="q-row3">${_labGst ? 'Est. before GST' : 'Amount due'}: <strong>₹${amount.toFixed(2)}</strong></div>
         ${owedLine}
@@ -4718,6 +4719,22 @@ function _deferredLabBillsHtml(deferred, estimateByOrder) {
 // bills the order only if its charge is not already on a bill (a "before next visit" order, or a
 // GST order -- a legacy today-order was added to the visit bill when the doctor ordered it, so it is
 // just marked collected), and marks the order paid in the same transaction.
+// Session 363 (§259): "🧪 Lab only (walk-in)" -- the booking panel (the server decides who may book, Self / consent, the price)
+window.openWalkinLab = function() {
+  const slot = document.getElementById('wk-slot');
+  if (!slot) return;
+  openWalkinPanel({ supabase, tenantId, slot, getPatient: () => _patient, onBooked: () => loadPendingLabBills(), notify });
+};
+{ const b = document.getElementById('wk-open'); if (b) b.hidden = !canBookWalkin(profile); }
+// Session 363 (owner B3, 27 Oct 2026): a cashier (with no front-desk role) uses this page for 💰 Lab Bills ONLY -- collect, Urgent, the
+// walk-in booking; the registration form and the other tabs are hidden (the server decides every action: create_investigation_bill,
+// mark_lab_order_urgent, create_walkin_lab_order all allow the cashier)
+const _labBillsOnly = [profile?.role, profile?.secondary_role].includes('cashier')
+  && !['receptionist', 'nurse', 'super_admin', 'dept_admin', 'doctor'].some(r => [profile?.role, profile?.secondary_role].includes(r));
+if (_labBillsOnly) {
+  document.body.classList.add('lab-bills-only');
+  document.getElementById('tab-labbills')?.click();
+}
 window.collectLabPayment = async function(orderId) {
   const mode = document.getElementById('pm-' + orderId)?.value || 'cash';
   const reference = document.getElementById('pr-' + orderId)?.value?.trim() || null;

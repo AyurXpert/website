@@ -218,6 +218,38 @@ button.adv-item:focus-visible{outline:2px solid var(--blue);outline-offset:-2px}
   .test-ref{font-size:10px}
   #tab-pathology,#tab-imaging,#tab-aerb,#tab-pcpndt{display:block!important}
 }
+/* Session 363: the lab test catalogue tab */
+#tab-catalogue [hidden]{display:none!important}
+.cat-unpriced{margin:0 16px 10px}
+.cat-unpriced-warn{font-size:12px;font-weight:600;color:#7a1a1a;background:#fff0ee;border:1px solid #f0b8b0;border-radius:8px;padding:8px 12px}
+.cat-unpriced-ok{font-size:12px;color:var(--green-deep);background:var(--green-light);border-radius:8px;padding:6px 12px}
+.cat-unpriced-only{display:inline-flex;align-items:center;gap:4px;font-size:12px;min-height:44px}
+.cat-table td.cat-price-none{color:#a01a1a;font-weight:700}
+.flag-none{background:#f3f4f6;color:#4b5563}
+#tab-catalogue .panel{background:var(--white);border:1.5px solid var(--border);border-radius:var(--radius);padding:0 0 14px}
+#tab-catalogue .panel-hdr{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;background:var(--green-deep);color:#fff;border-radius:var(--radius) var(--radius) 0 0;font-weight:600}
+.cat-hint{font-size:12px;font-weight:400;opacity:.9}
+.cat-note{font-size:12px;color:var(--text-mid);background:#fdf8f0;border:1px solid #e8c890;border-radius:8px;padding:8px 12px;margin:10px 16px}
+.cat-tools{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:0 16px 10px}
+.cat-tools input[type=search],.cat-tools select{min-height:44px;border:1.5px solid var(--border);border-radius:7px;padding:0 10px;font-family:'DM Sans',sans-serif}
+.cat-tools .btn{min-height:44px}
+.cat-count{font-size:12px;color:var(--text-muted);padding:0 16px 6px}
+.cat-list{overflow-x:auto;padding:0 16px}
+.cat-table{width:100%;border-collapse:collapse;font-size:12px}
+.cat-table th{text-align:left;border-bottom:1.5px solid var(--green-deep);padding:6px}
+.cat-table td{border-bottom:1px solid var(--border);padding:6px;vertical-align:top}
+.cat-table tr.cat-inactive td{color:var(--text-muted);text-decoration:line-through}
+.cat-form,.cat-import{margin:10px 16px;padding:12px;border:1.5px solid var(--border);border-radius:var(--radius);background:var(--cream,#faf8f3)}
+.cat-form h3,.cat-import h3{font-family:'Cormorant Garamond',serif;font-size:20px;margin:0 0 10px;color:var(--green-deep)}
+.cat-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px}
+.cat-field{display:flex;flex-direction:column;gap:3px;font-size:11px;color:var(--text-mid)}
+.cat-field input,.cat-field select{min-height:36px;border:1.5px solid var(--border);border-radius:6px;padding:0 8px;font-family:'DM Sans',sans-serif}
+.cat-band{display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:11px;margin:4px 0}
+.cat-band input[type=number]{width:80px;min-height:32px}
+.cat-sub{display:flex;gap:8px;align-items:center;font-weight:600;margin-top:10px}
+.cat-err{color:var(--red,#a01a1a);font-size:12px;margin:6px 0}
+.cat-errs{color:var(--red,#a01a1a);font-size:12px}
+.cat-actions{display:flex;gap:8px;margin-top:8px}
 </style>
 <link rel="stylesheet" href="css/notify.css"/>
 <link rel="stylesheet" href="css/print.css"/>
@@ -245,6 +277,7 @@ button.adv-item:focus-visible{outline:2px solid var(--blue);outline-offset:-2px}
     <button class="module-tab" data-onclick="switchModule" data-onclick-a0="imaging" data-onclick-a1="@this">📡 Radiology & Imaging</button>
     <button class="module-tab" data-onclick="switchModule" data-onclick-a0="aerb" data-onclick-a1="@this">☢ AERB Log <span class="aerb-badge">X-Ray</span></button>
     <button class="module-tab" data-onclick="switchModule" data-onclick-a0="pcpndt" data-onclick-a1="@this">🔒 PCPNDT Register <span class="pcpndt-badge">USG</span></button>
+    <button class="module-tab" data-onclick="switchModule" data-onclick-a0="catalogue" data-onclick-a1="@this">📚 Test catalogue</button>
   </div>
 
   <!-- ═══════════ TAB 1: PATHOLOGY ═══════════ -->
@@ -468,6 +501,9 @@ button.adv-item:focus-visible{outline:2px solid var(--blue);outline-offset:-2px}
   </div><!-- /tab-aerb -->
 
   <!-- ═══════════ TAB 4: PCPNDT REGISTER ═══════════ -->
+  <!-- ═══════════ Session 363 (§266): the lab test catalogue (js/modules/lab/catalogueTab.js) ═══════════ -->
+  <div id="tab-catalogue" class="no-print" hidden></div>
+
   <div id="tab-pcpndt" hidden>
     <div class="pcpndt-info">
       <strong>🔒 PCPNDT Act Register — Pre-Conception and Pre-Natal Diagnostics Techniques Act, 1994</strong><br>
@@ -598,7 +634,7 @@ button.adv-item:focus-visible{outline:2px solid var(--blue);outline-offset:-2px}
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:12px;margin-bottom:14px">
     <div><strong>Patient:</strong> <span id="ph-pt"></span></div>
     <div><strong>Age / Sex:</strong> <span id="ph-age"></span></div>
-    <div><strong>Ordered by:</strong> <span id="ph-doctor"></span></div>
+    <div><strong id="ph-doctor-lbl">Ordered by:</strong> <span id="ph-doctor"></span></div>
     <div><strong>Sample Collected:</strong> <span id="ph-collect"></span></div>
     <div><strong>Report Date:</strong> <span id="ph-rdate"></span></div>
   </div>
