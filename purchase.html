@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Receive Stock — AyurXpert</title>
+<title>Purchase / GRN — AyurXpert</title>
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' https://cdn.jsdelivr.net https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob: https://*.supabase.co; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://cloudflareinsights.com https://static.cloudflareinsights.com; font-src 'self' https://fonts.gstatic.com https://fonts.googleapis.com; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'"/>
 <meta http-equiv="X-Content-Type-Options" content="nosniff"/>
 <link rel="icon" href="assets/icon.svg"/>
@@ -22,7 +22,7 @@
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-dark);min-height:100vh}
 #navbar-placeholder{position:sticky;top:0;z-index:100}
-.page-wrap{max-width:960px;margin:0 auto;padding:28px 20px 60px}
+.page-wrap{max-width:1280px;margin:0 auto;padding:28px 20px 60px}
 
 .page-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px;gap:12px;flex-wrap:wrap}
 .page-title{font-family:'Cormorant Garamond',serif;font-size:26px;font-weight:700;color:var(--green-deep)}
@@ -57,8 +57,25 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
 .field input[readonly]{background:var(--cream);color:var(--text-muted)}
 
 /* ── Items table ─────────────────────────────────── */
-.items-header{display:grid;grid-template-columns:2fr 1.2fr 1fr 0.8fr 0.8fr 0.8fr 40px;gap:8px;padding:7px 14px;font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px;border-bottom:1.5px solid var(--border)}
-.line-item{display:grid;grid-template-columns:2fr 1.2fr 1fr 0.8fr 0.8fr 0.8fr 40px;gap:8px;padding:8px 14px;border-bottom:1px solid var(--border);align-items:center}
+.items-header{display:grid;grid-template-columns:2.2fr 1fr .8fr .6fr .6fr .8fr .6fr .7fr .8fr 40px;gap:8px;padding:7px 14px;font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px;border-bottom:1.5px solid var(--border)}
+.line-item{display:grid;grid-template-columns:2.2fr 1fr .8fr .6fr .6fr .8fr .6fr .7fr .8fr 40px;gap:8px;padding:8px 14px;border-bottom:1px solid var(--border);align-items:center}
+.line-calc{grid-column:1 / -1;font-size:11px;color:var(--text-mid);padding:0 2px}
+/* Session 365: the server's figures (preview), the GRN list, the cancel panel */
+.calc-table{width:100%;border-collapse:collapse;font-size:13px}
+.calc-table td{padding:5px 8px;border-bottom:1px solid var(--border)}
+.calc-table td.num{text-align:right;font-variant-numeric:tabular-nums}
+.calc-table tr.total td{font-weight:700;color:var(--green-deep);border-top:1.5px solid var(--green-deep)}
+.note{font-size:12px;border-radius:var(--radius);padding:8px 12px;margin-top:8px}
+.note.warn{background:#fdf3e2;border:1.5px solid var(--gold);color:#6b4a0f}
+.note.bad{background:var(--error-bg);border:1.5px solid var(--error-border);color:var(--error-text)}
+.note.ok{background:var(--success-bg);border:1.5px solid var(--success-border);color:var(--success-text)}
+.grn-table{width:100%;border-collapse:collapse;font-size:12px}
+.grn-table th{text-align:left;font-size:10px;text-transform:uppercase;color:var(--text-muted);padding:7px 8px;border-bottom:1.5px solid var(--border)}
+.grn-table td{padding:7px 8px;border-bottom:1px solid var(--border);vertical-align:top}
+.grn-table td.num,.grn-table th.num{text-align:right;font-variant-numeric:tabular-nums}
+.badge-cancel{display:inline-block;font-size:11px;font-weight:600;color:var(--red);border:1px solid var(--error-border);background:var(--error-bg);border-radius:10px;padding:1px 8px}
+.badge-posted{display:inline-block;font-size:11px;font-weight:600;color:var(--green-deep);border:1px solid var(--success-border);background:var(--success-bg);border-radius:10px;padding:1px 8px}
+.page-wrap [hidden]{display:none !important}
 .line-item:last-child{border-bottom:none}
 .line-item input,.line-item select{width:100%;height:36px;padding:0 8px;border:1.5px solid var(--border);border-radius:6px;font-family:'DM Sans',sans-serif;font-size:12px;color:var(--text-dark);background:var(--white);outline:none;transition:border-color .15s}
 .line-item input:focus,.line-item select:focus{border-color:var(--green-mid)}
@@ -127,54 +144,62 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
 
   <div class="page-header">
     <div>
-      <div class="page-title">Receive Stock</div>
-      <div class="page-subtitle">Record a goods receipt note (GRN) from supplier</div>
+      <div class="page-title">Purchase / GRN</div>
+      <div class="page-subtitle">Record the supplier's GST invoice as a goods receipt (GRN) -- the GST is worked out on the server</div>
     </div>
     <div class="header-actions">
       <button class="btn btn-gold" id="btn-scan-receipt">📷 Scan Receipt (AI)</button>
+      <a href="pharmacy-dashboard.html" class="btn btn-secondary">📊 Pharmacy dashboard</a>
       <a href="inventory.html" class="btn btn-secondary">← Inventory</a>
     </div>
   </div>
 
 
   <!-- Supplier details -->
-  <div class="section-card">
-    <div class="section-title">Supplier Details</div>
+  <div class="section-card" id="grn-form">
+    <div class="section-title">Supplier invoice</div>
     <div class="field-grid">
       <div class="field">
-        <label>Supplier <span style="color:var(--red)">*</span></label>
-        <select id="supplier-select" data-onchange="onSupplierChange" data-onchange-a0="@value" style="width:100%;height:44px;padding:0 12px;border:1.5px solid var(--border);border-radius:var(--radius);font-size:14px;font-family:'DM Sans',sans-serif;background:var(--cream);outline:none">
+        <label for="supplier-select">Supplier <span style="color:var(--red)">*</span></label>
+        <select id="supplier-select" data-onchange="onSupplierChange" data-onchange-a0="@value">
           <option value="">— Select supplier —</option>
-          <option value="__manual__">✍ Type manually (unlisted supplier)</option>
         </select>
-        <input id="supplier-name-manual" type="text" placeholder="Enter supplier name…" style="display:none;margin-top:6px;width:100%;height:40px;padding:0 12px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:'DM Sans',sans-serif;background:var(--cream);outline:none"/>
-        <input type="hidden" id="supplier-id"/>
-        <input type="hidden" id="supplier-name"/>
-        <a href="suppliers.html" style="font-size:11px;color:var(--green-mid);margin-top:4px;display:inline-block">+ Manage suppliers →</a>
+        <div id="supplier-gst" style="font-size:12px;color:var(--text-mid);margin-top:4px"></div>
+        <a href="suppliers.html" style="font-size:11px;color:var(--green-mid);margin-top:4px;display:inline-block">+ Manage suppliers (GSTIN, GMP) →</a>
       </div>
       <div class="field">
-        <label>Invoice Number</label>
-        <input id="invoice-number" type="text" placeholder="Supplier invoice no."/>
+        <label for="invoice-number">Supplier invoice no. <span style="color:var(--red)">*</span></label>
+        <input id="invoice-number" type="text" maxlength="40" placeholder="As printed on the invoice"/>
       </div>
       <div class="field">
-        <label>Invoice Date</label>
+        <label for="invoice-date">Invoice date <span style="color:var(--red)">*</span></label>
         <input id="invoice-date" type="date"/>
       </div>
       <div class="field">
-        <label>Remarks</label>
-        <input id="remarks" type="text" placeholder="Optional notes"/>
+        <label for="invoice-total">Invoice total, as printed (₹) <span style="color:var(--red)">*</span></label>
+        <input id="invoice-total" type="number" min="0" step="0.01" placeholder="Grand total incl. GST"/>
+      </div>
+      <div class="field">
+        <label for="place-of-supply">Place of supply</label>
+        <select id="place-of-supply"></select>
+      </div>
+      <div class="field">
+        <label for="remarks">Remarks</label>
+        <input id="remarks" type="text" maxlength="300" placeholder="Optional notes"/>
       </div>
     </div>
     <!-- GMP status card — shown when supplier selected -->
     <div id="gmp-status-card" style="display:none;margin-top:10px;border-radius:10px;padding:12px 16px;border:1.5px solid;font-size:13px">
       <div id="gmp-status-text"></div>
     </div>
-    <!-- GMP override (super_admin only, shown when blocked) -->
+    <!-- GMP override (super_admin only, shown when blocked) -- checked again by the server, with the reason -->
     <div id="gmp-override-row" style="display:none;margin-top:8px">
-      <label style="font-size:12px;color:var(--text-muted);display:flex;align-items:center;gap:8px;cursor:pointer">
-        <input type="checkbox" id="gmp-override" style="width:14px;height:14px;accent-color:#c9902a"/>
+      <label style="font-size:12px;color:var(--text-muted);display:flex;align-items:center;gap:8px;cursor:pointer;min-height:44px">
+        <input type="checkbox" id="gmp-override" style="width:18px;height:18px;accent-color:#c9902a"/>
         <span>Override GMP block (Super Admin authorisation — NCISM §6(3))</span>
       </label>
+      <div class="field"><label for="gmp-override-reason">Reason for the override <span style="color:var(--red)">*</span></label>
+        <input id="gmp-override-reason" type="text" maxlength="200" placeholder="e.g. renewal applied, letter on file"/></div>
     </div>
   </div>
 
@@ -188,7 +213,10 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
       <div>Batch No.</div>
       <div>Expiry (MM/YY)</div>
       <div>Qty</div>
-      <div>Cost (₹)</div>
+      <div>Free</div>
+      <div>Rate excl. GST (₹)</div>
+      <div>Disc %</div>
+      <div>GST %</div>
       <div>MRP (₹)</div>
       <div></div>
     </div>
@@ -222,13 +250,44 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
   <!-- Summary -->
   <div class="grn-summary">
     <div class="grn-sum-item"><span class="grn-sum-label">Items</span><span class="grn-sum-value" id="sum-items">0</span></div>
-    <div class="grn-sum-item"><span class="grn-sum-label">Total Units</span><span class="grn-sum-value" id="sum-units">0</span></div>
-    <div class="grn-sum-item"><span class="grn-sum-label">Total Cost</span><span class="grn-sum-value" id="sum-cost">₹0</span></div>
+    <div class="grn-sum-item"><span class="grn-sum-label">Units (incl. free)</span><span class="grn-sum-value" id="sum-units">0</span></div>
+    <div class="grn-sum-item"><span class="grn-sum-label">Computed total</span><span class="grn-sum-value" id="sum-cost">—</span></div>
+  </div>
+
+  <!-- Session 365: the server's figures (tax to the paisa, the round-off, ITC) -- shown after "Check totals" -->
+  <div class="section-card" id="calc-card" hidden aria-live="polite">
+    <div class="section-title">Tax worked out on the server</div>
+    <div id="calc-body"></div>
   </div>
 
   <div class="save-bar">
     <button class="btn btn-ghost" id="btn-clear">Clear All</button>
-    <button class="btn btn-primary" id="btn-save-grn">Save & Update Stock</button>
+    <button class="btn btn-secondary" id="btn-preview-grn">Check totals</button>
+    <button class="btn btn-primary" id="btn-save-grn">Save GRN &amp; Update Stock</button>
+  </div>
+  <div id="save-result" aria-live="polite"></div>
+
+  <!-- Session 365: the goods receipts of a period (Print; Cancel only for the pharmacy in-charge / the finance manager) -->
+  <div class="section-card" style="margin-top:22px">
+    <div class="section-title">Goods receipts (GRN)</div>
+    <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-bottom:12px">
+      <div class="field"><label for="grn-from">From</label><input id="grn-from" type="date"/></div>
+      <div class="field"><label for="grn-to">To</label><input id="grn-to" type="date"/></div>
+      <button class="btn btn-secondary btn-sm" id="btn-grn-load">Show</button>
+    </div>
+    <div style="overflow-x:auto"><table class="grn-table"><thead><tr>
+      <th>GRN no.</th><th>Received</th><th>Supplier</th><th>Supplier invoice</th><th class="num">Taxable</th><th class="num">GST</th>
+      <th class="num">Total</th><th class="num">ITC</th><th>Status</th><th>Recorded by</th><th></th></tr></thead>
+      <tbody id="grn-list"></tbody></table></div>
+    <div id="grn-cancel-panel" hidden style="margin-top:14px;border:1.5px solid var(--red);border-radius:var(--radius);padding:14px;background:var(--error-bg)">
+      <div style="font-weight:600;color:var(--error-text);margin-bottom:6px" id="grn-cancel-title">Cancel GRN</div>
+      <div style="font-size:12px;color:var(--text-mid);margin-bottom:8px">The received stock is taken out again (only while it is all still in stock). The GRN is kept, marked cancelled, with your reason.</div>
+      <div class="field"><label for="grn-cancel-reason">Reason <span style="color:var(--red)">*</span></label>
+        <input id="grn-cancel-reason" type="text" maxlength="300" placeholder="e.g. entered against the wrong supplier"/></div>
+      <div id="grn-cancel-err" role="alert" style="color:var(--error-text);font-size:13px;margin-top:6px"></div>
+      <div style="display:flex;gap:8px;margin-top:10px"><button class="btn btn-primary btn-sm" id="btn-grn-cancel-yes">Cancel this GRN</button>
+        <button class="btn btn-ghost btn-sm" id="btn-grn-cancel-no">Keep it</button></div>
+    </div>
   </div>
 
 </div>
@@ -254,7 +313,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
     <div class="ocr-results" id="ocr-results">
       <div class="ocr-results-title">Extracted Items — Review &amp; Edit Before Adding</div>
       <div class="ocr-item ocr-item-header">
-        <div>Medicine Name</div><div>Qty</div><div>Cost (₹)</div><div>MRP (₹)</div>
+        <div>Medicine Name</div><div>Qty</div><div>Rate (₹)</div><div>MRP (₹)</div>
       </div>
       <div id="ocr-items-list"></div>
     </div>

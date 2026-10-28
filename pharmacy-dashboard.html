@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Pharmacy Dashboard — AyurXpert</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' https://cdn.jsdelivr.net https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob: https://*.supabase.co; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://cloudflareinsights.com https://static.cloudflareinsights.com; font-src 'self' https://fonts.gstatic.com https://fonts.googleapis.com; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'"/>
+<meta http-equiv="X-Content-Type-Options" content="nosniff"/>
+<link rel="icon" href="assets/icon.svg"/>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --green-deep:#1a4a2e;--green-mid:#2d7a4f;--green-light:#e8f5ee;
+  --gold:#c9902a;--gold-light:#fdf3e2;
+  --cream:#faf8f3;--white:#ffffff;
+  --text-dark:#1c2b1f;--text-mid:#4a6352;--text-muted:#6f8577;
+  --border:#d4e6da;--radius:14px;--shadow:0 2px 14px rgba(0,0,0,0.07);
+  --red:#c0392b;--red-light:#fff3f3;--orange:#d35400;
+}
+html,body{min-height:100%;font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-dark)}
+#navbar-placeholder{position:sticky;top:0;z-index:100}
+.page{max-width:1200px;margin:0 auto;padding:24px 16px 80px}
+.page [hidden]{display:none !important}
+.page-banner{background:var(--green-deep);border-radius:var(--radius);padding:20px 26px;margin-bottom:18px;display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap}
+.banner-left h1{font-family:'Cormorant Garamond',serif;font-size:26px;font-weight:600;color:#fff}
+.banner-left p{font-size:13px;color:rgba(255,255,255,.7);margin-top:2px}
+.banner-links{display:flex;gap:8px;flex-wrap:wrap}
+.banner-links a{display:inline-flex;align-items:center;min-height:44px;padding:0 14px;border-radius:8px;border:1.5px solid rgba(255,255,255,.35);color:#fff;text-decoration:none;font-size:13px}
+.banner-links a:hover,.banner-links a:focus-visible{background:rgba(255,255,255,.12)}
+.period{display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;margin-bottom:18px}
+.period label{display:flex;flex-direction:column;gap:4px;font-size:11px;font-weight:600;color:var(--text-mid);text-transform:uppercase;letter-spacing:.4px}
+.period input,.period select{min-height:44px;padding:0 10px;border:1.5px solid var(--border);border-radius:8px;font-family:'DM Sans',sans-serif;font-size:13px;background:var(--white)}
+.btn{min-height:44px;padding:0 16px;border-radius:8px;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;cursor:pointer;border:1.5px solid var(--green-deep);background:var(--green-deep);color:#fff}
+.btn.ghost{background:var(--white);color:var(--green-deep)}
+.btn:focus-visible,.period input:focus-visible,.period select:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
+.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:18px}
+.sc{background:var(--white);border-radius:var(--radius);padding:14px 18px;box-shadow:var(--shadow)}
+.sc-lbl{font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px}
+.sc-num{font-family:'Cormorant Garamond',serif;font-size:28px;font-weight:700;color:var(--green-deep);margin-top:2px}
+.sc-sub{font-size:12px;color:var(--text-mid);margin-top:2px}
+.sc-num.red{color:var(--red)} .sc-num.gold{color:var(--gold)}
+.cards2{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:18px}
+.cc{background:var(--white);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden}
+.cc-hd{padding:12px 18px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+.cc-title{font-family:'Cormorant Garamond',serif;font-size:19px;font-weight:600;color:var(--green-deep)}
+.cc-bd{padding:12px 18px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted);padding:6px 8px;border-bottom:1.5px solid var(--border)}
+td{padding:6px 8px;border-bottom:1px solid var(--border)}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+.empty{color:var(--text-muted);font-size:13px;padding:10px 0}
+.tag{display:inline-block;font-size:11px;font-weight:600;border-radius:10px;padding:1px 8px}
+.tag.out{color:var(--red);background:var(--red-light);border:1px solid #f5c6c6}
+.tag.low{color:var(--orange);background:#fdf0e6;border:1px solid #f1c9a6}
+.note{font-size:12px;color:var(--text-mid);margin-top:8px}
+.err{color:var(--red);font-size:13px;margin:8px 0}
+@media(max-width:900px){.grid{grid-template-columns:repeat(2,1fr)}.cards2{grid-template-columns:1fr}}
+</style>
+<link rel="stylesheet" href="css/notify.css"/>
+</head>
+<body>
+<div id="navbar-placeholder"></div>
+<main class="page">
+  <div class="page-banner">
+    <div class="banner-left">
+      <h1>📊 Pharmacy Dashboard</h1>
+      <p>Sales by the return-date rule, stock value, low stock per medicine, expiry, returns and purchases — read only</p>
+    </div>
+    <div class="banner-links" id="banner-links">
+      <a href="dispensaryPOS.html" data-writer>🛒 POS</a>
+      <a href="purchase.html" data-writer>🚚 Purchase / GRN</a>
+      <a href="inventory.html" data-writer>📦 Inventory</a>
+      <a href="suppliers.html">🏭 Suppliers</a>
+    </div>
+  </div>
+
+  <div class="period">
+    <label>Period
+      <select id="p-preset">
+        <option value="today">Today</option>
+        <option value="7">Last 7 days</option>
+        <option value="month">This month</option>
+        <option value="custom">Custom</option>
+      </select>
+    </label>
+    <label>From <input type="date" id="p-from"/></label>
+    <label>To <input type="date" id="p-to"/></label>
+    <button class="btn" id="p-go" type="button">Show</button>
+  </div>
+  <div id="d-err" class="err" role="alert"></div>
+
+  <div class="grid" aria-live="polite">
+    <div class="sc"><div class="sc-lbl">Sales (gross)</div><div class="sc-num" id="s-gross">—</div><div class="sc-sub" id="s-bills"></div></div>
+    <div class="sc"><div class="sc-lbl">Returns</div><div class="sc-num red" id="s-returns">—</div><div class="sc-sub" id="s-rcount"></div></div>
+    <div class="sc"><div class="sc-lbl">Net sales</div><div class="sc-num" id="s-net">—</div><div class="sc-sub">gross − returns of the period</div></div>
+    <div class="sc"><div class="sc-lbl">Collected</div><div class="sc-num gold" id="s-coll">—</div><div class="sc-sub">receipts − refunds of the period</div></div>
+  </div>
+  <div class="grid">
+    <div class="sc"><div class="sc-lbl">Stock value at cost</div><div class="sc-num" id="k-cost">—</div><div class="sc-sub" id="k-batches"></div></div>
+    <div class="sc"><div class="sc-lbl">Stock value at MRP</div><div class="sc-num" id="k-mrp">—</div><div class="sc-sub">saleable batches (not expired)</div></div>
+    <div class="sc"><div class="sc-lbl">Low / out of stock</div><div class="sc-num red" id="k-low">—</div><div class="sc-sub">medicines (all batches summed)</div></div>
+    <div class="sc"><div class="sc-lbl">Expired, still in stock</div><div class="sc-num red" id="k-exp">—</div><div class="sc-sub" id="k-expval"></div></div>
+  </div>
+
+  <div class="cards2">
+    <section class="cc"><div class="cc-hd"><h2 class="cc-title">Low stock (per medicine)</h2></div><div class="cc-bd" id="c-low"></div></section>
+    <section class="cc"><div class="cc-hd"><h2 class="cc-title">Expiring within 30 / 60 / 90 days</h2></div><div class="cc-bd" id="c-exp"></div></section>
+  </div>
+  <div class="cards2">
+    <section class="cc"><div class="cc-hd"><h2 class="cc-title">Top 10 by quantity</h2></div><div class="cc-bd" id="c-topq"></div></section>
+    <section class="cc"><div class="cc-hd"><h2 class="cc-title">Top 10 by value</h2></div><div class="cc-bd" id="c-topv"></div></section>
+  </div>
+  <div class="cards2">
+    <section class="cc"><div class="cc-hd"><h2 class="cc-title">Returns &amp; refunds</h2></div><div class="cc-bd" id="c-ret"></div></section>
+    <section class="cc"><div class="cc-hd"><h2 class="cc-title">Purchases (GRN) &amp; suppliers</h2></div><div class="cc-bd" id="c-pur"></div></section>
+  </div>
+  <div class="cards2">
+    <section class="cc"><div class="cc-hd"><h2 class="cc-title">Expired stock to dispose</h2></div><div class="cc-bd" id="c-expired"></div></section>
+    <section class="cc"><div class="cc-hd"><h2 class="cc-title">Stock ledger</h2></div><div class="cc-bd">
+      <div class="period" style="margin-bottom:8px">
+        <label>Medicine <select id="l-med" style="min-width:220px"><option value="">— Choose —</option></select></label>
+        <button class="btn ghost" id="l-go" type="button">Show ledger</button>
+      </div>
+      <div id="c-ledger"></div>
+      <div class="note" id="ledger-check"></div>
+    </div></section>
+  </div>
+</main>
+<script type="module" src="./js/pwa/register-sw.js"></script>
+<script type="module" src="js/pages/pharmacy-dashboard.js"></script>
+</body>
+</html>

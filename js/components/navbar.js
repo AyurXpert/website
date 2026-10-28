@@ -144,16 +144,19 @@ function _buildGroups(role, type, secondaryRole, hasMonitoringAccess, isDeptScop
       items: [
         // Session 341: + cashier -- counter (walk-in) sales only; dispensaryPOS.js's requireAuth() allows it too
         { href:'dispensaryPOS.html',  label:'Dispensary POS',  roles:RX_ROLES.concat(['cashier']),      types:null, module:'pharmacy'},
+        // Session 365a: the pharmacy dashboard -- = pharmacy-dashboard.js requireAuth (the MS, as dept_admin, views only)
+        { href:'pharmacy-dashboard.html', label:'Pharmacy Dashboard', roles:RX_ROLES.concat(['accountant','finance_manager']), types:null, module:'pharmacy'},
         { href:'inventory.html',      label:'Inventory',       roles:RX_ROLES,                          types:null, module:'pharmacy'},
         { href:'aushadha-nirman.html',label:'Aushadha Nirman', roles:RX_ROLES.concat(ADMIN_ROLES),      types:null, module:'pharmacy'},
         // Session 305: accountant / pharmacist links removed -- those pages' requireAuth()
         // bounced them straight back (purchase*: pharmacist+admins; formulary: admins only).
-        { href:'purchase.html',       label:'Purchase / GRN',  roles:RX_ROLES,                          types:null, module:'pharmacy'},
+        // Session 365: + accountant / finance_manager -- the GRN list (view; the finance manager cancels); recording stays the pharmacy team's
+        { href:'purchase.html',       label:'Purchase / GRN',  roles:RX_ROLES.concat(['accountant','finance_manager']), types:null, module:'pharmacy'},
         { href:'purchase-order.html', label:'Purchase Orders', roles:RX_ROLES,                          types:null, module:'pharmacy'},
         { href:'formulary-admin.html',label:'Formulary',       roles:ADMIN_ROLES,                       types:HOSP, module:'pharmacy'},
         { href:'dpc.html',            label:'Procurement Cmte',roles:ADMIN_ROLES.concat(['accountant']),types:HOSP, module:'pharmacy'},
         { href:'disposal-register.html',label:'Disposal Register',roles:RX_ROLES.concat(ADMIN_ROLES),  types:null, module:'pharmacy'},
-        { href:'suppliers.html',      label:'Supplier Register',roles:RX_ROLES.concat(ADMIN_ROLES),    types:null, module:'pharmacy'},
+        { href:'suppliers.html',      label:'Supplier Register',roles:RX_ROLES.concat(['accountant','finance_manager']), types:null, module:'pharmacy'},
       ]
     },
     {

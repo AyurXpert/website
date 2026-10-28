@@ -133,10 +133,11 @@ export const ROLE_DUTY_FALLBACK = {
 // greys out what a Dept Admin cannot choose. Change both together (scripts/check-350-lists.mjs
 // compares them). Session 353A: + yoga_instructor (the yoga write right comes from it; sql/session353a_*.sql).
 // Session 353B: + pathologist, lab_incharge (lab sign-off), blood_bank_technician (blood bank) -- D5, sql/session353b_*.sql.
+// Session 365: + chief_pharmacist (the pharmacy in-charge: cancels goods receipts) -- sql/session365_*.sql.
 export const POWERFUL_ROLES = ['super_admin', 'dept_admin', 'finance_manager', 'nurse_manager'];
 export const POWERFUL_DESIGS = ['medical_director', 'principal', 'medical_superintendent', 'deputy_medical_superintendent',
   'nursing_superintendent', 'deputy_nursing_superintendent', 'pk_incharge', 'finance_manager', 'yoga_instructor',
-  'pathologist', 'lab_incharge', 'blood_bank_technician'];
+  'pathologist', 'lab_incharge', 'blood_bank_technician', 'chief_pharmacist'];
 export function isPowerfulPosition(role, designation) {
   const norm = v => String(v ?? '').trim().toLowerCase();
   return POWERFUL_ROLES.includes(norm(role)) || POWERFUL_DESIGS.includes(norm(designation));

@@ -5976,9 +5976,14 @@ async function _rxDash(){
 }
 async function _pharmDash(){
   _bannerBtn('Open POS','dispensaryPOS.html');
-  const[l,s]=await Promise.all([_count('inventory',[['tenant_id',tenantId]],false,['stock_quantity','lte',10]),_netSalesToday()]);
-  _rStats([{icon:'⚠️',iconClass:'red',number:l,label:'Low Stock',sub:'qty ≤ 10'},{icon:'₹',iconClass:'gold',number:_fmt(s),label:'Sales Today',sub:'net of returns'},{icon:'💊',iconClass:'green',number:'—',label:'Dispensed',sub:'coming soon'},{icon:'🚚',iconClass:'blue',number:'—',label:'Purchases',sub:'today'}]);
-  _rActions([{icon:'🛒',label:'POS',desc:'Dispense & bill',href:'dispensaryPOS.html'},{icon:'🚚',label:'Purchase',desc:'Receive stock',href:'purchase.html'},{icon:'📦',label:'Inventory',desc:'Stock levels',href:'inventory.html'},{icon:'📊',label:'Reports',desc:'Sales analytics',href:'reports.html'}]);
+  // Session 365a: the same server figures as pharmacy-dashboard.html (low stock PER MEDICINE, not per batch; the pharmacist's
+  // sales -- finance_activity() refuses the pharmacist, so this tile used to show 0 -- reproduced in the 365 suite, G7)
+  const today=istDate(new Date().toISOString());
+  let pd=null;try{const{data,error}=await supabase.rpc('pharmacy_dashboard',{p_from:today,p_to:today});if(!error)pd=data;}catch{pd=null;}
+  const low=pd?(pd.low_stock||[]).length:'—',net=pd?summarisePeriod(pd.sales?.bills||[],pd.sales?.activity||{},today).net:null;
+  const exp30=pd?(pd.near_expiry?.d30?.batches||0):'—',grn=pd?(pd.purchases?.count||0):'—';
+  _rStats([{icon:'⚠️',iconClass:'red',number:low,label:'Low Stock',sub:'medicines at / below reorder level'},{icon:'₹',iconClass:'gold',number:net===null?'—':_fmt(net),label:'Sales Today',sub:'net of returns'},{icon:'⏳',iconClass:'green',number:exp30,label:'Expiring ≤ 30 days',sub:'batches'},{icon:'🚚',iconClass:'blue',number:grn,label:'Purchases',sub:'GRNs today'}]);
+  _rActions([{icon:'🛒',label:'POS',desc:'Dispense & bill',href:'dispensaryPOS.html'},{icon:'🚚',label:'Purchase',desc:'Receive stock (GRN)',href:'purchase.html'},{icon:'📦',label:'Inventory',desc:'Stock levels',href:'inventory.html'},{icon:'📊',label:'Pharmacy dashboard',desc:'Sales, stock, expiry',href:'pharmacy-dashboard.html'}]);
   _rCard('💊','Pharmacy is open','Dispense medicines, manage inventory, record purchases.','Open POS','dispensaryPOS.html');
 }
 async function _accDash(){

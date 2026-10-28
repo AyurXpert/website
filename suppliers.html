@@ -82,6 +82,8 @@ input[type=checkbox]{width:16px;height:16px;accent-color:var(--green-mid);cursor
 .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1a4a2e;color:#fff;padding:12px 22px;border-radius:10px;font-size:13px;font-weight:500;z-index:999;opacity:0;transition:opacity .3s;pointer-events:none}
 .toast.show{opacity:1}
 @media(max-width:700px){.stats-row{grid-template-columns:repeat(2,1fr)}.field-row{grid-template-columns:1fr}}
+/* Session 365: the hidden attribute wins over .field-row / .field display rules */
+.modal [hidden]{display:none !important}
 </style>
 <link rel="stylesheet" href="css/notify.css"/>
 </head>
@@ -129,6 +131,7 @@ input[type=checkbox]{width:16px;height:16px;accent-color:var(--green-mid);cursor
         <thead>
           <tr>
             <th>Supplier Name</th>
+            <th>GSTIN / Registration</th>
             <th>Contact</th>
             <th>GMP Certificate No.</th>
             <th>Certifying Authority</th>
@@ -140,6 +143,19 @@ input[type=checkbox]{width:16px;height:16px;accent-color:var(--green-mid);cursor
         </thead>
         <tbody id="suppliers-body"></tbody>
       </table>
+    </div>
+  </div>
+</div>
+
+<!-- Session 365: (de)activate confirmation (in-page, no native confirm) -->
+<div class="modal-backdrop" id="act-modal">
+  <div class="modal" style="max-width:420px">
+    <div class="modal-title" id="act-title">Deactivate supplier?</div>
+    <p id="act-text" style="font-size:13px;color:var(--text-mid)"></p>
+    <div id="act-err" role="alert" style="color:var(--red);font-size:13px;margin-top:6px"></div>
+    <div class="modal-actions">
+      <button class="btn btn-primary" style="flex:1" id="act-yes" data-onclick="confirmToggleActive">Yes</button>
+      <button class="btn btn-outline" data-onclick="closeActModal">Cancel</button>
     </div>
   </div>
 </div>
@@ -173,6 +189,38 @@ input[type=checkbox]{width:16px;height:16px;accent-color:var(--green-mid);cursor
     <div class="field">
       <label>Address</label>
       <textarea id="m-address" rows="2" placeholder="Supplier address…"></textarea>
+    </div>
+
+    <!-- Session 365: the supplier's GST identity (the GST goods receipt needs it) -- checked and saved by the server -->
+    <div class="gmp-section" style="background:#f7f4ec;border-color:#e3d3a8">
+      <div class="gmp-section-title">🧾 GST registration</div>
+      <div class="field-row">
+        <div class="field">
+          <label for="m-gst-reg">Registration <span style="color:var(--red)">*</span></label>
+          <select id="m-gst-reg" data-onchange="toggleGstFields">
+            <option value="">— Choose —</option>
+            <option value="regular">Regular (GSTIN, charges GST)</option>
+            <option value="composition">Composition (GSTIN, Bill of Supply)</option>
+            <option value="unregistered">Unregistered (no GSTIN)</option>
+          </select>
+        </div>
+        <div class="field" id="m-gstin-wrap">
+          <label for="m-gstin">GSTIN <span style="color:var(--red)">*</span></label>
+          <input id="m-gstin" type="text" maxlength="15" placeholder="e.g. 29ABCDE1234F1Z5" autocomplete="off" style="text-transform:uppercase"/>
+        </div>
+      </div>
+      <div class="field-row" id="m-unreg-wrap" hidden>
+        <div class="field">
+          <label for="m-state">State</label>
+          <select id="m-state"></select>
+          <div style="font-size:11px;color:var(--text-mid);margin-top:4px">Leave it on "our state" for a local supplier.</div>
+        </div>
+        <div class="field">
+          <label for="m-pan">PAN (optional)</label>
+          <input id="m-pan" type="text" maxlength="10" placeholder="e.g. ABCDE1234F" autocomplete="off" style="text-transform:uppercase"/>
+        </div>
+      </div>
+      <div style="font-size:12px;color:var(--text-mid)">The state and PAN of a registered supplier are taken from its GSTIN. The GSTIN's check character is verified.</div>
     </div>
 
     <div class="gmp-section">
@@ -219,6 +267,7 @@ input[type=checkbox]{width:16px;height:16px;accent-color:var(--green-mid);cursor
       <input id="m-notes" type="text" placeholder="Optional notes…"/>
     </div>
 
+    <div id="m-err" role="alert" style="color:var(--red);font-size:13px;margin-top:6px"></div>
     <div class="modal-actions">
       <button class="btn btn-primary" style="flex:1" data-onclick="saveSupplier">💾 Save</button>
       <button class="btn btn-outline" data-onclick="closeModal">Cancel</button>

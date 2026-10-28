@@ -486,6 +486,24 @@ export function safeErrorMessage(error, fallback = 'Something went wrong. Please
   if (['P0001','42501','22023','23514'].includes(error?.code) && S359_MSGS.some(m => error?.message?.startsWith(m))) {
     return error.message;
   }
+  // Session 365: suppliers' GST identity, the GST goods receipt (GRN) + its cancel, the stock ledger, the pharmacy dashboard --
+  // the server's plain refusals are shown as they are
+  const S365_MSGS = ['Only the pharmacy team or an administrator can add or change a supplier', "Enter the supplier's name",
+    "Choose the supplier's GST registration", "Enter the supplier's GSTIN", 'The GSTIN ', 'An unregistered supplier has no GSTIN',
+    'Choose the state of an unregistered supplier', 'The PAN is not', 'The email address is not valid', 'A supplier field is too long',
+    'The GMP certificate expiry is not a date', 'A supplier with the GSTIN ', "That supplier is not in this organisation's register",
+    "Choose a supplier from this organisation's register", 'The supplier ', "Record the supplier's GST registration", 'Purchase blocked:',
+    'Only an active Super Admin can override the GMP block', 'Give the reason for overriding the GMP block', "Enter the supplier's invoice",
+    'Reverse charge purchases are not supported', 'The remarks are too long', 'Choose the place of supply', 'Add at least one item to receive',
+    'A goods receipt can have at most', 'Line ', 'The invoice total is not a number', 'Only the pharmacy team or an administrator can record a goods receipt',
+    "The supplier's invoice total", 'This supplier invoice (', 'Goods receipt not found', 'Only the pharmacy in-charge or the finance manager',
+    'This goods receipt is already cancelled', 'Give the reason for cancelling', 'The person who recorded a goods receipt', "This goods receipt's ITC period",
+    'Part of this stock is already sold or used', 'Your role cannot see the stock ledger', 'Medicine not found in your organisation',
+    'Choose a period of up to 400 days', 'Your role cannot see the goods receipts', 'Your role cannot see the pharmacy dashboard',
+    'Receive Stock now records', 'Sign in again'];
+  if (['P0001','42501','22023','P0002','23505'].includes(error?.code) && S365_MSGS.some(m => error?.message?.startsWith(m))) {
+    return error.message;
+  }
   if (error?.code === '42501' && error?.message === 'Not authorized') {   // 359: an inactive / relieved account, or no right at all
     return 'Your account is not allowed to do this (it may not be active). Ask the Super Admin.';
   }

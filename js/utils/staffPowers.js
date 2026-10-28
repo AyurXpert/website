@@ -23,8 +23,10 @@ export const DESIG_REQUIRED_ROLE = {
   medical_superintendent: 'dept_admin',
   medical_director: 'dept_admin',
   principal: 'dept_admin',
+  chief_pharmacist: 'pharmacist',   // Session 365: the pharmacy in-charge needs the role pharmacist (sql/session365_*.sql)
 };
-const ROLE_LABEL = { finance_manager: 'Finance Manager', nurse_manager: 'Nurse Manager', mrd_staff: 'MRD Staff', dept_admin: 'Dept Admin' };
+const ROLE_LABEL = { finance_manager: 'Finance Manager', nurse_manager: 'Nurse Manager', mrd_staff: 'MRD Staff', dept_admin: 'Dept Admin',
+  pharmacist: 'Pharmacist' };
 
 // the role lists of the server gates (sql/session359_role_rule.sql) -- scripts/check-359-powers.mjs reads them
 export const GATE_ROLES = {
