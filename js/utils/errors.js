@@ -290,6 +290,18 @@ export function safeErrorMessage(error, fallback = 'Something went wrong. Please
     return error.message;
   }
 
+  // Session 366 (TODO §350-§353, plan §0.1): invite expiry / email match / the self-signup switch, the bulk invite, re-send, the staff
+  // limit, phone + login email changes -- the server's plain refusals, shown as written (which one it is decides what the person does next)
+  const STAFF_366_MSGS = ['This invite link has expired', 'This invite was made for a different email address',
+    'This organisation adds new staff by invite only', 'Enter a valid 10-digit mobile number', 'Enter a valid email address',
+    'This organisation has reached its staff limit', 'Only the active Super Admin', "Only this organisation's Super Admin can change self-signup",
+    'The file has no rows', 'The file has ', 'A file can hold at most 300 rows', 'Choose between 1 and 300', 'Only a pending invite can be re-sent',
+    'Give the reason for the change', 'The login email of a relieved or blocked account', "That is already this staff member's login email",
+    'This email is already used by another AyurXpert login', 'A phone number is changed through', 'This account has been relieved', 'Choose on or off'];
+  if (['P0001', '42501', '22023'].includes(error?.code) && STAFF_366_MSGS.some(m => error?.message?.startsWith(m))) {
+    return error.message;
+  }
+
   // Session 350 (TODO §214 + owner addition A): designations (dept_admin_update_designation), invites and the approval -- who may give
   // a powerful position or a department scope; the server's plain refusals, which one it is decides what the person does next
   const DESIG_RIGHTS_MSGS = ['You cannot change your own designation', 'Only the Super Admin can change the designation of an admin',

@@ -573,6 +573,7 @@ tr:hover td{background:#fafff8}
           <button class="btn-outline hr-tab" data-sub="ncism">NCISM Requirements<span class="badge-count red" id="hr-tab-ncism-badge" style="display:none;margin-left:6px">0</span></button>
           <button class="btn-outline hr-tab" data-sub="plan">Staffing Plan</button>
           <button class="btn-outline hr-tab" data-sub="hierarchy">Hierarchy View</button>
+          <button class="btn-outline hr-tab" data-sub="bulk" id="hr-tab-bulk-btn" hidden>📨 Bulk invite</button>
           <button class="btn-outline hr-tab" data-sub="access">Login Access<span class="badge-count red" id="hr-tab-access-badge" style="display:none;margin-left:6px">0</span></button>
           <button class="btn-outline hr-tab" data-sub="dept">🏥 Dept. Staff</button>
           <button class="btn-outline hr-tab" data-sub="decisions">⚖️ Approvals<span class="badge-count red" id="hr-tab-decisions-badge" style="display:none;margin-left:6px">0</span></button>
@@ -593,6 +594,9 @@ tr:hover td{background:#fafff8}
       </div>
 
       <!-- Staffing Plan panel — required staff by designation, grouped by HMS role -->
+      <!-- Session 366 (TODO §351): 📨 Bulk invite -- the Super Admin only (js/modules/staff/bulkInvite.js) -->
+      <div id="hr-bulk-panel" style="display:none"></div>
+
       <div id="hr-plan-panel" style="display:none">
         <div id="staffing-plan-wrap"></div>
       </div>
@@ -621,8 +625,8 @@ tr:hover td{background:#fafff8}
           </div>
           <div class="tw">
             <table class="staff-table">
-              <thead><tr><th>Name</th><th>Role</th><th>Designation</th><th>Department</th><th>Phone</th><th>Status</th><th>Joined</th><th style="width:180px;min-width:180px">Actions</th></tr></thead>
-              <tbody id="staff-tbody"><tr><td colspan="8" style="text-align:center;padding:32px;color:var(--text-muted)">Loading…</td></tr></tbody>
+              <thead><tr><th>Name</th><th>Role</th><th>Designation</th><th>Department</th><th>Phone</th><th>Login email</th><th>Status</th><th>Joined</th><th style="width:180px;min-width:180px">Actions</th></tr></thead>
+              <tbody id="staff-tbody"><tr><td colspan="9" style="text-align:center;padding:32px;color:var(--text-muted)">Loading…</td></tr></tbody>
             </table>
           </div>
         </div>
@@ -764,6 +768,8 @@ tr:hover td{background:#fafff8}
       <div id="counter-sale-setting" hidden></div>
       <div id="returns-settings" hidden></div>
       <div id="opd-workflow-setting" hidden></div>
+      <!-- Session 366 (TODO §352): staff self-signup ON / OFF -- set_self_signup(), saved at once (js/modules/staff/selfSignupSetting.js) -->
+      <div id="self-signup-setting" hidden></div>
       <!-- Session 345c2a: 🧾 Tax & Invoicing (js/modules/tax/taxSettings.js) -- super_admin / dept_admin -->
       <div id="tax-settings" hidden></div>
       <!-- Session 345j: 🧮 Tax profiles (js/modules/tax/taxProfiles.js) -- under the Tax & Invoicing card, same roles -->
@@ -1230,6 +1236,8 @@ tr:hover td{background:#fafff8}
     <div id="pinv-link-box" style="display:none">
       <label style="font-size:11px;font-weight:600;color:var(--text-mid);display:block;margin-bottom:5px;text-transform:uppercase;letter-spacing:.5px">Share this join link</label>
       <div id="pinv-link-text" style="background:var(--green-light);border:1px solid var(--border);border-radius:8px;padding:10px 12px;font-size:12.5px;word-break:break-all;margin-bottom:10px"></div>
+      <!-- Session 366: 📧 Email / 💬 WhatsApp for this invite (filled by submitPositionInvite) -->
+      <div id="pinv-share-row" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px"></div>
       <div style="font-size:11.5px;color:var(--text-muted);margin-bottom:12px">Share this link via WhatsApp, SMS or email. It pre-fills the candidate's role and department — they only need to enter their name and set a password.</div>
     </div>
 

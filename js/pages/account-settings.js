@@ -283,8 +283,15 @@ async function loadProfileTab() {
 }
 
 window.saveProfile = async function () {
+  // Session 366: the phone is changed only through set_my_phone() (10 digits, audited) -- the browser can no longer write it directly
+  const newPhone = document.getElementById('pf-phone').value.trim();
+  if ((newPhone || null) !== (_myProfile?.phone || null)) {
+    const { data: saved, error: phErr } = await supabase.rpc('set_my_phone', { p_phone: newPhone });
+    if (phErr) { _toast(safeErrorMessage(phErr, 'Could not save the phone number.'), 'error'); return; }
+    if (_myProfile) _myProfile.phone = saved ?? null;
+    document.getElementById('pf-phone').value = saved || '';
+  }
   const updates = {
-    phone: document.getElementById('pf-phone').value.trim() || null,
     gender: document.getElementById('pf-gender').value || null,
     date_of_birth: document.getElementById('pf-dob').value || null,
     blood_group: document.getElementById('pf-blood-group').value || null,
@@ -312,6 +319,34 @@ window.onPhotoSelected = async function (input) {
   _toast('Photo updated ✓', 'success');
   await loadProfileTab();
 };
+
+// ── Login email (Session 366, plan §0.1, Q15) ─────────────────────────────
+// supabase.auth.updateUser({ email }) -- Supabase sends the confirmation ("Change email address" template, with "Secure email change"
+// ON: to the old AND the new address); the login email changes only when the links are opened. The audit row is written by the
+// auth.users trigger at that moment. Nothing is written here.
+async function loadLoginEmail() {
+  const { data: { user } } = await supabase.auth.getUser();
+  document.getElementById('le-current').textContent = user?.email || '—';
+  const pend = document.getElementById('le-pending');
+  if (user?.new_email) { pend.textContent = `Waiting for confirmation: ${user.new_email} — open the links sent to both addresses.`; pend.style.display = ''; }
+  else pend.style.display = 'none';
+}
+window.changeMyLoginEmail = async function () {
+  const st = document.getElementById('le-status');
+  const email = document.getElementById('le-new').value.trim().toLowerCase();
+  st.style.color = 'var(--red,#c0392b)';
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { st.textContent = 'Enter a valid email address.'; return; }
+  const btn = document.getElementById('btn-change-email');
+  btn.disabled = true;
+  const { error } = await supabase.auth.updateUser({ email }, { emailRedirectTo: `${window.location.origin}/login.html` });
+  btn.disabled = false;
+  if (error) { st.textContent = safeErrorMessage(error, 'Could not start the change.'); return; }
+  st.style.color = 'var(--green-deep)';
+  st.textContent = 'Confirmation links sent to your current and your new address. Your login email changes only after you open them.';
+  document.getElementById('le-new').value = '';
+  loadLoginEmail();
+};
+loadLoginEmail();
 
 // ── Professional registration (Session 337, TODO §132) ─────────────────────
 // Staff submit their Reg. No. / issuing council / qualification; an admin of the organisation

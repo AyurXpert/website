@@ -3,7 +3,6 @@ import { supabase } from '../core/db/supabaseClient.js';
 import { isValidEmail, isValidPhone, validatePassword } from '../utils/validators.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { scorePasswordStrength, checkPasswordPwned, isObviouslyWeak } from '../utils/passwordSecurity.js';
-import { todayLocalStr } from '../utils/dateUtils.js';
 
 wireDelegatedEvents();
 
@@ -129,8 +128,11 @@ async function _loadPositionInvite() {
     return;
   }
   if (row.status !== 'pending') {
+    // Session 366: an invite link works 14 days (the server reports 'expired'); a re-sent invite has a new link
     errBox.textContent = row.status === 'joined'
       ? 'This invite link has already been used. Please ask your admin to send a new one if this is a mistake.'
+      : row.status === 'expired'
+      ? 'This invite link has expired. Please ask your admin for a new one.'
       : 'This invite link is no longer valid. Please ask your admin to send a new one.';
     errBox.style.display = 'flex';
     document.getElementById('btn-submit').disabled = true;
@@ -155,7 +157,14 @@ async function _loadPositionInvite() {
   let prefilledContact = false;
   if (row.candidate_name) { document.getElementById('staff-name').value = row.candidate_name; prefilledContact = true; }
   if (row.phone)          { document.getElementById('staff-phone').value = row.phone; prefilledContact = true; }
-  if (row.email)          { document.getElementById('staff-email').value = row.email; prefilledContact = true; }
+  if (row.email) {
+    // Session 366 (Q7): an invite made for an email accepts only that email (the server checks it) -- so it is shown, not editable
+    const emailEl = document.getElementById('staff-email');
+    emailEl.value = row.email; emailEl.readOnly = true;
+    emailEl.title = 'This invite was sent to this email address — sign up with it. Ask your admin for a new invite if it is wrong.';
+    emailEl.style.cssText += ';background:#f8fdf9;cursor:not-allowed;color:var(--text-mid)';
+    prefilledContact = true;
+  }
 
   const banner = document.getElementById('position-invite-banner');
   const bannerTx = document.getElementById('position-invite-banner-text');
@@ -212,9 +221,34 @@ window._loadDepts = async function _loadDepts() {
     _depts.map(d => `<option value="${_esc(d.id)}">${_esc(d.name)}${d.ncism_code ? ' ('+_esc(d.ncism_code)+')' : ''}</option>`).join('');
 };
 
+// Session 366 (B1, owner 28 Oct 2026): signed out, the code lookup also says whether this organisation takes signups with only the
+// code -- "invite only" shows as soon as the code is entered (the server still refuses such a signup at submit either way)
+let _codeInviteOnly = false;
+async function _checkSelfSignup() {
+  const box  = document.getElementById('code-invite-only');
+  const btn  = document.getElementById('btn-submit');
+  const code = document.getElementById('tenant-code').value.trim();
+  if (_pinvToken || !box) return;
+  _codeInviteOnly = false;
+  box.style.display = 'none';
+  if (btn) btn.disabled = false;
+  if (!code) return;
+  const { data, error } = await supabase.rpc('get_tenant_by_code', { p_code: code });
+  if (document.getElementById('tenant-code').value.trim() !== code) return;   // the code changed while waiting
+  const row = !error && data?.[0];
+  if (row && row.self_signup === false) {
+    _codeInviteOnly = true;
+    box.textContent = `${row.name || 'This organisation'} adds new staff by invite only. Please ask your administrator for an invite link (sent by email or WhatsApp).`;
+    box.style.display = '';
+    if (btn) btn.disabled = true;
+  }
+}
+
 window.onCodeBlur = function() {
+  _checkSelfSignup();
   if (DEPT_ROLES.includes(document.getElementById('staff-role').value)) window._loadDepts();
 };
+if (_prefillCode && !_pinvToken) _checkSelfSignup();
 
 window.onRoleChange = function(role) {
   const showHpr = HPR_ROLES.includes(role) ? '' : 'none';
@@ -245,6 +279,8 @@ window.handleSignup = async function() {
                     : (DEPT_ROLES.includes(role) ? document.getElementById('staff-dept').value : null);
 
   if (!code)          return showError('Please enter your organisation code.');
+  if (_codeInviteOnly && !_positionInviteValid)
+                      return showError('This organisation adds new staff by invite only. Please ask your administrator for an invite link.');
   if (!role)          return showError('Please select your role.');
   if (!_positionInviteValid && DEPT_ROLES.includes(role) && _depts.length && !deptId)
                       return showError('Please select your department.');
@@ -290,13 +326,11 @@ window.handleSignup = async function() {
     return;
   }
 
-  // If arrived via recruitment join link, mark application as joined
+  // If arrived via recruitment join link, mark application as joined -- Session 366 (§353): on the server, by the account that has just
+  // signed up into that organisation (the browser can no longer change job_applications)
   if (_joinToken) {
-    try {
-      await supabase.from('job_applications')
-        .update({ status: 'joined', join_date: todayLocalStr() })
-        .eq('join_token', _joinToken);
-    } catch (_) { /* non-critical — silent fail */ }
+    try { await supabase.rpc('mark_job_application_joined', { p_join_token: _joinToken }); }
+    catch (_) { /* non-critical — silent fail */ }
   }
 
   // NCISM position invite: the server marked it joined (used once) when it created the profile -- Session 349

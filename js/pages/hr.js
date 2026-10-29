@@ -8,6 +8,7 @@ import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { localDateStr, todayLocalStr, istMonthStr } from '../utils/dateUtils.js';
 import { notify } from '../components/notify.js';
 import { canActOnStaff } from '../utils/staffActions.js';   // Session 351 (TODO §233): who sees the account actions (display only)
+import { loadLoginEmails, mountPhoneEditor, mountEmailChanger, BTN_OUT } from '../modules/staff/staffContacts.js';   // Session 366 (plan §0.1)
 // Session 352: the statuses "Reactivate Staff" applies to (never an active or a relieved account -- relieved: admin.html Relieved Staff)
 const _REACTIVATABLE = ['suspended', 'on_leave', 'inactive', 'blocked'];
 
@@ -105,6 +106,38 @@ function renderStaffGrid(list) {
   }).join('');
 }
 
+// Session 366 (plan §0.1, Q14): the login email in View Profile (the server decides who may see it: Super Admin / MD / MS = all, a scoped
+// Dept Admin = own department) + the Super Admin's ✏️ Phone (a reason, audited) and ✉️ Change login email (a link to the NEW address)
+let _loginEmails = null;
+async function _mountProfileContacts(s) {
+  const body = document.getElementById('sm-body');
+  const box = document.createElement('div');
+  box.style.cssText = 'font-size:13px;margin:-8px 0 16px';
+  body.insertBefore(box, body.children[2] || null);
+  if (!_loginEmails) _loginEmails = (await loadLoginEmails(supabase)).map;
+  if (_viewingStaff?.id !== s.id) return;   // another profile was opened meanwhile
+  const e = _loginEmails.get(s.id);
+  const line = document.createElement('div');
+  const lbl = document.createElement('span'); lbl.style.color = 'var(--text-muted)'; lbl.textContent = 'Login email: ';
+  line.append(lbl, document.createTextNode(e?.email || (e === undefined ? 'not shown to your role' : '—')));
+  if (e?.pending) { const p = document.createElement('div'); p.style.cssText = 'font-size:11.5px;color:#7a5a10'; p.textContent = `Change waiting for confirmation: ${e.pending}`; line.append(p); }
+  box.append(line);
+  if (sess.role !== 'super_admin') return;
+  const acts = document.createElement('div'); acts.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap;margin-top:8px';
+  const panel = document.createElement('div'); panel.style.marginTop = '8px';
+  const b1 = document.createElement('button'); b1.type = 'button'; b1.style.cssText = BTN_OUT; b1.textContent = '✏️ Phone';
+  b1.addEventListener('click', () => mountPhoneEditor(panel, { supabase, staff: s, toast: m => _toast(m, 'success'),
+    onDone: v => { s.phone = v; window.openStaffModal(s.id); } }));
+  acts.append(b1);
+  if (!s.terminated_at && s.status !== 'blocked') {
+    const b2 = document.createElement('button'); b2.type = 'button'; b2.style.cssText = BTN_OUT; b2.textContent = '✉️ Change login email';
+    b2.addEventListener('click', () => mountEmailChanger(panel, { supabase, staff: s, currentEmail: e?.email || '', toast: m => _toast(m, 'success'),
+      onDone: () => { _loginEmails = null; } }));
+    acts.append(b2);
+  }
+  box.append(acts, panel);
+}
+
 window.openStaffModal = function(id) {
   _viewingStaff = _staff.find(s => s.id === id);
   if (!_viewingStaff) return;
@@ -148,6 +181,8 @@ window.openStaffModal = function(id) {
         <strong>${_esc(t.title)}</strong> · <span style="color:var(--text-muted)">${_fmtD(t.training_date)} · ${_esc(t.training_type)}</span>
       </div>`).join('')}
     </div>` : '<div style="font-size:12px;color:var(--text-muted)">No training records</div>'}`;
+
+  _mountProfileContacts(s);   // Session 366
 
   // Reset MFA — super_admin only (mirrors promote_to_dept_admin's precedent of
   // restricting sensitive account actions to super_admin, not dept_admin too)

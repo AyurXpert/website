@@ -144,7 +144,8 @@ html,body{min-height:100%;font-family:'DM Sans',sans-serif;background:var(--crea
       <div class="field code-field">
         <label>Organisation Code</label>
         <input type="text" id="tenant-code" placeholder="e.g. SRSH4821" maxlength="10" autocomplete="off" data-oninput="upperizeInput" data-oninput-a0="@this" data-onblur="onCodeBlur"/>
-        <div class="code-hint">Ask your hospital / clinic admin for this code</div>
+        <div class="code-hint">Ask your hospital / clinic admin for this code. Most organisations add staff by invite only — if you received an invite link by email or WhatsApp, open that link instead.</div>
+        <div id="code-invite-only" role="status" aria-live="polite" style="display:none;margin-top:8px;background:var(--error-bg);color:var(--error-text);border:1px solid var(--error-border);border-radius:8px;padding:10px 14px;font-size:13.5px;line-height:1.5"></div>
       </div>
 
       <div class="field">

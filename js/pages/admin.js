@@ -28,6 +28,10 @@ import { mountTaxApprovals, TAX_APPROVAL_TYPES } from '../modules/tax/taxApprova
 import { printDocument, docHeader } from '../utils/printDocument.js';
 import { renderOpdWorkflowSettings } from '../modules/opd/opdWorkflowSettings.js';
 import { mountAlertBell } from '../components/alertBell.js';   // Session 357 (TODO §276)
+// Session 366 (TODO §350-§352, plan §0.1): bulk invite, self-signup switch, login email / phone in HR
+import { mountBulkInvite } from '../modules/staff/bulkInvite.js';
+import { renderSelfSignupSetting } from '../modules/staff/selfSignupSetting.js';
+import { inviteLink, inviteMessage, whatsAppButton, emailInvites, fmtDate, loadLoginEmails, mountPhoneEditor, mountEmailChanger, BTN_OUT } from '../modules/staff/staffContacts.js';
 import { loadDepositWaivers, isAdmissionOverseer } from '../modules/ipd/admissionCounter.js';   // Session 357 (owner addition 8)
 
 await requireAuth(['super_admin','dept_admin'], 'index.html');
@@ -783,10 +787,27 @@ window.loadStaffAccess = async function() {
   const deptIds = [...new Set(approvals.flatMap(r => [r.department_id, r.scope_department_id]).filter(Boolean))];
   const [{ data: deptRows }, { data: invRows }] = await Promise.all([
     deptIds.length ? supabase.from('departments').select('id,name').eq('tenant_id', tenantId).in('id', deptIds) : Promise.resolve({ data: [] }),
-    supabase.from('position_invites').select('joined_profile_id').eq('tenant_id', tenantId).in('joined_profile_id', ids),
+    supabase.from('position_invites').select('joined_profile_id,candidate_name,phone,email,batch_id').eq('tenant_id', tenantId).in('joined_profile_id', ids),
   ]);
   const deptName = id => (deptRows || []).find(d => d.id === id)?.name || 'a department';
   const viaInvite = new Set((invRows || []).map(i => i.joined_profile_id));
+  // Session 366 (Q6): what the person typed at signup side by side with the invite -- a difference is highlighted
+  const invOf = id => (invRows || []).find(i => i.joined_profile_id === id);
+  const emails = (await loadLoginEmails(supabase)).map;
+  const norm = v => String(v || '').trim().toLowerCase();
+  const normPh = v => String(v || '').replace(/\D/g, '').slice(-10);
+  const cmp = (label, signed, invited, same) => {
+    if (!invited) return '';
+    const diff = !same(signed, invited);
+    return `<div style="font-size:11.5px;margin-top:3px;${diff ? 'color:#8b1a1a;font-weight:700' : 'color:var(--text-mid)'}">${diff ? '⚠️ ' : ''}${label}: signed up ${_esc(signed || '—')} · invite ${_esc(invited)}</div>`;
+  };
+  const inviteCompare = r => {
+    const inv = invOf(r.id);
+    if (!inv) return '';
+    return cmp('Name', r.full_name, inv.candidate_name, (a, b) => norm(a) === norm(b))
+      + cmp('Phone', r.phone, inv.phone, (a, b) => normPh(a) === normPh(b))
+      + cmp('Login email', emails.get(r.id)?.email, inv.email, (a, b) => norm(a) === norm(b));
+  };
   const viewerIsSuper = profile?.role === 'super_admin';
   // Session 350 (TODO §214 + owner addition A): also a powerful position (the server's single list) or a department scope
   const isElevated = r => ['super_admin', 'dept_admin'].includes(r.role) || !!r.secondary_role || !!r.has_monitoring_access
@@ -797,9 +818,13 @@ window.loadStaffAccess = async function() {
     r.secondary_role ? `<strong>Second role: ${_esc(_roleLabel(r.secondary_role))}</strong>` : '',
     r.has_monitoring_access ? '<strong>Monitoring access</strong>' : '',
     r.scope_department_id ? `<strong>Department admin of: ${_esc(deptName(r.scope_department_id))}</strong>` : '',
-    viaInvite.has(r.id) ? 'From an invite link' : 'Self sign-up (no invite)',
-  ].filter(Boolean).map(t => `<div style="font-size:11.5px;color:var(--text-mid);margin-top:3px">${t}</div>`).join('');
-  wrap.innerHTML=`<div class="tw"><table>
+    viaInvite.has(r.id) ? 'From an invite link' + (invOf(r.id)?.batch_id ? ' (bulk invite)' : '') : 'Self sign-up (no invite)',
+  ].filter(Boolean).map(t => `<div style="font-size:11.5px;color:var(--text-mid);margin-top:3px">${t}</div>`).join('') + inviteCompare(r);
+  const invitedIds = approvals.filter(r => viaInvite.has(r.id)).map(r => r.id);
+  wrap.innerHTML=(viewerIsSuper && invitedIds.length ? `<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px">
+      <button class="btn-primary" id="btn-approve-invited" style="min-height:44px">✅ Approve all joined by invite (${invitedIds.length})</button>
+      <span style="font-size:12px;color:var(--text-muted)">Each one is checked by the server as a single approval; check the ⚠️ differences first.</span></div>` : '')
+    + `<div class="tw"><table>
     <thead><tr><th>Name</th><th>Requested</th><th>Phone</th><th>Applied</th><th>Actions</th></tr></thead>
     <tbody>${approvals.map(r=>`<tr id="arow-${r.id}"${isElevated(r)?' style="background:#fff0f0"':''}>
       <td><strong>${_esc(r.full_name||'—')}</strong></td>
@@ -819,6 +844,14 @@ window.loadStaffAccess = async function() {
     </tr>`).join('')}</tbody>
   </table></div>`;
 
+  // Session 366 (Q6): "Approve all joined by invite" -- approve_invited_staff (the active Super Admin; each through dept_admin_approve_staff)
+  document.getElementById('btn-approve-invited')?.addEventListener('click', async ev => {
+    const b = ev.currentTarget; b.disabled = true;
+    const { data, error } = await supabase.rpc('approve_invited_staff', { p_ids: invitedIds });
+    if (error) { b.disabled = false; _toast(safeErrorMessage(error, 'Could not approve.'), true); return; }
+    _toast(`${data.approved} approved` + (data.failed?.length ? ` · ${data.failed.length} not approved (see the list)` : ''), !!data.failed?.length);
+    window.loadStaffAccess(); loadStats();
+  });
   document.querySelectorAll('.btn-approve[data-id]').forEach(btn=>{
     btn.addEventListener('click',async()=>{
       const id=btn.dataset.id; btn.disabled=true;
@@ -965,6 +998,9 @@ window.loadHR = async function(sub='staff') {
     supabase.from('departments').select('id,name,ncism_code,category').eq('tenant_id',tenantId),
   ]);
   const dById={}; (depts||[]).forEach(d=>{dById[d.id]=d;});
+  // Session 366 (Q14): the login emails this viewer may see (the server decides: Super Admin / MD / MS = all, a scoped Dept Admin = own
+  // department, anyone else none)
+  window._loginEmails = (await loadLoginEmails(supabase)).map;
   // Sort by (department's position in the standard Admin->Security hierarchy, then
   // designation seniority within that department, then name) instead of plain
   // alphabetical-by-name — makes it possible to actually find/review a department's
@@ -1029,6 +1065,7 @@ function _hrSub(sub){
   document.getElementById('hr-orgstaff-panel').style.display   = sub==='orgstaff'  ? '' : 'none';
   document.getElementById('hr-terminated-panel').style.display = sub==='terminated'? '' : 'none';
   document.getElementById('hr-leave-panel').style.display      = sub==='leave'     ? '' : 'none';
+  document.getElementById('hr-bulk-panel').style.display       = sub==='bulk'      ? '' : 'none';   // Session 366
   document.getElementById('hr-seed-bar').style.display         = (sub==='ncism'||sub==='dept') ? 'flex' : 'none';
   if (sub === 'ncism')   _renderNcismStaffing();
   if (sub === 'plan')    _renderStaffingPlan();
@@ -1038,6 +1075,19 @@ function _hrSub(sub){
   if (sub === 'orgstaff') _renderOrganisationStaff();
   if (sub === 'terminated') _renderTerminatedStaff();
   if (sub === 'leave')   _renderLeaveHolidays();
+  if (sub === 'bulk')    _renderBulkInvite();   // Session 366
+}
+
+// Session 366 (TODO §351): 📨 Bulk invite -- the Super Admin only (the server refuses anyone else; the tab is hidden for them)
+if (role === 'super_admin') { const b = document.getElementById('hr-tab-bulk-btn'); if (b) b.hidden = false; }
+async function _renderBulkInvite() {
+  const box = document.getElementById('hr-bulk-panel');
+  const { data: depts } = await supabase.from('departments').select('id,name,ncism_code').eq('tenant_id', tenantId);
+  mountBulkInvite(box, {
+    supabase, tenantName: tenant?.name || '', isNcism: isNCISMType(tenant?.type), depts: depts || [],
+    toast: (m, err) => _toast(m, !!err),
+    templateRows: async () => { if (!_ladderGapRows.length) await _renderNcismStaffing(); return _ladderGapRows; },
+  });
 }
 
 // Session 137 (Nursing Roster Phase 1): who can manage the public holiday
@@ -1820,6 +1870,11 @@ let _ladderRowRegistry = [];
 // previously generated invite link can be re-copied without re-entering candidate details
 // (Session 113: closing the invite modal after "Generate Link" had no way back to that token).
 let _pendingInviteRegistry = [];
+// Session 366 (TODO §351): the open positions of the ladder (required minus filled), for the bulk-invite CSV template
+let _ladderGapRows = [];
+function _defaultInviteRole(desig) {
+  return DESIG_REQUIRED_ROLE[desig] || (DESIG_NO_DEFAULT_ROLE.includes(desig) ? '' : (DESIG_ROLE_DEFAULT[desig] || 'doctor'));
+}
 
 async function _renderNcismStaffing() {
   const wrap = document.getElementById('ncism-staff-table-wrap');
@@ -1832,13 +1887,14 @@ async function _renderNcismStaffing() {
   wrap.innerHTML = '<div class="empty"><div class="empty-ico">⏳</div><div class="empty-ttl">Loading…</div></div>';
   _ladderRowRegistry = [];
   _pendingInviteRegistry = [];
+  _ladderGapRows = [];
 
   const [{ data:tRow }, { data:rawStaff }, { data:depts }, { data:pgDepts }, { data:invites }, { data:opds }, { data:bedsRows }] = await Promise.all([
     supabase.from('tenants').select('ug_intake,type,pg_student_strength').eq('id',tenantId).single(),
     supabase.from('profiles').select('id,full_name,designation,department_id').eq('tenant_id',tenantId).eq('is_active',true),
     supabase.from('departments').select('id,name,ncism_code,category,parent_department_id,is_pg_dept,pg_seats_sanctioned').eq('tenant_id',tenantId).eq('is_active',true),
     supabase.from('departments').select('id,name,ncism_code,pg_seats_sanctioned').eq('tenant_id',tenantId).eq('is_pg_dept',true),
-    supabase.from('position_invites').select('id,department_id,designation,phone,candidate_name,token').eq('tenant_id',tenantId).eq('status','pending'),
+    supabase.from('position_invites').select('id,department_id,designation,phone,email,candidate_name,token,expires_at,last_sent_at,send_count').eq('tenant_id',tenantId).eq('status','pending'),
     supabase.from('opds').select('id,name,ncism_code').eq('tenant_id',tenantId).eq('is_active',true),
     supabase.from('beds').select('department_id').eq('tenant_id',tenantId),
   ]);
@@ -2069,6 +2125,7 @@ const totalOrgStaff = await _count('profiles',[['tenant_id',tenantId],['is_activ
     let prevZone=null;
     const trs=req.ladder.map(row=>{
       const a=cntDeptD(dept.id,row.keys), gap=Math.max(0,row.count-a);
+      if (gap > 0) _ladderGapRows.push({ department: dept.ncism_code || dept.name, designation: row.keys[0], role: _defaultInviteRole(row.keys[0]), count: gap });
       // Session 134: surplus above the NCISM minimum isn't itself a problem, but it's easy
       // to mistake for a data-entry mistake (found live: Dr. Venkatesh spotted a Swasthavritta
       // Assistant Professor showing 2 recruited against 1 required and wasn't sure if that
@@ -2339,8 +2396,19 @@ window.submitPositionInvite = async function(){
     return;
   }
 
-  const link = window.location.origin + '/signup.html?pinv=' + data.token;
+  const link = inviteLink(data.token);
   document.getElementById('pinv-link-text').textContent = link;
+  // Session 366: send it by email (send-staff-invites) or WhatsApp right here -- the link works 14 days
+  const share = document.getElementById('pinv-share-row');
+  share.replaceChildren();
+  const wa = whatsAppButton(phone, inviteMessage({ orgName: tenant?.name, name, position: DESIG_MAP[designation]?.l || designation, link, expiresAt: data.expires_at }));
+  if (wa) share.append(wa);
+  if (email) {
+    const em = document.createElement('button'); em.type = 'button'; em.style.cssText = BTN_OUT; em.textContent = '📧 Send by email';
+    em.addEventListener('click', async () => { em.disabled = true; const r = await emailInvites(supabase, [data.id]); em.disabled = false; _toast(r.text, !r.ok); });
+    share.append(em);
+  }
+  if (data.expires_at) { const n = document.createElement('div'); n.style.cssText = 'flex-basis:100%;font-size:11.5px;color:var(--text-muted)'; n.textContent = `The link works until ${fmtDate(data.expires_at)} and can be used once.`; share.append(n); }
   document.getElementById('pinv-form-fields').style.display = 'none';
   document.getElementById('pinv-link-box').style.display = '';
   document.getElementById('pinv-submit-btn').style.display = 'none';
@@ -2363,19 +2431,53 @@ window.viewPendingInvites = function(idxStr){
   if(!entry) return;
   document.getElementById('pending-invites-subtitle').textContent = entry.label;
   document.getElementById('pending-invites-list').innerHTML = entry.pending.map((inv,subIdx)=>{
-    const link = window.location.origin + '/signup.html?pinv=' + inv.token;
+    const link = inviteLink(inv.token);
     const who = inv.candidate_name || inv.phone || inv.email || 'Unnamed candidate';
     const contact = [inv.phone, inv.email].filter(Boolean).join(' · ');
-    return '<div style="border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:10px">'
+    // Session 366: an expired link says so (Re-send makes a new one); when it was last e-mailed
+    const expired = !inv.expires_at || new Date(inv.expires_at).getTime() <= Date.now();
+    const state = expired ? '⏰ Expired '+fmtDate(inv.expires_at)+' — Re-send makes a new link'
+      : 'Works until '+fmtDate(inv.expires_at)+(inv.last_sent_at ? ' · e-mailed '+fmtDate(inv.last_sent_at) : '');
+    return '<div style="border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:10px'+(expired?';background:#fff8e6':'')+'">'
       +'<div style="font-weight:600;font-size:13px">'+_esc(who)+'</div>'
       +(contact?'<div style="font-size:11.5px;color:var(--text-muted);margin-bottom:6px">'+_esc(contact)+'</div>':'')
+      +'<div style="font-size:11.5px;color:'+(expired?'#7a5a10':'var(--text-mid)')+';margin-bottom:6px">'+_esc(state)+'</div>'
       +'<div style="background:var(--green-light);border-radius:6px;padding:8px 10px;font-size:11.5px;word-break:break-all;margin-bottom:8px">'+_esc(link)+'</div>'
-      +'<div style="display:flex;gap:8px">'
-      +'<button data-onclick="copyPendingInviteLink" data-onclick-a0="'+idxStr+'" data-onclick-a1="'+subIdx+'" style="height:32px;padding:0 14px;background:var(--green-deep);color:#fff;border:none;border-radius:6px;font-size:12px;cursor:pointer">Copy Link</button>'
+      +'<div style="display:flex;gap:8px;flex-wrap:wrap" id="pinv-acts-'+idxStr+'-'+subIdx+'">'
+      +(expired?'':'<button data-onclick="copyPendingInviteLink" data-onclick-a0="'+idxStr+'" data-onclick-a1="'+subIdx+'" style="height:32px;padding:0 14px;background:var(--green-deep);color:#fff;border:none;border-radius:6px;font-size:12px;cursor:pointer">Copy Link</button>')
+      +'<button data-onclick="resendPendingInvite" data-onclick-a0="'+idxStr+'" data-onclick-a1="'+subIdx+'" style="height:32px;padding:0 14px;background:#fff;color:var(--green-deep);border:1px solid var(--green-deep);border-radius:6px;font-size:12px;cursor:pointer">🔄 Re-send (new link)</button>'
+      +(!expired&&inv.email?'<button data-onclick="emailPendingInvite" data-onclick-a0="'+idxStr+'" data-onclick-a1="'+subIdx+'" style="height:32px;padding:0 14px;background:#fff;color:var(--green-deep);border:1px solid var(--green-deep);border-radius:6px;font-size:12px;cursor:pointer">📧 Email</button>':'')
       +'<button data-onclick="cancelPendingInvite" data-onclick-a0="'+idxStr+'" data-onclick-a1="'+subIdx+'" style="height:32px;padding:0 14px;background:#fff;color:#c0392b;border:1px solid #e0b0b0;border-radius:6px;font-size:12px;cursor:pointer">Cancel Invite</button>'
       +'</div></div>';
   }).join('');
   document.getElementById('pending-invites-modal').style.display = 'flex';
+  // Session 366: a WhatsApp button per live invite with a phone (an <a>, built as a DOM node)
+  entry.pending.forEach((inv, subIdx) => {
+    if (!inv.expires_at || new Date(inv.expires_at).getTime() <= Date.now()) return;
+    const wa = whatsAppButton(inv.phone, inviteMessage({ orgName: tenant?.name, name: inv.candidate_name, position: DESIG_MAP[inv.designation]?.l || inv.designation, link: inviteLink(inv.token), expiresAt: inv.expires_at }));
+    if (wa) { wa.style.minHeight = '32px'; wa.style.fontSize = '12px'; document.getElementById('pinv-acts-'+idxStr+'-'+subIdx)?.append(wa); }
+  });
+};
+
+// Session 366 (TODO §351, Q5): Re-send = a NEW link (the old one stops working), 14 more days; e-mailed at once when there is an email
+window.resendPendingInvite = async function(idxStr, subIdxStr){
+  const entry = _pendingInviteRegistry[Number(idxStr)];
+  const inv = entry && entry.pending[Number(subIdxStr)];
+  if(!inv) return;
+  const { data, error } = await supabase.rpc('resend_position_invite', { p_invite_id: inv.id });
+  if(error){ _toast(safeErrorMessage(error,'Could not re-send the invite.'), true); return; }
+  inv.token = data.token; inv.expires_at = data.expires_at;
+  if (inv.email) { const r = await emailInvites(supabase, [inv.id]); _toast('New link made — ' + r.text, !r.ok); if (r.ok) inv.last_sent_at = new Date().toISOString(); }
+  else _toast('New link made — the old link no longer works. Copy it or send it by WhatsApp.');
+  window.viewPendingInvites(idxStr);
+};
+window.emailPendingInvite = async function(idxStr, subIdxStr){
+  const entry = _pendingInviteRegistry[Number(idxStr)];
+  const inv = entry && entry.pending[Number(subIdxStr)];
+  if(!inv) return;
+  const r = await emailInvites(supabase, [inv.id]);
+  _toast(r.text, !r.ok);
+  if (r.ok) { inv.last_sent_at = new Date().toISOString(); window.viewPendingInvites(idxStr); }
 };
 
 window.closePendingInvitesModal = function(){
@@ -3129,14 +3231,14 @@ function _lockDesigSelect(sel, s){
 
 function renderStaffTable(staff){
   const tbody=document.getElementById('staff-tbody');
-  if(!staff.length){tbody.innerHTML=`<tr><td colspan="8"><div class="empty"><div class="empty-ico">👥</div><div class="empty-ttl">No staff found</div></div></td></tr>`;return;}
+  if(!staff.length){tbody.innerHTML=`<tr><td colspan="9"><div class="empty"><div class="empty-ico">👥</div><div class="empty-ttl">No staff found</div></div></td></tr>`;return;}
   const canPromote = role === 'super_admin';
   let _prevDeptGroup;
   tbody.innerHTML=staff.map(s=>{
     let groupHeader = '';
     if (s.dept_name !== _prevDeptGroup) {
       _prevDeptGroup = s.dept_name;
-      groupHeader = `<tr><td colspan="8" style="background:var(--green-light);color:var(--green-deep);font-weight:700;font-size:11px;padding:6px 10px;text-transform:uppercase;letter-spacing:.5px">${_esc(s.dept_name==='—'?'No Department Assigned':s.dept_name)}</td></tr>`;
+      groupHeader = `<tr><td colspan="9" style="background:var(--green-light);color:var(--green-deep);font-weight:700;font-size:11px;padding:6px 10px;text-transform:uppercase;letter-spacing:.5px">${_esc(s.dept_name==='—'?'No Department Assigned':s.dept_name)}</td></tr>`;
     }
     const isFullAdmin = ['super_admin','dept_admin'].includes(s.role);
     const hasSecondaryAdmin = s.secondary_role === 'dept_admin';
@@ -3174,6 +3276,11 @@ function renderStaffTable(staff){
     if (showDelete) actionCell += `<button class="btn-outline" ${_actBtnDanger} data-onclick="deleteRejectedStaff" data-onclick-a0="${_esc(s.id)}" data-onclick-a1="${_esc(s.full_name||'this staff member')}">🗑 Delete</button>`;
     // Session 351 (TODO §233, owner 19 Oct): Relieve on every row -- shown only to an active Super Admin / MD / MS, and for an admin,
     // a senior position or a department-scoped account only to the Super Admin (the server decides; this only hides the button)
+    // Session 366 (plan §0.1): the Super Admin edits a phone (a reason, audited) and starts a login-email change (link to the new address)
+    if (canPromote && !s.is_platform_admin) {
+      actionCell += `<button class="btn-outline" ${_actBtn} data-onclick="openStaffPhone" data-onclick-a0="${_esc(s.id)}">✏️ Phone</button>`;
+      if (s.status !== 'blocked') actionCell += `<button class="btn-outline" ${_actBtn} data-onclick="openStaffLoginEmail" data-onclick-a0="${_esc(s.id)}">✉️ Login email</button>`;
+    }
     if (canActOnStaff(profile, s)) actionCell += `<button class="btn-outline" ${_actBtnDanger} data-onclick="openTerminateModal" data-onclick-a0="${_esc(s.id)}" data-onclick-a1="${_esc(s.full_name||'this staff member')}">📤 Relieve</button>`;
     actionCell = actionCell ? `<div style="display:flex;flex-direction:column;gap:4px;width:168px">${actionCell}</div>` : '—';
     return groupHeader + `<tr>
@@ -3182,11 +3289,12 @@ function renderStaffTable(staff){
     <td><select class="desig-sel" data-id="${s.id}" data-onchange="saveDesig" data-onchange-a0="@this">${DESIG_SEL_HTML}</select></td>
     <td><select class="dept-sel" data-id="${s.id}" data-onchange="saveDept" data-onchange-a0="@this">${_deptSelOptsHtml}</select></td>
     <td>${_esc(s.phone||'—')}</td>
+    <td style="font-size:12px;word-break:break-all">${_esc(window._loginEmails?.get(s.id)?.email||'—')}${window._loginEmails?.get(s.id)?.pending?`<div style="font-size:11px;color:#7a5a10">change waiting: ${_esc(window._loginEmails.get(s.id).pending)}</div>`:''}</td>
     <td><span class="chip ${s.is_active?'g':'grey'}">${s.is_active?'Active':_esc(s.status)}</span></td>
     <td style="font-size:12px;color:var(--text-muted)">${_relDate(s.created_at)}</td>
     <td>${actionCell}</td>
   </tr>
-  <tr id="roles-row-${_esc(s.id)}" hidden><td colspan="8"></td></tr>`;
+  <tr id="roles-row-${_esc(s.id)}" hidden><td colspan="9"></td></tr>`;
   }).join('');
   // Two selects share the same data-id per row (designation + department) -- must be
   // scoped by class too, or querySelector's first-match-wins would silently leave the
@@ -3199,6 +3307,21 @@ function renderStaffTable(staff){
     if(deptSel&&s.department_id)deptSel.value=s.department_id;
   });
 }
+
+// Session 366 (plan §0.1): ✏️ Phone / ✉️ Login email -- the in-row panel under the staff row (the same row Change role uses)
+function _staffRowPanel(staffId, kind, mount) {
+  const s = (window._staffAll || []).find(x => x.id === staffId);
+  const row = document.getElementById('roles-row-' + staffId);
+  if (!s || !row) return;
+  const cell = row.firstElementChild;
+  if (!row.hidden && cell.dataset.panel === kind) { row.hidden = true; cell.replaceChildren(); return; }
+  cell.dataset.panel = kind; row.hidden = false;
+  mount(cell, s);
+}
+window.openStaffPhone = staffId => _staffRowPanel(staffId, 'phone', (cell, s) =>
+  mountPhoneEditor(cell, { supabase, staff: s, toast: m => _toast(m), onDone: v => { s.phone = v; renderStaffTable(window._staffAll); } }));
+window.openStaffLoginEmail = staffId => _staffRowPanel(staffId, 'email', (cell, s) =>
+  mountEmailChanger(cell, { supabase, staff: s, currentEmail: window._loginEmails?.get(s.id)?.email || '', toast: m => _toast(m) }));
 
 // Session 359 (TODO §293, owner Q3 / Q15): change a staff member's login role / second role -- an in-page panel (no confirm()), a reason,
 // set_staff_roles() on the server (the active Super Admin only; audited; a designation that needs a role -- Finance Manager, Nursing
@@ -6944,6 +7067,7 @@ window.loadModules = async function() {
   _renderCounterSaleSetting(saved.counter_sale !== false);
   _renderReturnSettings();                                   // Session 344a
   renderOpdWorkflowSettings(document.getElementById('opd-workflow-setting'), { supabase, role, toast: m => _toast(m) });   // Session 347
+  renderSelfSignupSetting(document.getElementById('self-signup-setting'), { supabase, role, tenantId, toast: m => _toast(m) });   // Session 366
 
   el.innerHTML = `
     <div style="background:#fff8e1;border:1px solid #ffe082;border-radius:8px;padding:12px 16px;margin-bottom:18px;font-size:12.5px;color:#7a5200">
