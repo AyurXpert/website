@@ -31,6 +31,7 @@ import { mountAlertBell } from '../components/alertBell.js';   // Session 357 (T
 // Session 366 (TODO §350-§352, plan §0.1): bulk invite, self-signup switch, login email / phone in HR
 import { mountBulkInvite } from '../modules/staff/bulkInvite.js';
 import { renderSelfSignupSetting } from '../modules/staff/selfSignupSetting.js';
+import { renderAbdmShareSetting } from '../modules/abdm/abdmShareSetting.js';
 import { inviteLink, inviteMessage, whatsAppButton, emailInvites, fmtDate, loadLoginEmails, mountPhoneEditor, mountEmailChanger, BTN_OUT } from '../modules/staff/staffContacts.js';
 import { loadDepositWaivers, isAdmissionOverseer } from '../modules/ipd/admissionCounter.js';   // Session 357 (owner addition 8)
 
@@ -7068,6 +7069,7 @@ window.loadModules = async function() {
   _renderReturnSettings();                                   // Session 344a
   renderOpdWorkflowSettings(document.getElementById('opd-workflow-setting'), { supabase, role, toast: m => _toast(m) });   // Session 347
   renderSelfSignupSetting(document.getElementById('self-signup-setting'), { supabase, role, tenantId, toast: m => _toast(m) });   // Session 366
+  renderAbdmShareSetting(document.getElementById('abdm-share-setting'), { supabase, role, tenantId, toast: m => _toast(m) });   // Session 367
 
   el.innerHTML = `
     <div style="background:#fff8e1;border:1px solid #ffe082;border-radius:8px;padding:12px 16px;margin-bottom:18px;font-size:12.5px;color:#7a5200">

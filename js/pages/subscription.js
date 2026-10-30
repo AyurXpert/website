@@ -6,6 +6,7 @@ import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
 import { NCISM_DEPTS } from '../config/ncism.js';
 import { notify } from '../components/notify.js';
+import { renderAbdmPushHosts } from '../modules/abdm/abdmPushHosts.js';
 
 await requireAuth(['platform_admin','super_admin','dept_admin'], 'login.html');
 initNavbar();
@@ -28,6 +29,7 @@ window.showSubtab = function(tab) {
   document.getElementById(`pane-${tab}`)?.classList.add('active');
   if (tab === 'ncism')   loadNcismRequests();
   if (tab === 'pricing') loadPricing();
+  if (tab === 'abdmhosts') renderAbdmPushHosts(document.getElementById('abdm-hosts-box'), { supabase, toast: m => _toast(m, 'success') });   // Session 367
 };
 
 const PLAN_LABEL   = { trial:'Free Trial', starter:'Starter', growth:'Growth', enterprise:'Enterprise' };

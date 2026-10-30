@@ -132,6 +132,7 @@ tr.row-expired:hover td{background:#ffe9e9}
     <button class="subtab active" id="subtab-tenants" data-onclick="showSubtab" data-onclick-a0="tenants">🏥 All Tenants</button>
     <button class="subtab" id="subtab-ncism" data-onclick="showSubtab" data-onclick-a0="ncism">🎓 NCISM Requests</button>
     <button class="subtab" id="subtab-pricing" data-onclick="showSubtab" data-onclick-a0="pricing">💰 Pricing</button>
+    <button class="subtab" id="subtab-abdmhosts" data-onclick="showSubtab" data-onclick-a0="abdmhosts">🔗 ABDM push hosts</button>
   </div>
 
   <div class="pane active" id="pane-tenants">
@@ -262,6 +263,14 @@ tr.row-expired:hover td{background:#ffe9e9}
           </tbody>
         </table>
       </div>
+    </div>
+  </div>
+
+  <!-- Session 367 (TODO §332): the ABDM push-host allow-list (js/modules/abdm/abdmPushHosts.js) -- active platform admin only -->
+  <div class="pane" id="pane-abdmhosts">
+    <div class="cc">
+      <div class="cc-hd"><span class="cc-title">ABDM push hosts</span></div>
+      <div id="abdm-hosts-box" style="padding:16px 20px"></div>
     </div>
   </div>
 </div>

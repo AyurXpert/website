@@ -302,6 +302,14 @@ export function safeErrorMessage(error, fallback = 'Something went wrong. Please
     return error.message;
   }
 
+  // Session 367 (TODO §332): the ABDM record-sharing switch and the platform admin's push-host list -- the server's plain refusals
+  const ABDM_367_MSGS = ["Only this organisation's Super Admin can change ABDM record sharing", 'Please give a reason (5 to 300 characters',
+    'Only an active platform admin can', 'Enter a host name only', 'This host cannot be added', "ABDM's own addresses are always allowed",
+    'This host is already on the list', 'No such host on the list', 'Choose on or off'];
+  if (['P0001', 'P0002', '42501', '22023', '23505'].includes(error?.code) && ABDM_367_MSGS.some(m => error?.message?.startsWith(m))) {
+    return error.message;
+  }
+
   // Session 350 (TODO §214 + owner addition A): designations (dept_admin_update_designation), invites and the approval -- who may give
   // a powerful position or a department scope; the server's plain refusals, which one it is decides what the person does next
   const DESIG_RIGHTS_MSGS = ['You cannot change your own designation', 'Only the Super Admin can change the designation of an admin',
