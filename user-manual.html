@@ -537,81 +537,119 @@ p:last-child{margin-bottom:0}
        ══════════════════════════════════════════════ -->
   <div class="section" id="reception">
     <div class="section-title">Reception</div>
-    <p>Page: <strong>reception.html</strong> &nbsp;|&nbsp; Access: receptionist, nurse, dept_admin, super_admin</p>
-    <p>This is where every patient's day begins. The receptionist creates a <strong>visit</strong>, generates a <strong>bill</strong>, collects payment, and the patient joins the doctor's queue.</p>
+    <p>Page: <strong>reception.html</strong> &nbsp;|&nbsp; Access: receptionist, nurse, dept_admin, super_admin (a cashier sees only 💰 Lab Bills)</p>
+    <p>This is where every patient's day begins. You find or register the patient, the server works out the fee, you collect the payment, and the patient joins the doctor's queue. The steps below follow the order of a working day: <strong>what to click</strong>, then <strong>what you should see</strong>.</p>
 
     <div class="subsection">
-      <div class="subsection-title">Registering a New Patient</div>
+      <div class="subsection-title">1. Open the page — what is where</div>
       <div class="steps">
-        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Enter phone number</div><div class="step-desc">Type the patient's mobile number in the search box. AyurXpert searches for existing patients with that number (up to 6 family members with the same phone can appear).</div></div></div>
-        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Select or create patient</div><div class="step-desc">If the patient exists, click their name card — all fields auto-fill. If new, enter name, age, gender, date of birth, and blood group.</div></div></div>
-        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Select OPD and Doctor</div><div class="step-desc">Choose from active OPDs. Doctors shown are only those marked "active today" for that OPD.</div></div></div>
-        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Chief complaint</div><div class="step-desc">Briefly enter the patient's main complaint (e.g. "Knee pain since 3 months"). This travels with the visit to the doctor.</div></div></div>
-        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Bill &amp; payment</div><div class="step-desc">Registration fee and consultation fee auto-populate from active fee structures. Add any additional charges. Select payment mode (Cash / UPI / Card / Credit) and click Pay.</div></div></div>
-        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Done</div><div class="step-desc">Patient gets a token number and appears in the doctor's queue as "Waiting".</div></div></div>
+        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">The two panes</div><div class="step-desc">Click: nothing yet. You see: <strong>Registration</strong> (teal) on the left and <strong>Today's work</strong> (blue) on the right. In NCISM teaching hospitals and colleges the purple <strong>NCISM OPD strip</strong> sits above them. The slim line under the strip shows your registration duty, <strong>🤝 Close my shift</strong> and the <strong>Layout</strong> buttons.</div></div></div>
+        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Pull out / Push in</div><div class="step-desc">Click: <strong>Pull out ⤢</strong> on the Registration pane, then <strong>⇤ Push in</strong>; the same on Today's work (<strong>⤢ Pull out</strong> / <strong>Push in ⇥</strong>). You see: that pane fills the screen and the other becomes a thin coloured strip with its counts — click the strip to bring it back. The pane header with these buttons stays just below the top bar while you scroll. <strong>Side by side</strong> shows the two panes at equal width. Your layout is remembered for you on any computer.</div></div></div>
       </div>
     </div>
 
     <div class="subsection">
-      <div class="subsection-title">Family Members</div>
-      <p>Multiple patients can share the same phone number (family). When you search a phone, all family members appear as separate name cards. Select the right person — their individual records (age, gender, ABHA) are kept separate.</p>
+      <div class="subsection-title">2. The NCISM OPD strip (teaching hospitals / colleges)</div>
+      <p>Counted by the server, the same way everywhere (doctor page, NCISM Compliance, SDF): <strong>each patient once per day</strong>, new and follow-up; Screening + the specialty visit = one patient; lab-only walk-ins, tele-consultations, cancelled / deleted visits and no-shows are not counted; an emergency counts once a doctor has seen it.</p>
+      <div class="steps">
+        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Look at the strip</div><div class="step-desc">You see: <strong>Today</strong> — the target (UG intake × 2), registered (new · follow-up), how many more to reach the line, the % bar and the <strong>75 % line</strong> (the hospital's own alert line, <em>not</em> an NCISM rule); and the <strong>12-month average</strong> (patients of the last 12 months ÷ 300 days, NCISM Reg. 42 Table-7; a hospital that started less than a year ago sees the average per OPD day since then).</div></div></div>
+        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">📅 Date range</div><div class="step-desc">Click: <strong>📅 Date range</strong>, then a <strong>Quick range</strong> (Today, This week, This month, Last month, Rolling 12 months — and the academic year once the Super Admin has set its start month) or type <strong>From / To</strong> and press <strong>Show</strong>. If you change a date by hand the Quick range box shows <strong>— custom —</strong>. You see: five cards — <strong>OPD days</strong> (weekly off and holidays left out), <strong>Target for period</strong>, <strong>Registered</strong> (new · follow-up; patients seen on a Sunday or holiday still count), the <strong>Average per OPD day</strong> (the NCISM figure) and <strong>days at or above 75 %</strong> with the shortfall — and a bar for every day with its number on top: green at or above 75 %, orange striped below, grey = not an OPD day.</div></div></div>
+        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">A day's patients</div><div class="step-desc">Click: any day's column (anywhere in it, even above a short bar). You see: that day's list — UHID, name, new / follow-up, OPD, first seen — with <strong>🖨 PDF of this day</strong> and <strong>⬇ Excel of this day</strong>.</div></div></div>
+        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">PDF / Excel of the period</div><div class="step-desc">Click: <strong>🖨 PDF</strong> or <strong>⬇ Excel</strong>. You see: the PDF prints one clean A4 portrait report — hospital name, period, the cards, the chart and the daily table, with no browser date / title line. Excel downloads a Summary sheet and a Daily sheet.</div></div></div>
+      </div>
     </div>
 
     <div class="subsection">
-      <div class="subsection-title">Emergency visits (Visit Category = Emergency)</div>
-      <p>When the organisation's Super Admin has marked an <strong>Emergency OPD</strong> (OPD Management → <em>Mark as Emergency OPD</em>), choosing <strong>Emergency</strong> sends the visit straight to that OPD — no doctor is chosen, the RMO / CMO / EMO on duty take it from their queue, and it never waits behind Screening. The server decides this even if another OPD was chosen. Without a marked Emergency OPD, emergency visits follow the usual route.</p>
+      <div class="subsection-title">3. ABHA / ABDM tab (optional)</div>
+      <div class="steps">
+        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Verify an ABHA</div><div class="step-desc">Click: the <strong>ABHA / ABDM</strong> tab → <strong>Verify</strong> → one of the four method tabs: <strong>ABHA No.</strong>, <strong>Aadhaar</strong>, <strong>Mobile</strong>, <strong>ABHA Address</strong> → enter it → OTP → verify. You see: the details from ABHA, each marked <strong>from ABHA</strong>; for a new patient the mobile and address are filled from the ABHA profile. If this person is <strong>already registered here</strong> (same ABHA, or the same mobile + name + year of birth) the record is listed — open it as a follow-up; nothing is merged automatically. If the ABHA is linked to another record, the message names that record's UHID.</div></div></div>
+        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Scan QR / + Enroll / Fetch by mobile</div><div class="step-desc">Click: <strong>Scan QR</strong> (the patient scans the hospital's code with the ABHA app — their details arrive in ABHA Req. Queue), <strong>+ Enroll</strong> (a new ABHA with Aadhaar OTP) or <strong>Fetch by mobile</strong>. Then <strong>Continue to registration →</strong>. You see: the Walk-in registration tab with the details filled. Changing a "from ABHA" detail shows a warning — ABDM records carry the details you save.</div></div></div>
+      </div>
     </div>
 
     <div class="subsection">
-      <div class="subsection-title">🔬 Reports &amp; Registrations tab</div>
-      <p><strong>Waiting for reports:</strong> visits a doctor saved as "awaiting reports". When the patient comes back with the reports, press <strong>Back with reports</strong> — the doctor is told; <strong>no new visit, token or fee</strong> (the same consultation, up to 7 days). Selecting such a patient for a new visit also shows a reminder.</p>
-      <p><strong>Registration incomplete:</strong> patients registered in casualty by the RMO / CMO / EMO. Press <strong>Complete registration</strong> and fill the blank fields (phone, address, date of birth, blood group) — a recorded value cannot be changed here (use Correct patient details). An <strong>unidentified patient's</strong> real name and age are entered only by MRD or the Super Admin through <em>Correct patient details</em>, with a reason; until then no ABDM record is created for that patient.</p>
+      <div class="subsection-title">4. Walk-in registration — a returning patient</div>
+      <div class="steps">
+        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">① Find patient</div><div class="step-desc">Type: a mobile number, a name or a UHID. This box <strong>only searches</strong> — nothing typed here is saved. A mobile is matched on its last 10 digits (spaces, +91 or a leading 0 do not matter). You see: the patient card (UHID, visits, age / gender, last visit, balance) with a <strong>✎ Correct patient details</strong> button. The box has ONE clear button, <strong>✕</strong>: it clears the search <strong>and the whole form</strong> (patient, visit, payment) and the <strong>✓ Visit Registered</strong> card of the previous patient (receipt, feedback link) — use it before the next patient.</div></div></div>
+        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">② Patient details</div><div class="step-desc">You see: the recorded details greyed (read-only) and a blue <strong>ℹ️ info line</strong>: a wrong name, mobile, age or address is changed only through <strong>✎ Correct patient details</strong> (the same button as on the patient card). Click it: reception may correct on the day the patient was registered, before the consultation is completed — the form opens. Otherwise the button is drawn dashed and the click tells you to ask Medical Records (MRD) or the Super Admin. A blank detail may be filled in here.</div></div></div>
+        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">③ Visit</div><div class="step-desc"><strong>Same complaint (Follow-up):</strong> the visit goes straight to the previous OPD (Screening is skipped). The Doctor box shows the previous doctor when that doctor is <strong>on duty today</strong> (locked); otherwise it shows <strong>— choose —</strong> — choose a doctor, or leave it for the OPD's queue. It is never blank.<br><strong>New complaint:</strong> press <strong>🆕 Different issue this time</strong> (or choose another visit category). Where the hospital uses a Screening OPD, the visit goes to Screening and the Doctor box says <strong>— assigned at Screening —</strong> (you cannot choose one there). The one exception: tick <strong>On Request by Doctor</strong> when the patient asks for a particular doctor — the Doctor box then lists every doctor on duty today, choose the one asked for; the surcharge is added. Then the chief complaint.</div></div></div>
+        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">④ Payment — the server's fee</div><div class="step-desc">You see: the fee the <strong>server chose</strong>, with its reason. Registration only for a patient who has never visited. The <strong>follow-up rate</strong> when the last consultation in the <em>same OPD</em> was within the hospital's follow-up window (or a doctor referred the patient to this OPD) — the line says it in one sentence, e.g. "Follow-up rate — last consultation in this OPD 3 days ago (window: 30 days)." A hospital that has not set its window uses the <strong>default of 30 days</strong>. A visit at the Screening OPD, and "Different issue this time", pay the full fee. To charge another consultation fee press <strong>Change (needs reason)</strong>, choose the fee and give a reason (at least 5 characters) — it is recorded for Finance. Then who is paying and Cash / UPI / Card / Pay later.</div></div></div>
+        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Register &amp; Create Visit</div><div class="step-desc">Click: <strong>Register &amp; Create Visit</strong> in the dark bar at the bottom. You see: "added to queue" with the token — only after the server has saved the visit and the bill — and the bill / receipt to print. When no doctor was chosen the card shows the doctor as <strong>OPD queue (no doctor assigned)</strong>: the first doctor of that OPD to open the visit takes it.</div></div></div>
+      </div>
+    </div>
+
+    <div class="subsection">
+      <div class="subsection-title">5. A shared mobile (a family)</div>
+      <div class="steps">
+        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Search the number</div><div class="step-desc">You see: every patient on that number, with age and gender — <strong>pick the right one</strong>; the page never picks one for you. Registering a new person on a used number asks you to pick first. Click <strong>+ New family member with same number</strong> to register a different person: the mobile you typed (and anything else you typed) is kept.</div></div></div>
+      </div>
+    </div>
+
+    <div class="subsection">
+      <div class="subsection-title">6. Walk-in registration — a new patient</div>
+      <div class="steps">
+        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">② Patient details</div><div class="step-desc">Fill: <strong>Full name</strong>, <strong>Mobile</strong> (10 digits, starting 6–9) — or tick <strong>Patient has no mobile</strong>; only then <strong>Why no mobile? *</strong> appears, choose the reason — <strong>Age or date of birth</strong>, <strong>Gender</strong> (Male / Female / Other), and the address <strong>village / town and district</strong> (house / street, state and the 6-digit PIN are optional). If nobody uses the number you searched, "Use 98… as the new patient's mobile" copies it in for you.</div></div></div>
+        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">③ ④ and Register</div><div class="step-desc">A new patient goes to the Screening OPD where the hospital has one (the doctor is assigned at Screening); otherwise choose the OPD — the doctor is optional (pre-selected only when exactly one is on duty). ④ shows registration + consultation. Click <strong>Register &amp; Create Visit</strong>. You see: if anything is missing or wrong (e.g. a 5-digit PIN), the fields turn red with the reason under each and the bar says <strong>"N fields need fixing"</strong> — nothing is sent until they are fixed.</div></div></div>
+      </div>
+    </div>
+
+    <div class="subsection">
+      <div class="subsection-title">7. Appointments</div>
+      <div class="steps">
+        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">📅 Book Appointment</div><div class="step-desc">Click: the <strong>📅 Book Appointment</strong> chip → the patient (a new patient needs name, mobile or "no mobile", age, gender) → date and time → save. The OPD and doctor follow the same rule as a visit: a new patient (or a new complaint) in a hospital with Screening = the Screening OPD and <strong>no doctor</strong>, unless "On Request by Doctor" names one (surcharge); a follow-up = the previous OPD and doctor; a hospital without Screening = choose the OPD, the doctor is optional. Missing details are refused on the page first.</div></div></div>
+        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">See the appointments</div><div class="step-desc">Click: Today's work → <strong>Patients</strong> → <strong>📅 Appointments</strong>. You see: today's list, and above it <strong>‹</strong> (previous day) · the date (click it for a calendar) · <strong>›</strong> (next day) · <strong>Today</strong> · <strong>Upcoming 7 days</strong> (the next 7 days, grouped by day). The count on the tab is today's still-expected appointments.</div></div></div>
+        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Check In (on the day)</div><div class="step-desc">Click: <strong>Check In</strong> (shown only on today's list). You see: the appointment marked Arrived and the patient filled into the registration form — the visit rule decides the OPD / doctor again. Then press <strong>Register &amp; Create Visit</strong> as for any visit: only the visit is counted for NCISM, never the appointment. An appointment nobody checks in simply stays "Scheduled" (there is no No-show button yet).</div></div></div>
+      </div>
+    </div>
+
+    <div class="subsection">
+      <div class="subsection-title">8. Lab-only walk-in</div>
+      <div class="steps">
+        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Billing → 💰 Lab Bills → 🧪 Lab only (walk-in)</div><div class="step-desc">Click: <strong>🧪 Lab only (walk-in)</strong> → type the name, UHID or mobile → <strong>Find</strong>. You see: the hospital's patients that match — pick one. If the patient is not there, press <strong>+ New walk-in</strong> and enter name, age, sex and mobile. Then tick the tests → <strong>🧪 Book lab tests</strong> → collect the payment in the list below; the lab takes the sample after payment.</div></div></div>
+        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">🧾 Outside / non-hospital patient</div><div class="step-desc">Click: <strong>🧾 Outside / non-hospital patient</strong> (next to Lab only). You see: the details form straight away (name, age, sex, mobile) → the tests → book → the payment in the list → the order goes to the lab. You see the hospital's own test list. A test with <strong>no price set</strong> cannot be ticked ("No price set for: …") — it is never billed partly; ask the admin to set the fee.</div></div></div>
+      </div>
+    </div>
+
+    <div class="subsection">
+      <div class="subsection-title">9. Emergency</div>
+      <p>When the organisation's Super Admin has marked an <strong>Emergency OPD</strong> (OPD Management → <em>Mark as Emergency OPD</em>), choosing Visit Category <strong>Emergency</strong> sends the visit straight to that OPD — no doctor is chosen, the RMO / CMO / EMO on duty take it from their queue, and it never waits behind Screening. A casualty patient who cannot be registered at the desk is registered by the RMO / CMO / EMO on <strong>ipd.html → 🚑 Emergency admission → + New casualty patient</strong> (no mobile needed; an unidentified patient shows as "Unknown Male ~40 y (…)"). You later complete it under <strong>Reports → Registration incomplete</strong>.</p>
+    </div>
+
+    <div class="subsection">
+      <div class="subsection-title">10. Correct patient details</div>
+      <p>Click <strong>✎ Correct patient details</strong> (on the patient card, or on the info line in ②) → change the detail → give a reason → save. A patient's name, phone, gender, date of birth, age, blood group and address are never overwritten any other way.</p>
+      <table class="feature-table">
+        <tr><th>Who</th><th>When</th></tr>
+        <tr><td>MRD staff, Super Admin</td><td>Any time</td></tr>
+        <tr><td>Receptionist</td><td>Only on the day the patient was registered, and only until that day's consultation is completed (typo fixes). After that you see: "Only Medical Records (MRD) or the Super Admin can correct this patient's details once the consultation is completed, with a reason."</td></tr>
+        <tr><td>Office Superintendent (holds the MRD role)</td><td>Any time, with a reason</td></tr>
+      </table>
+      <p>Every change is recorded with the old and new value, who made it and why. If the patient has an ABHA linked, a changed name, gender, date of birth or age must still match the ABHA record — check a government photo ID. The UHID never changes.</p>
+    </div>
+
+    <div class="subsection">
+      <div class="subsection-title">11. Today's work</div>
+      <p>You see: the counters (<strong>Waiting in queue</strong>, lab bills to collect, admission requests), the "visits from yesterday still open" line with <strong>Close out</strong>, and the tabs:</p>
+      <table class="feature-table">
+        <tr><th>Tab</th><th>Inside</th></tr>
+        <tr><td>Patients</td><td>🕐 Queue · 📅 Appointments · ⚠ Incomplete registrations (with a count)</td></tr>
+        <tr><td>Billing</td><td>🔎 Visits &amp; Bills · 💰 Lab Bills · 🛏️ Admission billing · 🧾 Discharge billing. Admission and Discharge billing open the IPD page for now: on the patient's row, 💳 (Account — deposits, payments, receipts), 💰 (Generate IPD Bill) and, in the Account, 🧾 Final Bill.</td></tr>
+        <tr><td>Admissions</td><td>🛏️ Admission Requests (🛏️ Collect deposit &amp; admit →)</td></tr>
+        <tr><td>Lab Reports</td><td>🔬 Waiting for reports</td></tr>
+        <tr><td>More ▾</td><td>ABHA Req. Queue (the Scan &amp; Share requests), PK Care Plans, 🤝 Close my shift</td></tr>
+      </table>
+      <p> More shows a count when a Scan &amp; Share arrival is waiting. ABHA Req. Queue also shows scans given to a colleague who is no longer on registration duty.</p>
+      <p><strong>✎ on a queue card</strong> changes the doctor, visit type and complaint <strong>before the consultation starts</strong>; only doctors on duty today in that visit's OPD are listed (a Screening OPD visit gets its doctor at the Screening desk). After the consultation starts only the complaint can change.</p>
+      <p><strong>🔬 Lab Reports &amp; Registrations:</strong> <em>Waiting for reports</em> — when the patient returns with the reports press <strong>Back with reports</strong>: the doctor is told; <strong>no new visit, token or fee</strong> (the same consultation, up to 7 days). <strong>⚠ Incomplete registrations</strong> (under Patients) — casualty patients: press <strong>Complete registration (mobile, address, date of birth, blood group)</strong> and fill the BLANK details; a detail already recorded, and an unidentified patient's real name and age, are changed only by MRD or the Super Admin through Correct patient details.</p>
+      <p><strong>⚙ Arrange the tabs</strong>: move tabs and choose which sit on the bar — "Save for me" keeps it for you; "Reset to hospital default" goes back. The Super Admin can save the hospital default (with a reason). Arranging never changes who may use a tab.</p>
       <p>Browser autofill is switched off on the registration, correction and payer / insurance forms, so the browser never fills in another patient's details.</p>
     </div>
 
     <div class="subsection">
-      <div class="subsection-title">Editing a queue entry (✎)</div>
-      <p>The ✎ button on a queue card changes the doctor, visit type and complaint <strong>before the consultation starts</strong>. Only doctors <strong>on duty today in that visit's OPD</strong> are listed — a visit in the Screening OPD gets its specialty doctor at the Screening desk, not here. Once the doctor has started the consultation, only the complaint can be changed.</p>
-    </div>
-
-    <div class="subsection">
-      <div class="subsection-title">Correct patient details</div>
-      <p>A patient's name, phone, gender, date of birth, age, blood group and address can no longer be overwritten directly. Use <strong>✎ Correct patient details</strong> on the patient card (Reception) or in the patient file (MRD):</p>
-      <table class="feature-table">
-        <tr><th>Who</th><th>When</th></tr>
-        <tr><td>MRD staff, Super Admin</td><td>Any time</td></tr>
-        <tr><td>Receptionist</td><td>Only on the day the patient was registered (typo fixes)</td></tr>
-      </table>
-      <p>A reason is required. Every change is recorded with the old and new value, who made it and why. If the patient has an ABHA linked, a changed name, gender, date of birth or age must still match the ABHA record — check a government photo ID. The UHID never changes. Blank details (for example an age not yet recorded) can still be filled in at registration as before.</p>
-    </div>
-
-    <div class="subsection">
-      <div class="subsection-title">ABHA Enrollment (National Health ID)</div>
-      <p>Below the patient form there is an <strong>ABHA Enrollment</strong> panel. Use this to link the patient's Ayushman Bharat Health Account:</p>
+      <div class="subsection-title">12. End of your shift</div>
       <div class="steps">
-        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Click "Enroll via Aadhaar OTP"</div><div class="step-desc">Enter the patient's Aadhaar number. An OTP is sent to their Aadhaar-linked mobile.</div></div></div>
-        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Enter OTP → Verify</div><div class="step-desc">After OTP verification, the patient's ABHA number (14-digit) and ABHA address (@sbx) are created and saved to their record.</div></div></div>
-      </div>
-    </div>
-
-    <div class="subsection">
-      <div class="subsection-title">ABHA Verify Panel</div>
-      <p>For patients who already have an ABHA, use the Verify panel to pull their demographic data. Four methods are supported:</p>
-      <table class="feature-table">
-        <tr><th>Method</th><th>How to use</th></tr>
-        <tr><td>ABHA Number</td><td>Enter 14-digit ABHA number → Send OTP → Verify. Demographics auto-fill.</td></tr>
-        <tr><td>Aadhaar OTP</td><td>Enter Aadhaar → OTP → Verify. Fastest for returning patients.</td></tr>
-        <tr><td>Mobile OTP</td><td>Enter mobile number → OTP from ABDM → Verify.</td></tr>
-        <tr><td>ABHA Address</td><td>Enter @sbx or @abdm address → Verify. (Sandbox limitation: returns empty for @sbx addresses — expected behaviour, shown in FT Report.)</td></tr>
-      </table>
-    </div>
-
-    <div class="subsection">
-      <div class="subsection-title">Scan &amp; Share QR</div>
-      <p>Patients can share their ABHA profile by scanning a QR code (from the ABHA app):</p>
-      <div class="steps">
-        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Click "Scan &amp; Share QR"</div><div class="step-desc">A QR code appears on screen. The patient opens their ABHA mobile app and scans it.</div></div></div>
-        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Auto-fill</div><div class="step-desc">Within 2 seconds of the patient scanning, their name, DOB, gender, and ABHA number auto-fill into the registration form via real-time subscription.</div></div></div>
+        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">🤝 Close my shift</div><div class="step-desc">Click: <strong>🤝 Close my shift</strong> on the slim line (or More ▾ → Close my shift). You see: the shift handover, as before; your registration duty ends. <strong>← Back to reception</strong> at the top takes you back.</div></div></div>
+        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Logout</div><div class="step-desc">Click: the gold <strong>Logout</strong> beside the bell (also inside the bell panel). If you collected money that is not yet handed over you see: <em>"You haven't closed your shift — ₹X collected today"</em> with <strong>Close shift now</strong> and <strong>Log out anyway</strong> (it never stops you). Otherwise you are signed out at once; your registration duty is ended first. Duty also ends by itself every night.</div></div></div>
       </div>
     </div>
   </div>

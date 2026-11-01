@@ -524,6 +524,21 @@ export function safeErrorMessage(error, fallback = 'Something went wrong. Please
   if (['P0001','42501','22023','P0002','23505'].includes(error?.code) && S365_MSGS.some(m => error?.message?.startsWith(m))) {
     return error.message;
   }
+  // Session 371B (plan session 370 §7.3): the reception redesign's server refusals (Build A) -- shown as written. These prefixes are
+  // the page side of the contract; docs/handoff/session371b_build_report.md lists them for Build A to match word for word.
+  const S371_MSGS = ['Enter the full name', 'Enter the age or the date of birth', 'Choose the gender', 'Enter a 10-digit mobile',
+    'The mobile must be 10 digits', 'Give the reason there is no mobile', 'The PIN code must be 6 digits', 'The address is too long',
+    'The consultation fee is not the one for this visit', 'Give the reason for changing the fee', 'No consultation fee is set up',
+    'Only an active Super Admin or the finance manager', 'The follow-up window must be', 'A fee of this type is already active',
+    'Only an active super admin, or the department admin (HOD)', 'Only an active Super Admin changes the reception tabs',
+    'Give the reason for the hospital default', 'The layout preferences', 'Your role cannot see the NCISM count', 'Choose a period of up to',
+    "After today's consultation is completed", 'Only Medical Records', 'This ABHA is already linked',
+    'Your account is not active', 'Only the Super Admin can set the academic year', 'Choose a month',
+    'The address is changed only through Correct patient details', '"No mobile" must be yes or no', 'Referral not found in your organisation',
+    'Choose a day.'];   // merge 371: Build A's own new texts (371A report §0.6 item 2 + every new 371 refusal checked at the merge)
+  if (['P0001','42501','22023','P0002','23514'].includes(error?.code) && S371_MSGS.some(m => error?.message?.startsWith(m))) {
+    return error.message;
+  }
   if (error?.code === '42501' && error?.message === 'Not authorized') {   // 359: an inactive / relieved account, or no right at all
     return 'Your account is not allowed to do this (it may not be active). Ask the Super Admin.';
   }

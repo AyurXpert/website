@@ -29,12 +29,17 @@
     .tab.active { color: var(--green-deep); border-bottom-color: var(--green-deep); font-weight: 600; }
     .tab-panel { display: none; }
     .tab-panel.active { display: block; }
+    .back-link { display: inline-flex; align-items: center; min-height: 44px; padding: 0 14px; margin-bottom: 8px; border: 1.5px solid var(--green-deep); border-radius: 8px; color: var(--green-deep); font-weight: 600; text-decoration: none; }
+    .back-link[hidden] { display: none; }
+    .back-link:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
     button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, summary:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
   </style>
 </head>
 <body>
 <div id="navbar-placeholder"></div>
 <main class="page-wrap">
+  <!-- owner 31 Oct 2026 (rehearsal): a way back to reception (shown to the roles that use reception) -->
+  <a class="back-link" id="sc-back" href="reception.html" hidden>← Back to reception</a>
   <h1 class="page-heading">Shift Close &amp; Cash Handover</h1>
   <p class="page-sub">Count the cash you received, close your shift, and hand it over with a signed slip. Cash only is handed over — UPI, card, cheque and NEFT are listed but not counted as cash.</p>
   <div id="paper-slot" style="margin:-8px 0 14px" title="Paper size used when you print a handover slip"></div>

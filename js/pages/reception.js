@@ -27,6 +27,12 @@ import { canMarkLabUrgent, canSeeLabOutstanding } from '../utils/staffPowers.js'
 import { buildLabReasonPanel } from '../modules/billing/labPayments.js';           // Session 359 (§295)
 import { openWalkinPanel, canBookWalkin, walkinBadgeText } from '../modules/lab/walkinPanel.js';   // Session 363 (§259)
 import { stageChip, awaitingRows, buildCounterPanel, canWaiveDeposit, SCHEMES } from '../modules/ipd/admissionCounter.js';
+// Session 371B (plan session 370): the new layout, the NCISM strip / date range, the form checks, gender M / F / O
+import { genderCode, genderLabel } from '../utils/gender.js';
+import { NO_MOBILE_REASONS, NO_MOBILE_EMERGENCY, normaliseMobile, searchKind, validateRegistration, showFieldErrors, clearFieldError, addressParts } from '../modules/reception/patientForm.js';
+import { mountNcismStrip } from '../modules/reception/ncismStrip.js';
+import { openNcismRange } from '../modules/reception/ncismRange.js';
+import { TAB_LABEL, effectiveTabs, splitTabs, normalisePane, loadPrefs, saveOwnPrefs, openArrangeDialog } from '../modules/reception/layoutPrefs.js';
 import {
   requestABHAOtp, enrollABHA,
   checkAndGenerateMobileOTP, verifyCommMobileOtp, finalizeAbhaEnrollment,
@@ -348,20 +354,37 @@ async function _linkAbha(prof, fmt, visitId = null, skipGate = false) {
   }
   const _abhaUpd = { abha_number: fmt };
   if (_profAddr && !_patient.abha_address) _abhaUpd.abha_address = _profAddr;
-  await supabase.from('patients').update(_abhaUpd).eq('id', _patient.id);
-  // Backfill missing demographics from ABHA profile
-  const gMap = { M:'male', F:'female', O:'other', male:'male', female:'female', other:'other' };
+  // Session 371B (D1a 5): an ABHA already on another record used to fail silently -- the server's answer is checked now
+  const { data: linked, error: linkErr } = await supabase.from('patients').update(_abhaUpd).eq('id', _patient.id).select('id');
+  if (linkErr || !linked?.length) { _alert('error', await _abhaWriteRefusal(linkErr, fmt)); return; }
+  // Backfill missing demographics from ABHA profile (gender stored as M / F / O -- session 370 B3)
   const upd = {};
-  const abhaG = gMap[prof?.gender] ?? null;
+  const abhaG = genderCode(prof?.gender);
   if (abhaG && !_patient.gender) upd.gender = abhaG;
   const rawDob = prof?.dob ?? prof?.dateOfBirth;
   if (rawDob && !_patient.date_of_birth) {
     const p = String(rawDob).split('-');
     upd.date_of_birth = p[0].length === 4 ? rawDob : `${p[2]}-${p[1]}-${p[0]}`;
   }
-  if (Object.keys(upd).length > 0)
-    await supabase.from('patients').update(upd).eq('id', _patient.id);
+  if (Object.keys(upd).length > 0) {
+    const { data: filled, error: fillErr } = await supabase.from('patients').update(upd).eq('id', _patient.id).select('id');
+    if (fillErr || !filled?.length) _alert('warning', safeErrorMessage(fillErr, 'The ABHA is linked, but the gender / date of birth from ABHA were not saved on this record.'));
+  }
   if (visitId) _abdmLinkTokenAfterVerify(_patient.id, { abhaNumber: fmt }, visitId).catch(() => {});
+}
+
+// Session 371B (D1a 5, plan E4): one ABHA per patient per organisation (unique index). When the write is refused because another record
+// already holds this ABHA, say WHICH record ("open that record") instead of failing silently. Never merges anything.
+async function _abhaWriteRefusal(error, fmt) {
+  if (error?.code === '23505' || /abha/i.test(error?.message || '')) {
+    const d = String(fmt || '').replace(/\D/g, '');
+    const hy = d.length === 14 ? d.replace(/^(\d{2})(\d{4})(\d{4})(\d{4})$/, '$1-$2-$3-$4') : d;
+    const { data } = await supabase.from('patients').select('id, uhid, name').eq('tenant_id', tenantId)
+      .or(`abha_number.eq.${d},abha_number.eq.${hy}`).limit(2);
+    const other = (data || []).find(p => p.id !== _patient?.id);
+    if (other) return `This ABHA is already linked to UHID ${uhidOf(other)} (${other.name}) — open that record: search its UHID in ① Find patient.`;
+  }
+  return safeErrorMessage(error, 'The ABHA was not linked to this patient.');
 }
 
 // ── Last tToken (for ABHA card download) + txnId (for suggestions / address) ─────────
@@ -561,99 +584,187 @@ function _populateScanDeptSelect() {
 }
 
 // ── Load doctors (OPD-filtered) ───────────────────
+let _doctorLoadSeq = 0;
+let _doctorListOpd = null;   // the OPD whose duty list #doctor holds right now (null while loading / after a failure)
 async function loadDoctors(opdId) {
   const sel = document.getElementById('doctor');
-  sel.innerHTML = '<option value="">— No preference —</option>';
+  // 371 merge (owner, 31 Oct 2026): where reception chooses the doctor the list starts at "— choose —"; pre-selected only when exactly
+  // ONE doctor is on duty (below)
+  // rehearsal (31 Oct 2026): the Screening OPD never gets a reception doctor list -- a late load (page start, a category toggle) must not
+  // overwrite "— assigned at Screening —" with an empty "— choose —" (the On-request list is _loadRequestedDoctors)
+  if (_screeningOn && opdId && opdId === _screeningOpdId) { ++_doctorLoadSeq; _doctorListOpd = null; if (!document.getElementById('on-request')?.checked) { sel.innerHTML = '<option value="">— assigned at Screening —</option>'; sel.disabled = true; } return; }
+  sel.innerHTML = '<option value="">— choose —</option>';
+  _doctorListOpd = null;
 
-  let doctorIds = null;
-  if (opdId) {
-    const { data: opdDocs } = await supabase
-      .from('opd_doctors')
-      .select('doctor_id')
-      .eq('opd_id', opdId)
-      .eq('tenant_id', tenantId)
-      .eq('is_active_today', true);
-
-    doctorIds = (opdDocs || []).map(d => d.doctor_id);
-    if (doctorIds.length === 0) {
-      sel.innerHTML = '<option value="">— No doctors active today —</option>';
-      return;
-    }
-  }
-
-  let query = supabase
-    .from('profiles')
-    .select('id, full_name')
-    .eq('tenant_id', tenantId)
-    .eq('role', 'doctor')
-    .eq('status', 'active')
-    .order('full_name');
-
-  if (doctorIds) query = query.in('id', doctorIds);
-
-  const { data } = await query;
-  (data || []).forEach(d => {
-    _doctorMap[d.id] = d.full_name || 'Doctor';
+  // Session 371B (plan session 370 B7 + D1a 9): the SERVER's duty list for today -- "active today" = ticked for TODAY's date
+  // (opd_doctors.active_on), and a doctor whose doctor role is the SECOND role is listed too (the old profiles.role read missed them).
+  if (!opdId) return;
+  const seq = ++_doctorLoadSeq;
+  const { data, error } = await supabase.rpc('opd_doctors_on_duty', { p_opd_id: opdId });
+  if (seq !== _doctorLoadSeq) return;
+  if (error) { sel.innerHTML = '<option value="">— Doctor list not loaded —</option>'; _alert('error', safeErrorMessage(error, "Today's doctor list could not be loaded.")); return; }
+  const docs = (data || []).slice().sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
+  if (!docs.length) { sel.innerHTML = '<option value="">— No doctors on duty today —</option>'; return; }
+  docs.forEach(d => {
+    _doctorMap[d.doctor_id] = d.name || 'Doctor';
     const o = document.createElement('option');
-    o.value = d.id;
-    o.textContent = d.full_name || 'Doctor';
+    o.value = d.doctor_id;
+    o.textContent = d.name || 'Doctor';
     sel.appendChild(o);
   });
-  if (data && data.length === 1) sel.value = data[0].id;
+  if (docs.length === 1) sel.value = docs[0].doctor_id;
+  _doctorListOpd = opdId;
 }
 
-// ── Load fee structures ───────────────────────────
+// ── Fees: the SERVER chooses (Session 371B, plan session 370 B2) ──────────────
+// opd_fee_for_visit(patient, opd, category, new issue, referral) answers registration (a patient with no earlier visit only),
+// consultation OR the follow-up rate (last consultation in the SAME OPD within the hospital's window, or a doctor's internal referral
+// to this OPD) with its reason, and the on-request surcharge. The page only shows it; create_opd_bill refuses any other consultation
+// fee unless reception gives a reason (the override box), which the server writes to the audit.
+let _feeSeq = 0;
+let _feeAnswer = null;      // the server's last answer
+let _feeOverride = null;    // { fee: {id,label,amount}, reason } chosen by reception
+let _newIssue = false;      // "Different issue this time" (full fee)
+let _referralId = null;     // a doctor's internal referral to this OPD (the server checks it)
 async function loadFees(opdId) {
+  const seq = ++_feeSeq;
   document.getElementById('reg-fee').value = '';
   document.getElementById('fee').value = '';
   _surchargeDefault = 0;
-
-  if (opdId) {
-    // Registration/Consultation/Surcharge are category='opd' fees distinguished by
-    // fee_type (not category -- category is just 'opd' for all three, a mismatch with
-    // this file's older assumption that silently zeroed every fee). Most are seeded via
-    // Quick Setup as hospital-wide (opd_id null); an OPD-specific override (opd_id set
-    // to this exact OPD) is preferred when one has been manually created for it.
-    const { data } = await supabase
-      .from('fee_structures')
-      .select('id, label, fee_type, amount, opd_id, promo_price, promo_valid_until')
-      .eq('tenant_id', tenantId)
-      .eq('category', 'opd')
-      .eq('approval_status', 'active')
-      .eq('is_active', true)
-      .in('fee_type', ['registration', 'consultation', 'on_request_surcharge']);
-
-    const byType = {};
-    (data || []).forEach(f => {
-      const isSpecific = f.opd_id === opdId;
-      const isGeneral  = !f.opd_id;
-      if (!isSpecific && !isGeneral) return; // belongs to a different specific OPD
-      if (!byType[f.fee_type] || isSpecific) byType[f.fee_type] = f;
-    });
-
-    if (byType.registration) document.getElementById('reg-fee').value = getEffectivePrice(byType.registration);
-    if (byType.consultation) document.getElementById('fee').value = getEffectivePrice(byType.consultation);
-    if (byType.on_request_surcharge) {
-      _surchargeDefault = getEffectivePrice(byType.on_request_surcharge);
-      document.getElementById('surcharge').value = _surchargeDefault;
-    }
-    _feeByType = byType;
-  } else {
-    _feeByType = {};
+  _feeByType = {};
+  _feeAnswer = null;
+  if (!opdId) { _renderFeeLines(); _updateTotal(); return; }
+  _referralId = null;
+  if (_patient?.id) {
+    const { data: ref } = await supabase.from('referrals').select('id, created_at, source_opd_id')
+      .eq('tenant_id', tenantId).eq('patient_id', _patient.id).eq('target_opd_id', opdId).eq('referral_type', 'internal')
+      .neq('status', 'cancelled').order('created_at', { ascending: false }).limit(1);
+    if (seq !== _feeSeq) return;
+    _referralId = ref?.[0]?.id || null;
   }
-
-  if (_patient) document.getElementById('reg-fee').value = '0';
+  const { data, error } = await supabase.rpc('opd_fee_for_visit', {
+    p_patient_id: _patient?.id || null, p_opd_id: opdId, p_visit_category: document.getElementById('visit-category').value,
+    p_new_issue: !!_newIssue, p_referral_id: _referralId,
+  });
+  if (seq !== _feeSeq) return;
+  if (error) {
+    _renderFeeLines(safeErrorMessage(error, 'The fee for this visit could not be worked out.'));
+    _updateTotal();
+    return;
+  }
+  _feeAnswer = data || {};
+  const row = f => (f && f.fee_id ? { id: f.fee_id, label: f.label, amount: Number(f.amount) || 0, kind: f.kind || null, reason: f.reason || '' } : null);
+  _feeByType = { registration: row(_feeAnswer.registration), consultation: row(_feeAnswer.consultation), on_request_surcharge: row(_feeAnswer.surcharge) };
+  if (_feeOverride && _feeOverride.fee.id === _feeByType.consultation?.id) _feeOverride = null;   // the server now chooses it anyway
+  if (_feeByType.registration) document.getElementById('reg-fee').value = _feeByType.registration.amount;
+  const cons = _feeOverride?.fee || _feeByType.consultation;
+  if (cons) document.getElementById('fee').value = cons.amount;
+  if (_feeByType.on_request_surcharge) {
+    _surchargeDefault = _feeByType.on_request_surcharge.amount;
+    document.getElementById('surcharge').value = onRequestChk.checked ? _surchargeDefault : '';
+  }
+  _renderFeeLines();
   _updateTotal();
 }
 
-// Which fee rows this registration bills (their ids go to the server, which prices them). Same rules as the fields --
-// registration only for a new patient (loadFees() zeroes it for a returning one), the
-// surcharge only for an on-request visit. A package does NOT drop lines: the server
-// discounts registration + consultation in full against the redeemed session.
+const _inr = n => '₹' + Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+function _feeLine(label, why, amount, cls, extra) {
+  const row = document.createElement('div');
+  row.className = 'rx-fee' + (cls ? ' ' + cls : '');
+  const l = document.createElement('span');
+  const t = document.createElement('span'); t.style.fontWeight = '600'; t.textContent = label;
+  l.append(t);
+  if (why) { const w = document.createElement('span'); w.className = 'rx-fee-why'; w.textContent = why; l.append(w); }
+  const r = document.createElement('span'); r.className = 'rx-fee-amt'; r.textContent = _inr(amount);
+  if (extra) { r.append(document.createElement('br'), extra); }
+  row.append(l, r);
+  return row;
+}
+function _renderFeeLines(errText) {
+  const box = document.getElementById('rx-fee-lines');
+  if (!box) return;
+  box.replaceChildren();
+  if (errText) { const e = document.createElement('div'); e.className = 'rx-err'; e.textContent = errText; box.append(e); return; }
+  if (!_feeAnswer) { const h = document.createElement('div'); h.className = 'rx-hint'; h.textContent = 'The fees appear once the OPD is known.'; box.append(h); return; }
+  const reg = _feeByType.registration;
+  box.append(_feeLine('Registration fee', reg ? (reg.reason || reg.label || '') : (_patient ? 'Already registered here' : 'No registration fee'), reg ? reg.amount : 0));
+  const cons = _feeByType.consultation;
+  if (cons || _feeOverride) {
+    const chg = document.createElement('button');
+    chg.type = 'button'; chg.className = 'rx-linkbtn'; chg.id = 'rx-fee-change';
+    chg.textContent = _feeOverride ? 'Undo the change' : 'Change (needs reason)';
+    chg.addEventListener('click', () => (_feeOverride ? _clearFeeOverride() : _openFeeOverride()));
+    if (_feeOverride) {
+      box.append(_feeLine(`Consultation — ${_feeOverride.fee.label} (changed by reception)`, `Reason: ${_feeOverride.reason}. The server's choice was ${cons ? cons.label + ' ' + _inr(cons.amount) : 'none'}.`,
+        _feeOverride.fee.amount, 'rx-fee-fu', chg));
+    } else {
+      const fu = cons.kind === 'followup';
+      // owner (31 Oct 2026, rehearsal): the server's reason is ONE clean sentence (it already names the window) -- shown as it is
+      box.append(_feeLine(fu ? 'Consultation — follow-up rate' : `Consultation — ${cons.label || 'consultation'}`, cons.reason || '', cons.amount, fu ? 'rx-fee-fu' : '', chg));
+    }
+  } else {
+    const e = document.createElement('div'); e.className = 'rx-err';
+    e.textContent = 'No consultation fee is set up for this OPD in Fee Management — ask the administrator. A bill cannot be made without it.';
+    box.append(e);
+  }
+  if (onRequestChk.checked) {
+    const s = _feeByType.on_request_surcharge;
+    box.append(_feeLine('On-request surcharge', s ? s.label : 'No surcharge fee set up', s ? s.amount : 0));
+  }
+}
+
+async function _openFeeOverride() {
+  const opdId = document.getElementById('opd').value;
+  const sel = document.getElementById('rx-override-fee');
+  sel.innerHTML = '';
+  const { data, error } = await supabase.from('fee_structures')
+    .select('id, label, fee_type, amount, opd_id, promo_price, promo_valid_until')
+    .eq('tenant_id', tenantId).eq('category', 'opd').eq('approval_status', 'active').eq('is_active', true)
+    .in('fee_type', ['consultation', 'followup_consultation', 'teleconsultation']);
+  if (error) { _alert('error', safeErrorMessage(error, 'The fee list could not be loaded.')); return; }
+  const list = (data || []).filter(f => (!f.opd_id || f.opd_id === opdId) && f.id !== _feeByType.consultation?.id);
+  if (!list.length) { _alert('info', 'There is no other active consultation fee to choose.'); return; }
+  list.forEach(f => sel.append(new Option(`${f.label} — ${_inr(getEffectivePrice(f))}${f.opd_id ? '' : ' (hospital-wide)'}`, f.id)));
+  sel._rows = list;
+  document.getElementById('rx-override-reason').value = '';
+  document.getElementById('rx-override').hidden = false;
+  sel.focus();
+}
+function _clearFeeOverride() {
+  _feeOverride = null;
+  document.getElementById('rx-override').hidden = true;
+  const c = _feeByType.consultation;
+  document.getElementById('fee').value = c ? c.amount : '';
+  _renderFeeLines(); _updateTotal();
+}
+document.getElementById('rx-override-cancel').addEventListener('click', _clearFeeOverride);
+document.getElementById('rx-override-apply').addEventListener('click', () => {
+  const sel = document.getElementById('rx-override-fee');
+  const reasonEl = document.getElementById('rx-override-reason');
+  const reason = reasonEl.value.trim();
+  const f = (sel._rows || []).find(x => x.id === sel.value);
+  if (!f) return;
+  if (reason.length < 5) {
+    reasonEl.classList.add('rx-bad'); reasonEl.setAttribute('aria-invalid', 'true');
+    _alert('error', 'Give the reason for changing the fee (at least 5 characters).');
+    reasonEl.focus();
+    return;
+  }
+  clearFieldError(reasonEl);
+  _feeOverride = { fee: { id: f.id, label: f.label, amount: getEffectivePrice(f) }, reason };
+  document.getElementById('fee').value = _feeOverride.fee.amount;
+  document.getElementById('rx-override').hidden = true;
+  _renderFeeLines(); _updateTotal();
+  document.getElementById('rx-fee-change')?.focus();
+});
+
+// Which fee rows this registration bills (their ids go to the server, which prices them): the server's registration line (it sends one
+// only for a patient with no earlier visit), the consultation (the server's choice, or reception's change WITH its reason), and the
+// surcharge only for an on-request visit. A package does NOT drop lines: the server discounts registration + consultation in full.
 function _opdFeeIds() {
   return [
-    !_patient ? _feeByType.registration?.id : null,
-    _feeByType.consultation?.id,
+    _feeByType.registration?.id,
+    (_feeOverride?.fee || _feeByType.consultation)?.id,
     onRequestChk.checked ? _feeByType.on_request_surcharge?.id : null,
   ].filter(Boolean);
 }
@@ -688,6 +799,31 @@ async function _refreshGstTotal() {
 
 // ── OPD routing rule ──────────────────────────────
 // Walk-in OPD patients must go to Screening OPD first (NCISM Section 40)
+// "On request by doctor" at the Screening OPD: every doctor on duty TODAY in any clinical OPD (the server's duty list per OPD),
+// starting at "— choose the requested doctor —"; never pre-selected (the patient names the doctor)
+async function _loadRequestedDoctors(docSel) {
+  const seq = ++_doctorLoadSeq;
+  const opds = [...document.getElementById('opd').options].map(o => o.value).filter(v => v && v !== _screeningOpdId && v !== _emergencyOpdId);
+  docSel.innerHTML = '<option value="">— loading the doctors on duty —</option>';
+  const res = await Promise.all(opds.map(id => supabase.rpc('opd_doctors_on_duty', { p_opd_id: id })));
+  if (seq !== _doctorLoadSeq) return;
+  const seen = new Map();
+  res.forEach(r => (r.data || []).forEach(d => { if (!seen.has(d.doctor_id)) seen.set(d.doctor_id, d.name || 'Doctor'); }));
+  docSel.replaceChildren(new Option(seen.size ? '— choose the requested doctor —' : '— No doctors on duty today —', ''));
+  [...seen.entries()].sort((a, b) => a[1].localeCompare(b[1])).forEach(([id, n]) => { _doctorMap[id] = n; docSel.append(new Option(n, id)); });
+  docSel.disabled = !seen.size;
+  _doctorListOpd = null;
+}
+
+// The previous doctor when on today's duty list (the list loaded in #doctor), else "— choose —" -- never a blank box
+// (a <select> set to a value it does not hold shows NOTHING). Returns true when the previous doctor is on duty.
+function _pickPrevDoctor(docSel) {
+  const onDuty = !!_prevDoctorId && [...docSel.options].some(o => o.value === _prevDoctorId);
+  docSel.value = onDuty ? _prevDoctorId : '';
+  if (docSel.selectedIndex < 0) docSel.selectedIndex = 0;
+  return onDuty;
+}
+
 function _applyOpdRule() {
   const sel    = document.getElementById('opd');
   const docSel = document.getElementById('doctor');
@@ -723,7 +859,7 @@ function _applyOpdRule() {
     const pre = _scanDeptOpdId || (cat === 'followup' ? _prevOpdId : null);
     if (pre && sel.value !== pre) {
       sel.value = pre;
-      loadDoctors(pre).then(() => { if (!_scanDeptOpdId && _prevDoctorId && cat === 'followup') docSel.value = _prevDoctorId; });
+      loadDoctors(pre).then(() => { if (!_scanDeptOpdId && cat === 'followup' && sel.value === pre) _pickPrevDoctor(docSel); });
       loadFees(pre);
     }
     if (hint) {
@@ -754,7 +890,16 @@ function _applyOpdRule() {
     // Returning patient follow-up — lock to previous specialty OPD + doctor
     sel.value       = _prevOpdId;
     docSel.disabled = true;
-    if (_prevDoctorId) docSel.value = _prevDoctorId;
+    // Owner (31 Oct 2026, rehearsal): the Doctor box is never blank -- always today's duty list of the previous OPD; the previous
+    // doctor pre-selected (and locked) when on duty today, otherwise "— choose —" and reception may choose (or leave it to the OPD queue)
+    const opdNow = _prevOpdId;
+    const apply = () => {
+      if (document.getElementById('visit-category').value !== 'followup' || sel.value !== opdNow || _scanDeptOpdId) return;
+      const onDuty = _pickPrevDoctor(docSel);
+      docSel.disabled = onDuty;
+      if (!onDuty && _prevDoctorId && hint) hint.textContent = `↩ Follow-up · ${_prevOpdName || ''} — the previous doctor is not on duty today: choose a doctor or leave it to the OPD queue`;
+    };
+    if (_doctorListOpd === opdNow) apply(); else loadDoctors(opdNow).then(apply);
     if (hint) {
       // Regenerate from _prevOpdName/_prevDoctorName rather than just toggling
       // display — real bug found live (Session 170): toggling Visit Category to
@@ -769,10 +914,17 @@ function _applyOpdRule() {
     }
   } else {
     // New visit / new complaint / emergency / any other category → Screening OPD
-    docSel.disabled = false;
+    // 371 merge (owner, 31 Oct 2026): reception CANNOT choose a doctor here -- the doctor is assigned at Screening (the field is locked,
+    // empty, and says so; any doctor list still loading is cancelled)
+    ++_doctorLoadSeq; _doctorListOpd = null;
+    docSel.innerHTML = '<option value="">— assigned at Screening —</option>';
+    docSel.value = '';
+    docSel.disabled = true;
+    // Owner (31 Oct 2026, rehearsal): the one exception -- "On request by doctor": the patient names a doctor, the surcharge applies,
+    // and reception chooses that doctor from every doctor on duty today in this hospital's clinical OPDs
+    if (onRequestChk.checked) _loadRequestedDoctors(docSel);
     if (_screeningOpdId) {
       sel.value = _screeningOpdId;
-      loadDoctors(_screeningOpdId);
       loadFees(_screeningOpdId);
       if (hint) {
         // _prevOpdId set + category deliberately NOT "followup" can only happen if
@@ -821,6 +973,7 @@ onRequestWrap.addEventListener('click', function(e) {
   onRequestWrap.classList.toggle('active', on);
   surchargeRow.style.display = on ? '' : 'none';
   document.getElementById('surcharge').value = on ? (_surchargeDefault || '') : '';
+  _renderFeeLines();
   _updateTotal();
   _applyOpdRule();
 });
@@ -848,7 +1001,27 @@ window.onPayerTypeChange = function() {
     document.getElementById('payment-mode').value = 'credit';
     document.getElementById('pay-pending').checked = true;
   }
+  _syncPayChips();
 };
+
+// Session 371B: the Payment chips (Cash / UPI / Card / Pay later) drive the two fields the save code reads (#payment-mode, Paid / Pending)
+function _syncPayChips() {
+  const mode = document.getElementById('payment-mode').value;
+  const pending = document.getElementById('pay-pending').checked;
+  const key = pending || ['credit', 'package'].includes(mode) ? 'later' : mode;
+  const r = document.querySelector(`input[name="rx-pay"][value="${key}"]`);
+  if (r) r.checked = true;
+  const ref = document.getElementById('payment-ref');
+  ref.style.display = !pending && ['upi', 'card'].includes(mode) ? '' : 'none';
+  if (ref.style.display === 'none') ref.value = '';
+}
+document.querySelectorAll('input[name="rx-pay"]').forEach(r => r.addEventListener('change', () => {
+  if (!r.checked) return;
+  const later = r.value === 'later';
+  document.getElementById('payment-mode').value = later ? 'credit' : r.value;
+  document.getElementById(later ? 'pay-pending' : 'pay-paid').checked = true;
+  _syncPayChips();
+}));
 
 // ── DOB → Age auto-calculator ─────────────────────
 document.getElementById('f-dob').addEventListener('change', function() {
@@ -885,41 +1058,72 @@ function _hidePhoneHint() {
   el.style.display = 'none';
 }
 
-document.getElementById('phone').addEventListener('input', function() {
+// Session 371B (D1a 1): ① Find patient ONLY searches -- nothing typed here is ever saved. The new patient's mobile is its own field in
+// ② (the old single box saved a not-found UHID or "name + digits" as the phone). A mobile is matched on its last 10 digits whatever
+// spaces / +91 / a leading 0 were typed.
+const _findEl = document.getElementById('rx-find');
+const _useMobileBtn = document.getElementById('rx-use-mobile');
+function _hideUseMobile() { _useMobileBtn.hidden = true; _useMobileBtn.dataset.mobile = ''; }
+_findEl.addEventListener('input', function() {
   clearTimeout(_phoneTimer);
-  const val = this.value.trim();
-  if (!val) { _clearTag(); _hidePhoneHint(); return; }
-  // Stored UHID, e.g. 'AYX/2627/000001' -- also typed sloppily ('ayx 2627 000001', 'AYX2627000001')
-  const isUhid  = /^AYX[\s\-\/]*\d/i.test(val);
-  const isPhone = /^[+\d\s\-]{6,}$/.test(val) && !isUhid;
-  const isName  = !isPhone && !isUhid && val.length >= 3;
+  _hideUseMobile();
+  const k = searchKind(this.value);
   _hidePhoneHint();
-  if (isPhone)     _phoneTimer = setTimeout(() => _searchPhone(val), 350);
-  else if (isUhid && val.replace(/[^A-Za-z0-9]/g, '').length >= 9) _phoneTimer = setTimeout(() => _searchUhid(val), 350);
-  else if (isName) _phoneTimer = setTimeout(() => _searchName(val), 350);
+  if (k.kind === 'empty') { _clearTag(); return; }
+  if (k.kind === 'mobile' || k.kind === 'partial') _phoneTimer = setTimeout(() => _searchPhone(k.value), 350);
+  else if (k.kind === 'uhid' && k.value.replace(/[^A-Za-z0-9]/g, '').length >= 9) _phoneTimer = setTimeout(() => _searchUhid(k.value), 350);
+  else if (k.kind === 'name') _phoneTimer = setTimeout(() => _searchName(k.value), 350);
   else _clearTag();
 });
+// Owner (31 Oct 2026, rehearsal): ✕ clears the search AND resets the whole registration form (patient, visit, payment) to a fresh
+// state -- the found patient's details must never stay behind for the next person
+// Owner 1 Nov 2026: ✕ also clears the "✓ Visit Registered" card (receipt / feedback link) of the previous patient
+document.getElementById('rx-find-clear').addEventListener('click', () => {
+  clearTimeout(_phoneTimer);
+  _resetForm();
+  _clearReceiptCard();
+  _findEl.focus();
+});
+_useMobileBtn.addEventListener('click', () => {
+  const m = _useMobileBtn.dataset.mobile;
+  if (!m) return;
+  const mob = document.getElementById('rx-mobile');
+  mob.value = m;
+  clearFieldError(mob);
+  _hideUseMobile();
+  document.getElementById('name').focus();
+});
 
-async function _searchPhone(phone) {
+async function _searchPhone(digits) {
   _newFamilyMember = false;
   _confirmNewDespiteName = false;
+  const full = digits.length === 10;
   const { data } = await supabase
     .from('patients')
     .select('id, uhid, name, abha_number, abha_address, age, gender, date_of_birth, blood_group, phone, prakriti_data, prakriti_assessed_at, created_at, is_unidentified')   // 359: + is_unidentified (§305)
     .eq('tenant_id', tenantId)
-    .eq('phone', phone)
-    .limit(6);
+    .like('phone', full ? `%${digits}` : `%${digits}%`)
+    .limit(8);
+  if (_findEl.value.replace(/\D/g, '').slice(-digits.length) !== digits) return;   // the search text changed meanwhile
 
   if (!data || data.length === 0) {
     _clearTag();
-    _showPhoneHint('No existing patient with this number — fill in the details below to register a new patient. This number will be saved as their contact phone.', 'info');
+    if (full) {
+      _showPhoneHint(`No patient here uses ${digits}. To register a new patient, fill in ② Patient details — the mobile is typed (or copied) into its own field.`, 'info');
+      _useMobileBtn.textContent = `Use ${digits} as the new patient's mobile`;
+      _useMobileBtn.dataset.mobile = digits;
+      _useMobileBtn.hidden = false;
+    } else {
+      _showPhoneHint('No patient matches these digits. Type the full 10-digit mobile, a name or a UHID.', 'warn');
+    }
     const opdId = document.getElementById('opd').value;
     if (opdId) await loadFees(opdId);
     return;
   }
   _hidePhoneHint();
-  if (data.length === 1) await _resolvePatient(data[0]);
-  else _showPicker(data, phone, { showCombos: true });
+  if (data.length === 1 && full) await _resolvePatient(data[0]);
+  else _showPicker(data, digits, { showCombos: true, showPhone: true,
+    header: data.length > 1 ? `${data.length} patients match — pick one` : 'One patient matches these digits — pick to confirm' });
 }
 
 async function _searchName(query) {
@@ -934,7 +1138,7 @@ async function _searchName(query) {
 
   if (!data || data.length === 0) {
     _clearTag();
-    _showPhoneHint('No existing patient matches that name. To register a new patient, search by their phone number instead — a name search alone can\'t create a record.', 'warn');
+    _showPhoneHint('No existing patient matches that name. To register a new patient, fill in ② Patient details below.', 'info');
     return;
   }
   _hidePhoneHint();
@@ -992,14 +1196,19 @@ async function _selectPatient(patient, chosenCombo) {
   _confirmNewDespiteName = false;
   _activeScanSessionId = null;  // Session 173: search-selected a patient — decouple from any open Reg. Queue entry
   _scanDeptOpdId = _scanDeptOpdName = null;  // Session 181: no longer that scan session's department lock either
+  _newIssue = chosenCombo === null;   // "Different issue this time" = full fee (session 370 Q4)
+  _feeOverride = null;
   document.getElementById('name').value = patient.name;
   document.getElementById('patient-picker').classList.remove('show');
+  _hideUseMobile();
 
   // Populate demographics fields from saved record
   document.getElementById('f-age').value    = patient.age    || '';
-  document.getElementById('f-gender').value = patient.gender || '';
+  _setGender(patient.gender);
   document.getElementById('f-dob').value    = patient.date_of_birth || '';
   document.getElementById('f-blood').value  = patient.blood_group   || '';
+  document.getElementById('rx-mobile').value = patient.phone || '';
+  _fillKnownPatient(patient);
 
   // NABH — Load patient allergies
   _loadReceptionAllergies(patient.id);
@@ -1023,12 +1232,16 @@ async function _selectPatient(patient, chosenCombo) {
 
   document.getElementById('pt-name').textContent = patient.name;
   document.getElementById('pt-uhid').textContent = uhidOf(patient);
-  // Session 353C (D11): MRD / the Super Admin always; reception only on the registration day (the server decides)
-  document.getElementById('btn-correct-patient').hidden = !canCorrectPatient(profile, patient);
+  // Session 353C (D11): MRD / the Super Admin always. Owner (31 Oct 2026, rehearsal): the button is ALWAYS on the card for the roles that
+  // correct details (reception, MRD, the Super Admin) and is clickable; where the server rule would refuse, the click says why instead
+  // of opening the form (_cpAllowed = the display copy of the server rule; the server decides again). Owner 1 Nov 2026 (item 16):
+  // reception corrects ANY patient while the patient has a visit TODAY that is not yet consulted and today's consultation is not completed
+  _setCorrectAllowed(canCorrectPatient(profile, patient, { openVisitToday: false }), _cpReasonFor(patient, 'no_open_visit'));
+  _refreshCorrectAllowed(patient);
   document.getElementById('pt-visits').textContent = count || 0;
   document.getElementById('pt-lastvisit').textContent = lastVisit;
   document.getElementById('pt-balance').textContent = balance > 0 ? `₹${balance.toLocaleString('en-IN')}` : '₹0';
-  const gLabel = { M: 'Male', F: 'Female', other: 'Other' }[patient.gender] || '—';
+  const gLabel = genderLabel(patient.gender);   // Session 371B (§309): 'male' / 'M' both read
   document.getElementById('pt-demog').textContent =
     patient.age ? `${patient.age} yrs · ${gLabel}` : (patient.gender ? gLabel : '—');
   document.getElementById('patient-tag').classList.add('show');
@@ -1155,7 +1368,8 @@ async function _selectPatient(patient, chosenCombo) {
         await loadFees(prev.opd_id);
         _applyOpdRule(); // locks OPD + doctor to previous values
         const opdName = prev.opds?.name || Array.from(opdSel.options).find(o => o.value === prev.opd_id)?.text || 'Previous OPD';
-        const docText = document.getElementById('doctor').options[document.getElementById('doctor').selectedIndex]?.text || '';
+        const docEl = document.getElementById('doctor');
+        const docText = docEl.value ? (docEl.options[docEl.selectedIndex]?.text || '') : '';   // never "— choose —" as a doctor name
         // Stored so _applyOpdRule() can regenerate this same text itself on any LATER
         // call (e.g. from the Visit Category dropdown's own change listener, which
         // doesn't go through _selectPatient again) — these facts don't change across
@@ -1163,7 +1377,7 @@ async function _selectPatient(patient, chosenCombo) {
         _prevOpdName    = opdName;
         _prevDoctorName = docText;
         if (hint) {
-          hint.textContent = `↩ Follow-up · ${opdName}${docText ? ' · ' + docText : ''}`;
+          hint.textContent = `↩ Follow-up · ${opdName}${docText ? ' · ' + docText : _prevDoctorId ? ' — the previous doctor is not on duty today: choose a doctor or leave it to the OPD queue' : ''}`;
           hint.style.cssText = 'display:block;color:var(--green-mid);font-size:11px;margin-top:4px;font-weight:500';
         }
       } else {
@@ -1326,7 +1540,7 @@ function _showPicker(patients, phone, opts = {}) {
       <div class="picker-avatar">${_esc(p.name.charAt(0).toUpperCase())}</div>
       <div>
         <div class="picker-name">${_esc(p.name)}</div>
-        <div class="picker-sub">UHID: ${_esc(uhidOf(p))}${p.phone && opts.showPhone ? ' · ☎ ' + _esc(String(p.phone)) : ''}</div>
+        <div class="picker-sub">UHID: ${_esc(uhidOf(p))}${p.age ? ' · ' + _esc(String(p.age)) : ''}${genderCode(p.gender) ? ' ' + genderCode(p.gender) : ''}${p.phone && opts.showPhone ? ' · ☎ ' + _esc(String(p.phone)) : ''}</div>
       </div>
     </div>
   `).join('') + `
@@ -1335,6 +1549,12 @@ function _showPicker(patients, phone, opts = {}) {
       <span class="picker-new-label">${_esc(opts.newLabel || 'New family member with same number')}</span>
     </div>
   `;
+  if (opts.header) {   // Session 371B: "N patients use this mobile — pick one" (a DOM node, never HTML text)
+    const h = document.createElement('div');
+    h.className = 'combo-picker-header';
+    h.textContent = opts.header;
+    picker.prepend(h);
+  }
   picker.classList.add('show');
 
   picker.querySelectorAll('.picker-item').forEach(item => {
@@ -1526,6 +1746,9 @@ function _startNewFamilyMember() {
   document.getElementById('patient-picker').classList.remove('show');
   document.getElementById('patient-tag').classList.remove('show');
   document.getElementById('name').value = '';
+  _unlockDetails();
+  const shared = normaliseMobile(_findEl.value) || normaliseMobile(document.getElementById('rx-mobile').value);
+  document.getElementById('rx-mobile').value = shared;
   document.getElementById('name').focus();
   const opdId = document.getElementById('opd').value;
   if (opdId) loadFees(opdId);
@@ -1534,10 +1757,49 @@ function _startNewFamilyMember() {
 document.getElementById('btn-diff-family').addEventListener('click', _startNewFamilyMember);
 
 // Session 353C (TODO §216, D11): "Correct patient details" -- the only way to change a recorded name / phone / demographics
+let _cpAllowed = false, _cpWhyNot = '';
+const _cpRoles = () => profile.role === 'super_admin' || [profile.role, profile.secondary_role].some(r => r === 'mrd_staff' || r === 'receptionist');
+function _cpReasonFor(patient, why) {
+  if (patient?.is_unidentified) return "An unidentified patient's details are corrected only by Medical Records (MRD) or the Super Admin, with a reason.";
+  if (why === 'completed') return "Today's consultation is completed — only Medical Records (MRD) or the Super Admin can correct this patient's details now, with a reason.";
+  return "Reception corrects a patient's details only while the patient has a visit today that is not yet consulted — register today's visit first. Otherwise ask Medical Records (MRD) or the Super Admin.";
+}
+// today's visits of the patient (Asia/Kolkata day): completed / awaiting reports (not lab-only, not the Screening OPD) = the consultation
+// is done; waiting / in progress (not lab-only) = a visit not yet consulted -- the same test as the server's correct_patient_details
+function _refreshCorrectAllowed(patient) {
+  supabase.from('visits').select('status, visit_category, opd_id').eq('tenant_id', tenantId).eq('patient_id', patient.id).eq('is_deleted', false)
+    .gte('created_at', new Date(istDayStartUTC(todayISTStr())).toISOString())
+    .then(({ data }) => {
+      if (_patient?.id !== patient.id || !Array.isArray(data)) return;
+      const notLab = data.filter(v => (v.visit_category || 'opd') !== 'lab_only');
+      const completed = notLab.some(v => ['completed', 'awaiting_reports'].includes(v.status) && !(_screeningOpdId && v.opd_id === _screeningOpdId));
+      const open = notLab.some(v => ['waiting', 'in_progress'].includes(v.status));
+      _setCorrectAllowed(canCorrectPatient(profile, patient, { consultationCompleted: completed, openVisitToday: open }),
+        _cpReasonFor(patient, completed ? 'completed' : 'no_open_visit'));
+    });
+}
+function _setCorrectAllowed(allowed, why) {
+  const cp = document.getElementById('btn-correct-patient');
+  _cpAllowed = !!allowed; _cpWhyNot = why || '';
+  cp.hidden = !_cpRoles();
+  cp.classList.toggle('cpd-locked', !_cpAllowed);
+  cp.setAttribute('aria-describedby', 'rx-known-who');
+  cp.title = _cpAllowed ? 'Correct a recorded detail (a reason is required)' : _cpWhyNot;
+  cp.dataset.allowed = String(_cpAllowed);
+}
+// The info line in ② carries the same button (shown exactly when the patient card's button is shown) -- owner 31 Oct 2026
+{
+  const cp = document.getElementById('btn-correct-patient'), kb = document.getElementById('rx-known-correct'), who = document.getElementById('rx-known-who');
+  const mirror = () => { kb.hidden = cp.hidden; kb.classList.toggle('cpd-locked', cp.dataset.allowed !== 'true'); who.hidden = cp.dataset.allowed === 'true'; };
+  new MutationObserver(mirror).observe(cp, { attributes: true, attributeFilter: ['hidden', 'data-allowed'] });
+  mirror();
+  kb.addEventListener('click', () => cp.click());
+}
 document.getElementById('btn-correct-patient').addEventListener('click', async () => {
   if (!_patient?.id) return;
+  if (!_cpAllowed) { _alert('info', _cpWhyNot); return; }
   const { data: row, error } = await supabase.from('patients')
-    .select('id, uhid, name, phone, gender, date_of_birth, age, blood_group, address, has_allergies, abha_number, created_at')
+    .select('id, uhid, name, phone, gender, date_of_birth, age, blood_group, address, address_line, address_town, address_district, address_state, address_pin, no_mobile, no_mobile_reason, has_allergies, abha_number, created_at')
     .eq('id', _patient.id).single();
   if (error || !row) { _alert('error', safeErrorMessage(error, 'Could not load the patient.')); return; }
   openCorrectPatientDetails({
@@ -1546,12 +1808,13 @@ document.getElementById('btn-correct-patient').addEventListener('click', async (
       Object.assign(_patient, saved);
       document.getElementById('pt-name').textContent = _patient.name;
       if ('name' in saved) document.getElementById('name').value = _patient.name;
-      if ('phone' in saved && _patient.phone) document.getElementById('phone').value = _patient.phone;
+      if ('phone' in saved) document.getElementById('rx-mobile').value = _patient.phone || '';
       if ('age' in saved) document.getElementById('f-age').value = _patient.age ?? '';
-      if ('gender' in saved) document.getElementById('f-gender').value = _patient.gender || '';
+      if ('gender' in saved) _setGender(_patient.gender);
       if ('date_of_birth' in saved) document.getElementById('f-dob').value = _patient.date_of_birth || '';
       if ('blood_group' in saved) document.getElementById('f-blood').value = _patient.blood_group || '';
-      const gLabel = { M: 'Male', F: 'Female', other: 'Other', male: 'Male', female: 'Female' }[_patient.gender] || '—';
+      _fillKnownPatient(_patient);
+      const gLabel = genderLabel(_patient.gender);
       document.getElementById('pt-demog').textContent = _patient.age ? `${_patient.age} yrs · ${gLabel}` : (_patient.gender ? gLabel : '—');
     },
   });
@@ -1588,9 +1851,14 @@ function _clearTag() {
   document.getElementById('abha-addr-row').style.display = 'none';
   _setPendingAbhaAddress(null);
   document.getElementById('f-age').value    = '';
-  document.getElementById('f-gender').value = '';
+  _setGender('');
   document.getElementById('f-dob').value    = '';
   document.getElementById('f-blood').value  = '';
+  _unlockDetails();
+  _newIssue = false;
+  _feeOverride = null;
+  _referralId = null;
+  document.getElementById('rx-override').hidden = true;
   _prevOpdId      = null;
   _prevDoctorId   = null;
   _prevOpdAddress = null;
@@ -1600,6 +1868,359 @@ function _clearTag() {
   document.getElementById('doctor').disabled = false;
   _applyOpdRule(); // resets OPD to Screening OPD (locked)
   _clearAbhaNote();
+}
+
+// ══ Session 371B (plan session 370 Part C / D1a): the patient-details form, the ABHA marks, the layout ══════════════════════
+
+// Gender is stored as M / F / O (B3); the chips and the hidden #f-gender always agree
+function _setGender(v) {
+  const c = genderCode(v) || '';
+  document.getElementById('f-gender').value = c;
+  document.querySelectorAll('input[name="rx-gender"]').forEach(r => { r.checked = r.value === c; });
+}
+const _val = id => (document.getElementById(id)?.value || '').trim();
+// What reception typed in ② (a picker's reset clears the details; reception's explicit "new person" choice restores them)
+function _snapshotDetails() {
+  const o = {};
+  [..._DETAIL_INPUTS, 'f-blood', 'f-gender', 'rx-no-mobile-reason', 'abha'].forEach(id => { o[id] = document.getElementById(id)?.value ?? ''; });
+  o.noMobile = document.getElementById('rx-no-mobile').checked;
+  return o;
+}
+function _restoreDetails(o) {
+  _unlockDetails();
+  Object.entries(o).forEach(([id, v]) => { if (id !== 'noMobile' && id !== 'f-gender') { const e = document.getElementById(id); if (e) e.value = v; } });
+  _setGender(o['f-gender']);
+  const nm = document.getElementById('rx-no-mobile');
+  nm.checked = !!o.noMobile;
+  nm.dispatchEvent(new Event('change'));
+  if (o.noMobile) document.getElementById('rx-no-mobile-reason').value = o['rx-no-mobile-reason'];
+}
+function _addressValues() {
+  return { line: _val('rx-addr-line'), town: _val('rx-addr-town'), district: _val('rx-addr-district'), state: _val('rx-addr-state'), pin: _val('rx-addr-pin') };
+}
+const _ADDR = { address_line: 'rx-addr-line', address_town: 'rx-addr-town', address_district: 'rx-addr-district', address_state: 'rx-addr-state', address_pin: 'rx-addr-pin' };
+const _DETAIL_INPUTS = ['name', 'rx-mobile', 'f-age', 'f-dob', ...Object.values(_ADDR)];
+
+// A new patient: every detail editable, address town / district required (B5 / B6)
+function _unlockDetails() {
+  _DETAIL_INPUTS.forEach(id => { const e = document.getElementById(id); if (e) { e.readOnly = false; clearFieldError(e); } });
+  Object.values(_ADDR).forEach(id => { document.getElementById(id).value = ''; });
+  document.getElementById('f-blood').disabled = false;
+  document.querySelectorAll('input[name="rx-gender"]').forEach(r => { r.disabled = false; });
+  const nm = document.getElementById('rx-no-mobile');
+  nm.disabled = false; nm.checked = false;
+  document.getElementById('rx-no-mobile-wrap').hidden = true;
+  document.getElementById('rx-no-mobile-reason').value = '';
+  document.getElementById('rx-mobile').disabled = false;
+  document.getElementById('rx-known-note').hidden = true;
+  document.getElementById('rx-addr-note').textContent = '';
+  document.querySelectorAll('[data-addr-req]').forEach(e => { e.hidden = false; });
+}
+
+// A known patient: the recorded details are shown read-only (they change only through ✎ Correct patient details -- 353C); a BLANK
+// detail may be filled here (the server decides: reception on the registration day, MRD later)
+async function _fillKnownPatient(patient) {
+  const { data } = await supabase.from('patients')
+    .select('address, address_line, address_town, address_district, address_state, address_pin, no_mobile, no_mobile_reason')
+    .eq('id', patient.id).maybeSingle();
+  if (_patient?.id !== patient.id) return;
+  if (data) Object.assign(patient, data);
+  const lock = (id, has) => { const e = document.getElementById(id); if (e) e.readOnly = !!has; };
+  lock('name', true);
+  lock('rx-mobile', !!patient.phone);
+  lock('f-age', patient.age != null);
+  lock('f-dob', !!patient.date_of_birth);
+  document.getElementById('f-blood').disabled = !!patient.blood_group;
+  document.querySelectorAll('input[name="rx-gender"]').forEach(r => { r.disabled = !!genderCode(patient.gender); });
+  for (const [col, id] of Object.entries(_ADDR)) { document.getElementById(id).value = patient[col] || ''; lock(id, !!patient[col]); }
+  const nm = document.getElementById('rx-no-mobile');
+  nm.checked = !!patient.no_mobile; nm.disabled = true;
+  document.getElementById('rx-no-mobile-wrap').hidden = true;
+  document.getElementById('rx-known-note').hidden = false;
+  document.querySelectorAll('[data-addr-req]').forEach(e => { e.hidden = true; });
+  const parts = Object.keys(_ADDR).some(c => patient[c]);
+  document.getElementById('rx-addr-note').textContent = !parts && patient.address ? `Recorded address: ${patient.address}` : '';
+}
+
+function _fillNoMobileReasons() {
+  const sel = document.getElementById('rx-no-mobile-reason');
+  const cur = sel.value;
+  const emergency = document.getElementById('visit-category').value === 'emergency';
+  sel.replaceChildren(new Option('— choose —', ''));
+  (emergency ? [NO_MOBILE_EMERGENCY, ...NO_MOBILE_REASONS] : NO_MOBILE_REASONS).forEach(r => sel.append(new Option(r, r)));
+  if ([...sel.options].some(o => o.value === cur)) sel.value = cur;
+}
+
+function _initDetailsForm() {
+  _fillNoMobileReasons();
+  document.getElementById('visit-category').addEventListener('change', _fillNoMobileReasons);
+  const nm = document.getElementById('rx-no-mobile');
+  nm.addEventListener('change', () => {
+    document.getElementById('rx-no-mobile-wrap').hidden = !nm.checked;
+    const mob = document.getElementById('rx-mobile');
+    mob.disabled = nm.checked;
+    if (nm.checked) { mob.value = ''; clearFieldError(mob); }
+  });
+  document.querySelectorAll('input[name="rx-gender"]').forEach(r => r.addEventListener('change', () => {
+    if (!r.checked) return;
+    document.getElementById('f-gender').value = r.value;
+    clearFieldError(document.getElementById('rx-gender-group'));
+    _checkAbhaEdit();
+  }));
+  [..._DETAIL_INPUTS, 'complaint', 'rx-no-mobile-reason', 'appt-date', 'appt-time'].forEach(id => {
+    const e = document.getElementById(id);
+    e?.addEventListener('input', () => { clearFieldError(e); _checkAbhaEdit(); });
+    e?.addEventListener('change', () => { clearFieldError(e); _checkAbhaEdit(); });
+  });
+  // the registration tabs: (A) ABHA / ABDM and (R) Walk-in
+  const tabs = [['rx-ltab-abha', 'rx-tab-abha'], ['rx-ltab-form', 'rx-tab-form']];
+  const pick = which => tabs.forEach(([t, p]) => {
+    const on = t === which;
+    document.getElementById(t).setAttribute('aria-selected', String(on));
+    document.getElementById(t).tabIndex = on ? 0 : -1;
+    document.getElementById(p).hidden = !on;
+  });
+  tabs.forEach(([t]) => {
+    const el = document.getElementById(t);
+    el.addEventListener('click', () => pick(t));
+    el.addEventListener('keydown', e => {
+      if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+      const other = tabs.find(([x]) => x !== t)[0];
+      pick(other); document.getElementById(other).focus();
+    });
+  });
+  window._rxPickRegTab = key => pick(key === 'abha' ? 'rx-ltab-abha' : 'rx-ltab-form');
+  document.getElementById('rx-abha-continue').addEventListener('click', () => { pick('rx-ltab-form'); document.getElementById('name').focus(); });
+  pick('rx-ltab-form');
+}
+
+// ── "from ABHA" marks (E5: editing is allowed, with a warning) ──
+const _abhaVals = {};
+function _markFromAbha(id, value) {
+  _abhaVals[id] = String(value ?? '');
+  const key = id.startsWith('rx-addr-') ? 'rx-addr' : id;
+  document.querySelectorAll(`[data-abha-for="${key}"]`).forEach(b => { b.hidden = false; });
+}
+function _clearAbhaMarks() {
+  Object.keys(_abhaVals).forEach(k => delete _abhaVals[k]);
+  document.querySelectorAll('[data-abha-for]').forEach(b => { b.hidden = true; });
+  document.getElementById('rx-abha-edit-warn').hidden = true;
+  const f = document.getElementById('rx-abha-found'); f.hidden = true; f.replaceChildren();
+}
+function _checkAbhaEdit() {
+  const changed = Object.entries(_abhaVals).some(([id, v]) => (document.getElementById(id)?.value || '').trim() !== v.trim());
+  document.getElementById('rx-abha-edit-warn').hidden = !changed;
+}
+
+async function _afterAbhaProfile(prof, abhaNumber, { name, mobile, postal, district, state, pin }) {
+  await new Promise(r => setTimeout(r, 0));   // the verify flows fill the name right after the profile card
+  if (name && _val('name') === name.trim()) _markFromAbha('name', name.trim());
+  if (_val('f-dob') && (prof?.dob || prof?.dateOfBirth || prof?.yearOfBirth)) _markFromAbha('f-dob', _val('f-dob'));
+  if (genderCode(prof?.gender) && _val('f-gender') === genderCode(prof?.gender)) _markFromAbha('f-gender', _val('f-gender'));
+  if (!_patient) {   // a NEW patient only -- a known patient's record is never overwritten from ABHA here
+    const m = normaliseMobile(mobile);
+    if (m && !_val('rx-mobile')) { document.getElementById('rx-mobile').value = m; _markFromAbha('rx-mobile', m); }
+    const fill = (id, v) => { const s = String(v || '').trim(); if (s && !_val(id)) { document.getElementById(id).value = s; _markFromAbha(id, s); } };
+    fill('rx-addr-line', postal); fill('rx-addr-district', district); fill('rx-addr-state', state);
+    if (/^[1-9]\d{5}$/.test(String(pin || '').trim())) fill('rx-addr-pin', String(pin).trim());
+  }
+  await _abhaLookup(prof, abhaNumber, normaliseMobile(mobile), name);
+}
+
+// "Already registered here" (E4): ABHA number first, then mobile + the first 3 letters of the name + the birth year. Lists every
+// match for reception to open -- never an automatic merge, never a silent pick.
+async function _abhaLookup(prof, abhaNumber, mobile, name) {
+  const box = document.getElementById('rx-abha-found');
+  if (_patient) { box.hidden = true; return; }
+  const cols = 'id, uhid, name, abha_number, abha_address, age, gender, date_of_birth, blood_group, phone, prakriti_data, prakriti_assessed_at, created_at, is_unidentified';
+  const d = String(abhaNumber || '').replace(/\D/g, '');
+  let found = [];
+  if (d.length === 14) {
+    const hy = d.replace(/^(\d{2})(\d{4})(\d{4})(\d{4})$/, '$1-$2-$3-$4');
+    const { data } = await supabase.from('patients').select(cols).eq('tenant_id', tenantId).or(`abha_number.eq.${d},abha_number.eq.${hy}`).limit(5);
+    found = data || [];
+  }
+  if (!found.length && mobile && name) {
+    const { data } = await supabase.from('patients').select(cols).eq('tenant_id', tenantId).like('phone', `%${mobile}`).ilike('name', `${name.trim().slice(0, 3)}%`).limit(8);
+    const y = String(prof?.yearOfBirth || (prof?.dob || prof?.dateOfBirth || '').split('-').find(x => x.length === 4) || '');
+    found = (data || []).filter(p => !y || !p.date_of_birth || String(p.date_of_birth).slice(0, 4) === y);
+  }
+  if (_patient) { box.hidden = true; return; }
+  box.replaceChildren();
+  if (!found.length) { box.hidden = true; return; }
+  const t = document.createElement('div');
+  const b = document.createElement('strong');
+  b.textContent = found.length > 1 ? `${found.length} records here may be this person` : 'Already registered here';
+  t.append(b, document.createTextNode(' — open the record as a follow-up (no duplicate is created; nothing is merged).'));
+  box.append(t);
+  found.forEach(p => {
+    const btn = document.createElement('button');
+    btn.type = 'button'; btn.className = 'rx-btn';
+    btn.textContent = `Open ${uhidOf(p)} · ${p.name}${p.age ? ' · ' + p.age : ''}${p.gender ? ' ' + genderCode(p.gender) : ''}`;
+    btn.addEventListener('click', async () => {
+      window._rxPickRegTab('form');
+      _findEl.value = uhidOf(p);
+      await _resolvePatient(p);
+      box.hidden = true;
+    });
+    box.append(btn);
+  });
+  box.hidden = false;
+}
+
+// Bring the registration pane into view on a chosen tab
+function _showRegistration(tab) {
+  if (_pane === 'work') _setPane('both');
+  window._rxPickRegTab?.(tab);
+  document.getElementById('rx-reg-pane')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+// ── Layout: panes + the work-pane tabs (B9) ──
+let _pane = 'both', _ownPrefs = null, _hospitalTabs = null, _tabs = null, _group = null, _prefsWarned = false;
+// owner (31 Oct 2026, rehearsal): Patients = Queue · Appointments · Incomplete registrations; Billing = Visits & Bills · Lab bills ·
+// Admission billing · Discharge billing (Visits & Bills is no longer a group of its own -- the 'vbsearch' key stays valid in saved
+// arrangements and is simply not offered)
+const _GROUP_SUBS = { patients: ['tab-queue', 'tab-appts', 'tab-incomplete'], billing: ['tab-vbsearch', 'tab-labbills', 'tab-admbill', 'tab-disbill'],
+  admissions: ['tab-admreq'], reports: ['tab-pending'], regqueue: ['tab-regqueue'], pkplans: ['tab-pkplans'] };
+// a sub-tab this person can use right now (Visits & Bills only for the reprint roles; a lab-bills-only cashier: Lab Bills only)
+const _subShown = id => { const b = document.getElementById(id); return !!b && b.style.display !== 'none' && (!_labBillsOnly || id === 'tab-labbills'); };
+const _lastSub = {};
+const _num = id => parseInt((document.getElementById(id)?.textContent || '').replace(/\D/g, ''), 10) || 0;
+const _groupCount = { patients: () => _num('queue-count') + _num('incomplete-count'), billing: () => _num('labbills-count'), admissions: () => _num('admreq-count'),
+  reports: () => _num('pending-count'), regqueue: () => _num('regqueue-count'), pkplans: () => _num('pkplans-count'), vbsearch: () => 0 };
+function _availableGroups() {
+  if (_labBillsOnly) return ['billing'];
+  return Object.keys(_GROUP_SUBS).filter(k => k === 'regqueue' ? profile.role === 'receptionist' : true);
+}
+let _paneSaveTimer = null;
+function _setPane(p, save = true) {
+  _pane = _labBillsOnly ? 'work' : normalisePane(p);
+  document.getElementById('rx-layout').dataset.pane = _pane;
+  document.querySelectorAll('.rx-layout-btn').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.pane === _pane)));
+  document.getElementById('rx-reg-pull').textContent = _pane === 'form' ? '⇤ Push in' : 'Pull out ⤢';
+  document.getElementById('rx-work-pull').textContent = _pane === 'work' ? 'Push in ⇥' : '⤢ Pull out';
+  if (!save || _labBillsOnly) return;
+  clearTimeout(_paneSaveTimer);
+  _paneSaveTimer = setTimeout(async () => {
+    const prefs = { ...(_ownPrefs || {}), pane: _pane };
+    const { error } = await saveOwnPrefs(supabase, prefs);
+    if (!error) { _ownPrefs = prefs; return; }
+    if (!_prefsWarned) { _prefsWarned = true; _alert('warning', safeErrorMessage(error, 'Your layout choice could not be remembered (it stays for now).')); }
+  }, 600);
+}
+function _renderWorkTabs() {
+  const avail = _availableGroups();
+  const { bar, more } = splitTabs(_tabs, avail);
+  const barEl = document.getElementById('rx-wtab-bar');
+  barEl.replaceChildren();
+  for (const k of bar) {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'rx-wtab'; b.dataset.group = k;
+    b.setAttribute('aria-pressed', String(k === _group));
+    b.append(document.createTextNode(TAB_LABEL[k] + ' '));
+    const c = document.createElement('span'); c.className = 'rx-cnt'; c.dataset.cnt = k;
+    b.append(c);
+    b.addEventListener('click', () => _openGroup(k));
+    barEl.append(b);
+  }
+  const menu = document.getElementById('rx-more-menu');
+  menu.replaceChildren();
+  for (const k of more) {
+    const it = document.createElement('button');
+    it.type = 'button'; it.className = 'rx-more-item'; it.setAttribute('role', 'menuitem'); it.dataset.group = k;
+    const l = document.createElement('span'); l.textContent = TAB_LABEL[k];
+    const c = document.createElement('span'); c.className = 'rx-cnt'; c.dataset.cnt = k;
+    it.append(l, c);
+    it.addEventListener('click', () => { _closeMore(); _openGroup(k); });
+    menu.append(it);
+  }
+  const shift = document.createElement('a');
+  shift.className = 'rx-more-item'; shift.setAttribute('role', 'menuitem'); shift.href = 'shift-close.html'; shift.textContent = '🤝 Close my shift';
+  menu.append(shift);
+  document.getElementById('rx-more-btn').hidden = _labBillsOnly;
+  _refreshCounts();
+}
+function _openGroup(k) {
+  _group = k;
+  const subs = (_GROUP_SUBS[k] || []).filter(_subShown);
+  document.querySelectorAll('#rx-subs .rx-sub').forEach(b => b.classList.toggle('rx-sub-off', !subs.includes(b.id)));
+  document.getElementById('rx-subs').hidden = subs.length < 2;
+  document.querySelectorAll('#rx-wtab-bar .rx-wtab').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.group === k)));
+  const inMore = !document.querySelector(`#rx-wtab-bar [data-group="${k}"]`);
+  document.getElementById('rx-more-btn').setAttribute('aria-pressed', String(inMore));
+  document.getElementById(_lastSub[k] || subs[0])?.click();
+}
+function _refreshCounts() {
+  const avail = _availableGroups();
+  const { more } = splitTabs(_tabs, avail);
+  document.querySelectorAll('[data-cnt]').forEach(c => { const n = _groupCount[c.dataset.cnt]?.() || 0; c.textContent = n ? String(n) : ''; });
+  const mc = more.reduce((s, k) => s + (_groupCount[k]?.() || 0), 0);
+  const moreCnt = document.getElementById('rx-more-cnt');
+  moreCnt.textContent = mc ? String(mc) : '';
+  moreCnt.classList.toggle('rx-cnt-alert', more.includes('regqueue') && _groupCount.regqueue() > 0);
+  document.getElementById('rx-more-btn').setAttribute('aria-label', `More${mc ? `, ${mc} waiting` : ''}`);
+  const q = _num('queue-count'), b = _num('labbills-count'), a = _num('admreq-count');
+  document.getElementById('rx-cnt-bills').textContent = b;
+  document.getElementById('rx-cnt-adm').textContent = a;
+  document.getElementById('rx-rail-q').textContent = q;
+  document.getElementById('rx-rail-b').textContent = b;
+  document.getElementById('rx-rail-a').textContent = a;
+}
+function _closeMore() {
+  document.getElementById('rx-more-menu').hidden = true;
+  document.getElementById('rx-more-btn').setAttribute('aria-expanded', 'false');
+}
+async function _initLayout() {
+  const prefs = _labBillsOnly ? { own: null, hospital: null } : await loadPrefs({ supabase, tenantId });
+  _ownPrefs = prefs.own; _hospitalTabs = prefs.hospital;
+  _tabs = effectiveTabs(_ownPrefs?.tabs, _hospitalTabs);
+  _setPane(_ownPrefs?.pane || 'both', false);
+  document.querySelectorAll('.rx-layout-btn').forEach(b => b.addEventListener('click', () => _setPane(b.dataset.pane)));
+  document.getElementById('rx-reg-rail').addEventListener('click', () => _setPane('both'));
+  document.getElementById('rx-work-rail').addEventListener('click', () => _setPane('both'));
+  document.getElementById('rx-reg-pull').addEventListener('click', () => _setPane(_pane === 'form' ? 'both' : 'form'));
+  document.getElementById('rx-work-pull').addEventListener('click', () => _setPane(_pane === 'work' ? 'both' : 'work'));
+  document.querySelectorAll('#rx-subs .rx-sub').forEach(b => b.addEventListener('click', () => {
+    const g = Object.keys(_GROUP_SUBS).find(k => _GROUP_SUBS[k].includes(b.id));
+    if (g) _lastSub[g] = b.id;
+    document.querySelectorAll('#rx-subs .rx-sub').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+  }));
+  const moreBtn = document.getElementById('rx-more-btn');
+  moreBtn.addEventListener('click', e => {
+    e.stopPropagation();
+    const menu = document.getElementById('rx-more-menu');
+    const open = menu.hidden;
+    menu.hidden = !open;
+    moreBtn.setAttribute('aria-expanded', String(open));
+    if (open) { menu.style.left = `${moreBtn.offsetLeft}px`; menu.querySelector('.rx-more-item')?.focus(); }
+  });
+  document.getElementById('rx-more-menu').addEventListener('keydown', e => {
+    const items = [...document.querySelectorAll('#rx-more-menu .rx-more-item')];
+    const i = items.indexOf(document.activeElement);
+    if (e.key === 'Escape') { _closeMore(); moreBtn.focus(); }
+    else if (e.key === 'ArrowDown') { e.preventDefault(); items[(i + 1) % items.length]?.focus(); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); items[(i - 1 + items.length) % items.length]?.focus(); }
+  });
+  document.addEventListener('click', e => { if (!e.target.closest('#rx-more-menu') && e.target !== moreBtn) _closeMore(); });
+  const gear = document.getElementById('rx-arrange-btn');
+  gear.addEventListener('click', () => openArrangeDialog({
+    supabase, current: _tabs, available: _availableGroups(), hospital: _hospitalTabs, ownPrefs: _ownPrefs, notify, errorText: safeErrorMessage,
+    canSetHospital: [profile.role, profile.secondary_role].includes('super_admin'), returnFocus: gear,
+    onApply: (tabs, p) => { _tabs = tabs; _ownPrefs = p; _renderWorkTabs(); _openGroup(_availableGroups().includes(_group) ? _group : splitTabs(_tabs, _availableGroups()).bar[0]); },
+  }));
+  _renderWorkTabs();
+  const obs = new MutationObserver(_refreshCounts);
+  ['queue-count', 'appt-count', 'labbills-count', 'regqueue-count', 'admreq-count', 'pkplans-count', 'pending-count', 'incomplete-count']
+    .forEach(id => { const e = document.getElementById(id); if (e) obs.observe(e, { childList: true, characterData: true, subtree: true }); });
+  _openGroup(_labBillsOnly ? 'billing' : splitTabs(_tabs, _availableGroups()).bar[0]);
+}
+
+// ── NCISM strip (B1 + owner answer 1) ──
+function _mountStrip() {
+  const today = todayISTStr();
+  mountNcismStrip({ supabase, tenantId, root: document.getElementById('ncism-strip'), today,
+    onOpenRange: settings => openNcismRange({ supabase, today, settings, errorText: safeErrorMessage, tenantName: tenant?.name || '' }) })
+    .catch(e => console.warn('[reception] NCISM strip:', e?.message || e));
 }
 
 // ── Submit ────────────────────────────────────────
@@ -1632,7 +2253,9 @@ async function handleSubmit() {
   // elsewhere in this file. Real bug found live (Session 170): a "09844210154"
   // entry didn't match the on-file "9844210154", silently creating a duplicate
   // patient record instead of finding the existing one.
-  const phone       = document.getElementById('phone').value.replace(/\D/g, '').slice(-10);
+  const isNewPatient = !_patient;
+  const noMobile    = isNewPatient && document.getElementById('rx-no-mobile').checked;
+  const phone       = noMobile ? '' : (isNewPatient ? normaliseMobile(document.getElementById('rx-mobile').value) : String(_patient.phone || '').replace(/\D/g, '').slice(-10));
   const name        = document.getElementById('name').value.trim();
   const complaint   = document.getElementById('complaint').value.trim();
   const abha        = document.getElementById('abha').value.replace(/\D/g, '').trim() || null;
@@ -1640,11 +2263,26 @@ async function handleSubmit() {
   const opdId       = document.getElementById('opd').value;
   const doctorId    = document.getElementById('doctor').value;
   const demographics = {
-    age:           parseInt(document.getElementById('f-age').value)    || null,
-    gender:        document.getElementById('f-gender').value           || null,
+    age:           document.getElementById('f-age').value === '' ? null : parseInt(document.getElementById('f-age').value, 10),
+    gender:        genderCode(document.getElementById('f-gender').value),
     date_of_birth: document.getElementById('f-dob').value             || null,
     blood_group:   document.getElementById('f-blood').value           || null
   };
+  const addr = _addressValues();
+  const formErrs = validateRegistration({
+    isNew: isNewPatient, isEmergency: visitCat === 'emergency', name, mobile: document.getElementById('rx-mobile').value,
+    noMobile, noMobileReason: document.getElementById('rx-no-mobile-reason').value, age: document.getElementById('f-age').value,
+    dob: demographics.date_of_birth, gender: demographics.gender, town: addr.town, district: addr.district, pin: isNewPatient || !_patient?.address_pin ? addr.pin : '',
+    complaint, opdId,
+  });
+  if (showFieldErrors(formErrs, { barEl: document.getElementById('rx-bar-msg') })) {
+    return _alert('error', `${formErrs.length} field${formErrs.length > 1 ? 's need' : ' needs'} fixing — nothing was saved.`);
+  }
+  const newPatientExtra = isNewPatient ? {
+    ...addressParts(addr),
+    no_mobile: noMobile,
+    no_mobile_reason: noMobile ? document.getElementById('rx-no-mobile-reason').value : null,
+  } : {};
   const isOnReq     = onRequestChk.checked;
   // Display values only -- the server prices the bill from the fee ids; the receipt below
   // shows the server's figures for a legacy organisation.
@@ -1658,12 +2296,13 @@ async function handleSubmit() {
   const payerType      = document.querySelector('input[name="payer_type"]:checked')?.value || 'self_pay';
   const isInsurance    = payerType !== 'self_pay';
 
-  if (!phone)     return _alert('error', 'Please enter the patient\'s phone number.');
   if (!name)      return _alert('error', 'Please enter the patient\'s name.');
   if (!complaint) return _alert('error', 'Please enter the chief complaint.');
   // Session 347 (TODO §198): never a visit without an OPD (it would reach no queue and no fee could be billed)
+  // 371 merge: asked BEFORE the fee check -- with no OPD there is no fee yet, and the message must name the OPD, not the fee
   if (!opdId)     return _alert('error', _screeningOn ? 'This organisation has no active Screening OPD — ask the Super Admin to set it up (or switch screening off).'
                                                       : 'Choose the OPD / department for this visit.');
+  if (!_opdFeeIds().length) return _alert('error', 'No registration / consultation fee is set up for this OPD in Fee Management, so no bill can be made — ask the administrator. Nothing was saved.');
   // Session 327: every rupee received at registration gets a receipt -- say how it was paid
   const payRef = document.getElementById('payment-ref').value.trim();
   if (payStatus === 'paid' && total > 0) {
@@ -1689,7 +2328,7 @@ async function handleSubmit() {
     if (!patient) {
       if (_newFamilyMember) {
         // Receptionist explicitly chose "new family member" — always create fresh
-        patient = await createPatient(name, phone, tenantId, abha, demographics, _pendingAbhaAddress);
+        patient = await createPatient(name, phone, tenantId, abha, demographics, _pendingAbhaAddress, newPatientExtra);
       } else {
         // ABHA-first: scan/verify flows provide an ABHA number — use it as primary key
         let found = null;
@@ -1720,17 +2359,25 @@ async function handleSubmit() {
           }
           found = byAbha?.[0] ?? null;
         }
+        // Session 371B (D1a 2): a mobile already used here is NEVER matched silently (the old code took the first patient with the number
+        // -- a visit + bill under the wrong family member). Reception must pick the person, or "+ New family member with same number".
         if (!found && phone) {
           const { data: byPhone } = await supabase
             .from('patients')
-            .select('id, uhid, name, age, gender, date_of_birth, blood_group, abha_number, abha_address')
-            .eq('phone', phone).eq('tenant_id', tenantId).limit(1);
-          const candidate = byPhone?.[0] ?? null;
-          if (candidate) {
-            // Skip phone match if it belongs to a different patient (ABHA conflict)
-            const stored   = String(candidate.abha_number ?? '').replace(/\D/g, '');
-            const incoming = abha ?? '';
-            found = (!incoming || !stored || stored === incoming) ? candidate : null;
+            .select('id, uhid, name, age, gender, date_of_birth, blood_group, abha_number, abha_address, phone, prakriti_data, prakriti_assessed_at, created_at, is_unidentified')
+            .like('phone', `%${phone}`).eq('tenant_id', tenantId).limit(8);
+          if (byPhone?.length) {
+            _loading(btn, false);
+            const typed = _snapshotDetails();
+            _showPicker(byPhone, phone, { showPhone: true, header: `${byPhone.length} patient${byPhone.length > 1 ? 's' : ''} already use${byPhone.length > 1 ? '' : 's'} ${phone} — pick one`,
+              newLabel: `New family member with the same number — register "${name}"`,
+              onNew: () => {   // reception chose "a different person": keep everything typed; Register is pressed again on purpose
+                document.getElementById('patient-picker').classList.remove('show');
+                _restoreDetails(typed);
+                _newFamilyMember = true;
+                _alert('info', `"${name}" will be registered as a new family member with ${phone}. Press Register again to save.`);
+              } });
+            return _alert('error', `${byPhone.length > 1 ? byPhone.length + ' patients already use' : 'A patient already uses'} this mobile — pick the right person above, or "+ New family member with same number". Nothing was saved.`);
           }
         }
 
@@ -1764,7 +2411,7 @@ async function handleSubmit() {
                 // _showPicker() ran _clearTag(), which wipes the demographic fields —
                 // restore what the receptionist already typed before re-submitting.
                 if (demographics.age)           document.getElementById('f-age').value    = demographics.age;
-                if (demographics.gender)        document.getElementById('f-gender').value  = demographics.gender;
+                if (demographics.gender)        _setGender(demographics.gender);
                 if (demographics.date_of_birth) document.getElementById('f-dob').value     = demographics.date_of_birth;
                 if (demographics.blood_group)   document.getElementById('f-blood').value   = demographics.blood_group;
                 if (abha)                       document.getElementById('abha').value      = abha;
@@ -1775,7 +2422,7 @@ async function handleSubmit() {
           }
         }
 
-        patient = found ?? await createPatient(name, phone, tenantId, abha, demographics, _pendingAbhaAddress);
+        patient = found ?? await createPatient(name, phone, tenantId, abha, demographics, _pendingAbhaAddress, newPatientExtra);
       }
 
       // Backfill demographics on existing patient if fields were blank
@@ -1785,8 +2432,24 @@ async function handleSubmit() {
         if (demographics.gender        && !patient.gender)        upd.gender        = demographics.gender;
         if (demographics.date_of_birth && !patient.date_of_birth) upd.date_of_birth = demographics.date_of_birth;
         if (demographics.blood_group   && !patient.blood_group)   upd.blood_group   = demographics.blood_group;
-        if (Object.keys(upd).length > 0)
-          await supabase.from('patients').update(upd).eq('id', patient.id);
+        if (Object.keys(upd).length > 0) {
+          const { data: filled, error: fillErr } = await supabase.from('patients').update(upd).eq('id', patient.id).select('id');
+          if (fillErr || !filled?.length) _alert('warning', safeErrorMessage(fillErr, 'The blank details were not filled on the existing record — use ✎ Correct patient details.'));
+        }
+      }
+    } else {
+      // a known patient: only BLANK details may be filled at the desk (the server decides -- 353C, receptionist on the registration day)
+      const upd = {};
+      if (demographics.age !== null && _patient.age == null) upd.age = demographics.age;
+      if (demographics.gender && !_patient.gender) upd.gender = demographics.gender;
+      if (demographics.date_of_birth && !_patient.date_of_birth) upd.date_of_birth = demographics.date_of_birth;
+      if (demographics.blood_group && !_patient.blood_group) upd.blood_group = demographics.blood_group;
+      const parts = addressParts(addr);
+      for (const k of Object.keys(parts)) if (!_patient[k]) upd[k] = parts[k];
+      if (Object.keys(upd).length) {
+        const { data: filled, error: fillErr } = await supabase.from('patients').update(upd).eq('id', _patient.id).select('id');
+        if (fillErr || !filled?.length) _alert('warning', safeErrorMessage(fillErr, 'The new details were not added to the record (only blank details, on the registration day) — use ✎ Correct patient details. The visit continues.'));
+        else Object.assign(_patient, upd);
       }
     }
 
@@ -1810,7 +2473,8 @@ async function handleSubmit() {
     if (abha && !_patient?.abha_number) _abhaPatch.abha_number = abha;
     if (_pendingAbhaAddress && !patient.abha_address) _abhaPatch.abha_address = _pendingAbhaAddress;
     if (Object.keys(_abhaPatch).length > 0) {
-      await supabase.from('patients').update(_abhaPatch).eq('id', patient.id);
+      const { data: abhaSaved, error: abhaErr } = await supabase.from('patients').update(_abhaPatch).eq('id', patient.id).select('id');
+      if (abhaErr || !abhaSaved?.length) _alert('error', (await _abhaWriteRefusal(abhaErr, abha)) + ' The visit continues without it.');
     }
 
     // 4. Next token — per-OPD, resets daily (reuse todayStart from duplicate check above).
@@ -1936,6 +2600,7 @@ async function handleSubmit() {
     const opdBill = await createOpdBill({
       supabase, visitId: visit.id, feeIds, payerType, paymentMode: payMode, paymentStatus: payStatus, paymentReference: payRef,
       patientPackageId: _pkgInUse() ? _activePackage.id : null, regime: _opdGst ? 'gst_v1' : 'legacy',
+      overrideReason: _feeOverride ? _feeOverride.reason : null,   // Session 371B (B2): a changed consultation fee carries its reason
     });
     if (opdBill.error) throw opdBill.error;
     const gstBill = opdBill.regime === 'gst_v1' ? opdBill : null;
@@ -1985,7 +2650,7 @@ async function handleSubmit() {
     const opdName    = document.getElementById('opd').selectedOptions[0]?.text    || 'General';
     const catLabel   = document.getElementById('visit-category').selectedOptions[0]?.text || visitCat;
     _showReceipt({
-      token: nextToken, name: patient.name, phone,
+      token: nextToken, name: patient.name, phone: patient.phone || phone || '—',
       uhid: uhidOf(patient), abha: abha || patient.abha_number || null,
       abhaAddress: _pendingAbhaAddress || null,
       opd: opdName, doctor: doctorName,
@@ -2122,8 +2787,7 @@ function _visitReceiptDoc(d) {
     { section: 'Visit' },
     { l: 'Visit Category', v: d.category },
     { l: 'OPD', v: d.opd },
-    // The doctor dropdown's placeholder ("— No doctors active today —") is not a doctor.
-    { l: 'Doctor', v: !d.doctor || /^\s*—/.test(d.doctor) ? 'Not assigned' : d.doctor },
+    { l: 'Doctor', v: _doctorShown(d.doctor) },
     d.complaint ? { l: 'Complaint', v: d.complaint } : null,
     { section: 'Fees' },
     d.regFee > 0 ? { l: 'Registration Fee', v: inr(d.regFee) } : null,
@@ -2140,6 +2804,20 @@ function _visitReceiptDoc(d) {
     d.isInsurance ? 'Insurance / TPA details will be completed by the accounts department.' : '');
 }
 
+function _clearReceiptCard() {
+  document.getElementById('receipt-card').classList.remove('show');
+  document.getElementById('receipt-rows').replaceChildren();
+  for (const id of ['receipt-tele-block', 'receipt-feedback-block']) {
+    const b = document.getElementById(id);
+    b.replaceChildren(); b.style.display = 'none';
+  }
+  document.getElementById('btn-print-pay').style.display = 'none';
+  _printReceipt = null; _lastBillId = null;
+}
+// The doctor dropdown's placeholder ("— No doctors on duty today —" ...) is not a doctor: owner 1 Nov 2026 -- the visit is in the OPD queue
+const _NO_DOCTOR = 'OPD queue (no doctor assigned)';
+const _doctorShown = name => (/assigned at Screening/i.test(name || '') ? 'Assigned at Screening' : !name || /^\s*—/.test(name) ? _NO_DOCTOR : name);
+
 async function _showReceipt(d) {
   const _payBtn = document.getElementById('btn-print-pay');
   if (_payBtn) _payBtn.style.display = (d.paymentId && _canPrintOwn) ? '' : 'none';
@@ -2155,7 +2833,7 @@ async function _showReceipt(d) {
     { l: 'Phone',          v: _esc(d.phone) },
     { l: 'Visit Category', v: _esc(d.category) },
     { l: 'OPD',            v: _esc(d.opd) },
-    { l: 'Doctor',         v: _esc(d.doctor) },
+    { l: 'Doctor',         v: _esc(_doctorShown(d.doctor)) },
     { l: 'Complaint',      v: _esc(d.complaint) },
     d.regFee   > 0 ? { l: 'Registration Fee',      v: fmt(d.regFee) }   : null,
     { l: 'Consultation Fee', v: fmt(d.consFee) },
@@ -2357,15 +3035,12 @@ async function _openQueueEdit(visitId, doctorId, complaint, category, opdId, sta
   const sel  = document.getElementById('qe-doctor');
   const note = document.getElementById('qe-note');
   sel.innerHTML = '<option value="">— No preference —</option>';
-  let ids = [];
-  if (_qeEditable && opdId) {
-    const { data: onDuty } = await supabase.from('opd_doctors').select('doctor_id')
-      .eq('tenant_id', tenantId).eq('opd_id', opdId).eq('is_active_today', true);
-    ids = (onDuty || []).map(d => d.doctor_id);
+  let docs = [];
+  if (_qeEditable && opdId) {   // Session 371B (B7): the server's duty list for today (the same rule the server applies on save)
+    const { data: onDuty, error: dErr } = await supabase.rpc('opd_doctors_on_duty', { p_opd_id: opdId });
+    if (dErr) _alert('error', safeErrorMessage(dErr, "Today's doctor list could not be loaded."));
+    docs = (onDuty || []).map(d => ({ id: d.doctor_id, full_name: d.name })).sort((a, b) => String(a.full_name || '').localeCompare(String(b.full_name || '')));
   }
-  const { data: docs } = ids.length
-    ? await supabase.from('profiles').select('id, full_name').eq('tenant_id', tenantId).eq('status', 'active').in('id', ids).order('full_name')
-    : { data: [] };
   (docs || []).forEach(d => {
     const o = document.createElement('option');
     o.value = d.id;
@@ -2435,8 +3110,11 @@ document.getElementById('queue-edit-modal').addEventListener('click', e => {
 
 // ── Helpers ───────────────────────────────────────
 function _resetForm() {
-  ['phone', 'name', 'complaint', 'abha', 'reg-fee', 'fee', 'surcharge'].forEach(id =>
+  ['rx-find', 'rx-mobile', 'name', 'complaint', 'abha', 'reg-fee', 'fee', 'surcharge'].forEach(id =>
     document.getElementById(id).value = '');
+  _hideUseMobile(); _hidePhoneHint();
+  showFieldErrors([], { barEl: document.getElementById('rx-bar-msg') });
+  _clearAbhaMarks();
   _clearAbhaNote();
   _lastTToken = null;
   _lastAccessToken = null;
@@ -2457,6 +3135,7 @@ function _resetForm() {
   document.getElementById('payment-mode').value = 'cash';
   document.getElementById('payment-ref').value = ''; document.getElementById('payment-ref').style.display = 'none';
   document.getElementById('pay-paid').checked = true;
+  _syncPayChips();
   onRequestChk.checked = false;
   onRequestWrap.classList.remove('active');
   surchargeRow.style.display = 'none';
@@ -2562,10 +3241,7 @@ function _showAbhaProfile(prof, abhaNumber, tToken, accessToken = null) {
   else document.getElementById('abha-card-inline-wrap').style.display = 'none';
 
   // Auto-fill demographics from ABHA profile
-  if (prof?.gender) {
-    const gMap = { M:'male', F:'female', O:'other', male:'male', female:'female', other:'other' };
-    document.getElementById('f-gender').value = gMap[prof.gender] || 'other';
-  }
+  if (prof?.gender && !(_patient?.gender)) _setGender(genderCode(prof.gender) || 'O');
   const rawDob = prof?.dob ?? prof?.dateOfBirth;
   if (rawDob) {
     const parts = String(rawDob).split('-');
@@ -2583,6 +3259,9 @@ function _showAbhaProfile(prof, abhaNumber, tToken, accessToken = null) {
 
   // Run demographic match check for returning patients
   _checkDemographicMatch(prof);
+  // Session 371B (plan Part C (a), E1 / E4 / E5 / E7): mark the fields that came from ABHA, fill a NEW patient's empty mobile / address
+  // from the profile, and look for this person here (ABHA number, then mobile + name + birth year) -- never an automatic merge.
+  _afterAbhaProfile(prof, abhaNumber, { name, mobile, postal, district, state, pin });
 }
 
 function _calcAgeFromDob(isoDate) {
@@ -3072,7 +3751,7 @@ document.getElementById('btn-send-otp').addEventListener('click', async () => {
     document.getElementById('btn-toggle-aadhaar').textContent = '👁';
 
     // Pre-fill comm mobile from patient phone if available
-    const phone = document.getElementById('phone').value.trim();
+    const phone = normaliseMobile(document.getElementById('rx-mobile').value);   // 371B: the Mobile field (the search box is never a phone)
     if (phone.length === 10) document.getElementById('enroll-comm-mobile').value = phone;
 
     const maskedHint = res.message || 'Check your Aadhaar-linked mobile.';
@@ -4231,7 +4910,7 @@ async function _startScanSession(counterId, opdId) {
   // QR display, nothing more -- no live tracking, no expiry, no auto-fill.
   document.getElementById('scan-status').className = 'scan-status waiting';
   document.getElementById('scan-status-text').textContent =
-    'Display this QR in the waiting area — patients scan it on their own and get a token. Check the 📋 Reg. Queue tab to see and register them as they arrive.';
+    'Display this QR in the waiting area — patients scan it on their own and get a token. Check the 📋 ABHA Req. Queue tab to see and register them as they arrive.';
 }
 
 // Session 181 correction 5: Download/Print the currently-shown QR, one department
@@ -4317,8 +4996,9 @@ function _onScanReceived(profile) {
     document.getElementById('name').value = name;
   }
   // §7.3.1 phoneNumber — pre-fill phone field if empty
-  if (profile?.phoneNumber && !document.getElementById('phone').value.trim()) {
-    document.getElementById('phone').value = String(profile.phoneNumber).replace(/^\+?91/, '').replace(/\D/g, '');
+  if (profile?.phoneNumber && !_patient && !document.getElementById('rx-mobile').value.trim()) {
+    document.getElementById('rx-mobile').value = normaliseMobile(profile.phoneNumber) || String(profile.phoneNumber).replace(/\D/g, '');
+    _markFromAbha('rx-mobile', document.getElementById('rx-mobile').value);
   }
 
   document.getElementById('scan-status').className = 'scan-status received';
@@ -4450,8 +5130,8 @@ function _setMode(mode) {
 }
 
 // ── Queue / Appointments / Lab Bills / Reg. Queue / Admission Requests tabs ──
-const _allTabs   = ['tab-queue', 'tab-appts', 'tab-labbills', 'tab-regqueue', 'tab-admreq', 'tab-pkplans', 'tab-vbsearch', 'tab-pending'];
-const _allPanels = ['queue-list', 'appt-list', 'lab-bills-list', 'reg-queue-list', 'admission-requests-list', 'pk-plans-list', 'vb-search-panel', 'pending-list'];
+const _allTabs   = ['tab-queue', 'tab-appts', 'tab-incomplete', 'tab-labbills', 'tab-admbill', 'tab-disbill', 'tab-regqueue', 'tab-admreq', 'tab-pkplans', 'tab-vbsearch', 'tab-pending'];
+const _allPanels = ['queue-list', 'appt-list', 'incomplete-list', 'lab-bills-list', 'adm-bill-panel', 'dis-bill-panel', 'reg-queue-list', 'admission-requests-list', 'pk-plans-list', 'vb-search-panel', 'pending-list'];
 function _activateTab(tabId, panelId) {
   _allTabs.forEach(id => document.getElementById(id).classList.toggle('active', id === tabId));
   _allPanels.forEach(id => document.getElementById(id).style.display = (id === panelId) ? '' : 'none');
@@ -4491,12 +5171,21 @@ document.getElementById('tab-pkplans').addEventListener('click', () => {
 });
 // Session 358 (TODO §265-D / §274): visits waiting for reports + casualty registrations to complete
 const _loadPending = () => loadPendingFollowups({ supabase, tenantId, container: document.getElementById('pending-list'),
-  countEl: document.getElementById('pending-count') });
+  countEl: document.getElementById('pending-count'), section: 'reports' });
+const _loadIncomplete = () => loadPendingFollowups({ supabase, tenantId, container: document.getElementById('incomplete-list'),
+  countEl: document.getElementById('incomplete-count'), section: 'incomplete' });
 document.getElementById('tab-pending').addEventListener('click', () => {
   _activateTab('tab-pending', 'pending-list');
   _loadPending();
 });
+document.getElementById('tab-incomplete').addEventListener('click', () => {
+  _activateTab('tab-incomplete', 'incomplete-list');
+  _loadIncomplete();
+});
+document.getElementById('tab-admbill').addEventListener('click', () => _activateTab('tab-admbill', 'adm-bill-panel'));
+document.getElementById('tab-disbill').addEventListener('click', () => _activateTab('tab-disbill', 'dis-bill-panel'));
 _loadPending();
+_loadIncomplete();
 
 // ── Pending Lab/Investigation Bills (Session 126) ──
 // Shows lab_orders whose charge hasn't actually been collected yet (payment_status
@@ -4725,7 +5414,14 @@ window.openWalkinLab = function() {
   if (!slot) return;
   openWalkinPanel({ supabase, tenantId, slot, getPatient: () => _patient, onBooked: () => loadPendingLabBills(), notify });
 };
+// owner (31 Oct 2026, rehearsal): a direct entry for a patient who is not the hospital's -- details, tests, payment, sent to the lab
+window.openOutsideLab = function() {
+  const slot = document.getElementById('wk-slot');
+  if (!slot) return;
+  openWalkinPanel({ supabase, tenantId, slot, getPatient: () => null, onBooked: () => loadPendingLabBills(), notify, mode: 'outside' });
+};
 { const b = document.getElementById('wk-open'); if (b) b.hidden = !canBookWalkin(profile); }
+{ const b = document.getElementById('wk-outside'); if (b) b.hidden = !canBookWalkin(profile); }
 // Session 363 (owner B3, 27 Oct 2026): a cashier (with no front-desk role) uses this page for 💰 Lab Bills ONLY -- collect, Urgent, the
 // walk-in booking; the registration form and the other tabs are hidden (the server decides every action: create_investigation_bill,
 // mark_lab_order_urgent, create_walkin_lab_order all allow the cashier)
@@ -5219,18 +5915,22 @@ let _regQueueRowsById = new Map();  // sessionId -> row, refreshed each loadRegQ
 let _activeScanSessionId = null;    // which scan session (if any) the open form came from
 
 async function loadRegQueue() {
-  const { data, error } = await supabase
-    .from('abdm_scan_sessions')
-    .select('id, token_number, patient_profile, created_at, assigned_profile_id, opd_id')
-    .eq('tenant_id', tenantId)
-    .or(`assigned_profile_id.eq.${profile.id},assigned_profile_id.is.null`)
-    .eq('status', 'received')
-    .is('registered_visit_id', null)
-    .is('cancelled_at', null)
-    .order('token_number', { ascending: true });
+  const [{ data, error }, duty] = await Promise.all([
+    supabase.from('abdm_scan_sessions')
+      .select('id, token_number, patient_profile, created_at, assigned_profile_id, opd_id')
+      .eq('tenant_id', tenantId)
+      .eq('status', 'received')
+      .is('registered_visit_id', null)
+      .is('cancelled_at', null)
+      .order('token_number', { ascending: true }),
+    supabase.from('staff_duty_sessions').select('profile_id').eq('tenant_id', tenantId).is('ended_at', null).contains('active_duty', ['registration']),
+  ]);
   if (error) { console.warn('[reception] loadRegQueue:', error.message); return; }
-
-  const rows = data || [];
+  // Session 371B (D1a 6): mine + unassigned + assigned to someone who is NO LONGER on registration duty (those used to be hidden from
+  // everyone else). If the duty list cannot be read, nothing extra is shown (the old rule).
+  const onDuty = duty.error ? null : new Set((duty.data || []).map(d => d.profile_id));
+  const rows = (data || []).filter(r => !r.assigned_profile_id || r.assigned_profile_id === profile.id || (onDuty && !onDuty.has(r.assigned_profile_id)));
+  rows.forEach(r => { r._offDuty = !!(r.assigned_profile_id && r.assigned_profile_id !== profile.id); });
   _regQueueRowsById = new Map(rows.map(r => [r.id, r]));
   document.getElementById('regqueue-count').textContent = rows.length ? `(${rows.length})` : '';
   const list = document.getElementById('reg-queue-rows');
@@ -5252,7 +5952,7 @@ async function loadRegQueue() {
     const abhaAddr = prof.abhaAddress ?? prof.healthId ?? prof.phrAddress?.[0] ?? '';
     const abhaNum  = prof.healthIdNumber ?? prof.ABHANumber ?? prof.abhaNumber ?? '';
     const waitedFor = _waitTime(r.created_at);
-    const unclaimedNote = r.assigned_profile_id == null ? ' (unassigned)' : '';
+    const unclaimedNote = r.assigned_profile_id == null ? ' (unassigned)' : r._offDuty ? ' (was assigned to someone now off duty)' : '';
     // Session 181 correction 5: which department's QR was scanned — blank for the
     // plain reception-desk QR.
     const deptName = r.opd_id ? (_opdMap[r.opd_id] || '—') : '—';
@@ -5303,7 +6003,7 @@ window.openRegQueueEntry = function(sessionId) {
   _onScanReceived(row.patient_profile);
   _applyOpdRule();
   _alert('info', `Registration Token #${row.token_number ?? '—'} pulled up${_scanDeptOpdName ? ' for ' + _scanDeptOpdName : ''} — complete the form below.`);
-  document.querySelector('.panel')?.scrollIntoView({ behavior: 'smooth' });
+  _showRegistration('form');
 };
 
 // The "patient never turned up when called" case — explicit, reasoned removal from the
@@ -5373,11 +6073,12 @@ function _updateRegDutyUI() {
   if (!btn || !status) return;
   if (_regDutySessionId) {
     btn.textContent = '🔴 End Registration Duty';
-    status.textContent = 'On duty — new scans fair-assigned to you';
+    status.textContent = 'On registration duty — new scans fair-assigned to you';
   } else {
     btn.textContent = '🟢 Go On Registration Duty';
-    status.textContent = 'Off duty — showing every unclaimed scan';
+    status.textContent = 'Off registration duty — showing every unclaimed scan';
   }
+  document.getElementById('rx-duty-dot')?.classList.toggle('on', !!_regDutySessionId);
 }
 
 window.toggleRegistrationDuty = async function() {
@@ -5405,16 +6106,23 @@ async function bookAppointment() {
   const apptDate = document.getElementById('appt-date').value;
   const apptTime = document.getElementById('appt-time').value;
   const name     = document.getElementById('name').value.trim();
-  const phone    = document.getElementById('phone').value.trim();
+  const isNewPatient = !_patient;
+  const noMobile = isNewPatient && document.getElementById('rx-no-mobile').checked;
+  const phone    = noMobile ? '' : (isNewPatient ? normaliseMobile(document.getElementById('rx-mobile').value) : (_patient.phone || ''));
   const complaint= document.getElementById('complaint').value.trim();
   const opdId    = document.getElementById('opd').value    || null;
   const doctorId = document.getElementById('doctor').value || null;
+  const addr     = _addressValues();
+  const gender   = genderCode(document.getElementById('f-gender').value);
+  const dob      = document.getElementById('f-dob').value || null;
 
-  if (!apptDate) return _alert('error', 'Please select an appointment date.');
-  if (!apptTime) return _alert('error', 'Please select an appointment time.');
+  const formErrs = validateRegistration({ isNew: isNewPatient, name, mobile: document.getElementById('rx-mobile').value, noMobile,
+    noMobileReason: document.getElementById('rx-no-mobile-reason').value, age: document.getElementById('f-age').value, dob, gender,
+    town: addr.town, district: addr.district, pin: isNewPatient ? addr.pin : '', apptMode: true, apptDate, apptTime });
+  if (showFieldErrors(formErrs, { barEl: document.getElementById('rx-bar-msg') })) {
+    return _alert('error', `${formErrs.length} field${formErrs.length > 1 ? 's need' : ' needs'} fixing — nothing was saved.`);
+  }
   if (!opdId)    return _alert('error', 'Please select an OPD / Department for the appointment.');
-  if (!name)     return _alert('error', 'Please enter the patient\'s name.');
-  if (!phone)    return _alert('error', 'Please enter the patient\'s phone number.');
 
   const btn = document.getElementById('btn-submit');
   _loading(btn, true);
@@ -5422,11 +6130,19 @@ async function bookAppointment() {
     // Find or create patient
     let patient = _patient;
     if (!patient) {
-      const { data: found } = await supabase
-        .from('patients').select('id,uhid,name')
-        .eq('phone', phone).eq('tenant_id', tenantId).limit(1);
-      patient = found?.length ? found[0]
-        : await createPatient(name, phone, tenantId, null, {});
+      if (phone && !_newFamilyMember) {
+        const { data: found } = await supabase.from('patients')
+          .select('id, uhid, name, abha_number, abha_address, age, gender, date_of_birth, blood_group, phone, prakriti_data, prakriti_assessed_at, created_at, is_unidentified')
+          .like('phone', `%${phone}`).eq('tenant_id', tenantId).limit(8);
+        if (found?.length) {
+          _showPicker(found, phone, { showPhone: true, header: `${found.length} patient${found.length > 1 ? 's' : ''} already use${found.length > 1 ? '' : 's'} ${phone} — pick one` });
+          return _alert('error', 'This mobile is already used here — pick the right person above, or "+ New family member with same number". Nothing was saved.');
+        }
+      }
+      const ageVal = document.getElementById('f-age').value;
+      patient = await createPatient(name, phone, tenantId, null,
+        { age: ageVal === '' ? null : parseInt(ageVal, 10), gender, date_of_birth: dob, blood_group: document.getElementById('f-blood').value || null },
+        null, { ...addressParts(addr), no_mobile: noMobile, no_mobile_reason: noMobile ? document.getElementById('rx-no-mobile-reason').value : null });
     }
 
     const { data: appt, error } = await supabase
@@ -5487,45 +6203,78 @@ function _fmt12(t) {
 }
 
 // ── Today's Appointments ───────────────────────────
+// Owner (31 Oct 2026, rehearsal): a date bar (‹ previous · the date + calendar · next ›, "Today") and an "Upcoming 7 days" view;
+// "Check In" only on today's list. The badge counts TODAY's still-expected appointments whatever is being looked at.
+let _apptDay = null, _apptWeek = false;
+const _addDay = (iso, n) => new Date(Date.parse(iso + 'T00:00:00Z') + n * 86400000).toISOString().slice(0, 10);
+const _apptDayLabel = iso => new Date(iso + 'T00:00:00Z').toLocaleDateString('en-IN', { timeZone: 'UTC', weekday: 'short', day: '2-digit', month: 'short' });
+function _apptBar(today) {
+  const bar = document.createElement('div');
+  bar.className = 'appt-bar';
+  bar.setAttribute('role', 'group');
+  bar.setAttribute('aria-label', 'Which appointments');
+  const mk = (txt, label, fn, pressed) => { const b = document.createElement('button'); b.type = 'button'; b.className = 'appt-bar-btn'; b.textContent = txt;
+    if (label) b.setAttribute('aria-label', label); if (pressed !== undefined) b.setAttribute('aria-pressed', String(pressed)); b.addEventListener('click', fn); return b; };
+  const date = document.createElement('input');
+  date.type = 'date'; date.id = 'appt-day'; date.value = _apptDay; date.setAttribute('aria-label', 'Appointments on this date');
+  date.addEventListener('change', () => { if (date.value) { _apptDay = date.value; _apptWeek = false; loadTodaysAppointments(); } });
+  bar.append(
+    mk('‹', 'Previous day', () => { _apptDay = _addDay(_apptDay, -1); _apptWeek = false; loadTodaysAppointments(); }),
+    date,
+    mk('›', 'Next day', () => { _apptDay = _addDay(_apptDay, 1); _apptWeek = false; loadTodaysAppointments(); }),
+    mk('Today', null, () => { _apptDay = today; _apptWeek = false; loadTodaysAppointments(); }, !_apptWeek && _apptDay === today),
+    mk('Upcoming 7 days', null, () => { _apptDay = today; _apptWeek = true; loadTodaysAppointments(); }, _apptWeek));
+  return bar;
+}
+
 async function loadTodaysAppointments() {
   const today = todayLocalStr();
-  const { data, error } = await supabase
-    .from('appointments')
-    .select('id, appointment_time, status, chief_complaint, patients(name), profiles!doctor_id(full_name), opds(name)')
-    .eq('tenant_id', tenantId)
-    .eq('appointment_date', today)
-    .order('appointment_time', { ascending: true });
+  if (!_apptDay) _apptDay = today;
+  const from = _apptWeek ? today : _apptDay;
+  const to = _apptWeek ? _addDay(today, 6) : _apptDay;
+  const [{ data, error }, todayQ] = await Promise.all([
+    supabase.from('appointments')
+      .select('id, appointment_date, appointment_time, status, chief_complaint, patients(name), profiles!doctor_id(full_name), opds(name)')
+      .eq('tenant_id', tenantId).gte('appointment_date', from).lte('appointment_date', to)
+      .order('appointment_date', { ascending: true }).order('appointment_time', { ascending: true }),
+    supabase.from('appointments').select('id', { count: 'exact', head: true })
+      .eq('tenant_id', tenantId).eq('appointment_date', today).in('status', ['scheduled', 'confirmed']),
+  ]);
 
   const list = document.getElementById('appt-list');
   const badge = document.getElementById('appt-count');
+  badge.textContent = todayQ.count ? `(${todayQ.count})` : '';
+  const body = document.createElement('div');
+  body.id = 'appt-items';
+  list.replaceChildren(_apptBar(today), body);
 
-  if (error || !data || !data.length) {
-    badge.textContent = '';
-    list.innerHTML = `<div class="q-empty"><div class="q-empty-icon">📅</div><div class="q-empty-text">No appointments scheduled for today</div></div>`;
-    return;
+  const what = _apptWeek ? 'in the next 7 days' : _apptDay === today ? 'for today' : `on ${_apptDayLabel(_apptDay)}`;
+  // built from DOM nodes + textContent (no HTML strings)
+  const mk = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+  const empty = text => { const w = mk('div', 'q-empty'); w.append(mk('div', 'q-empty-icon', '📅'), mk('div', 'q-empty-text', text)); return w; };
+  if (error) { body.replaceChildren(empty(safeErrorMessage(error, 'The appointments could not be loaded.'))); return; }
+  if (!data || !data.length) { body.replaceChildren(empty(`No appointments ${what}`)); return; }
+
+  const STATUS = { scheduled: 'Scheduled', confirmed: 'Confirmed', arrived: 'Arrived', completed: 'Done', cancelled: 'Cancelled', no_show: 'No Show' };
+  let lastDay = null;
+  const out = [];
+  for (const a of data) {
+    if (_apptWeek && a.appointment_date !== lastDay) out.push(mk('div', 'appt-day-h', _apptDayLabel(a.appointment_date) + (a.appointment_date === today ? ' · today' : '')));
+    lastDay = a.appointment_date;
+    const item = mk('div', 'appt-item');
+    const mid = mk('div'); mid.style.cssText = 'flex:1;min-width:0';
+    const meta = [a.profiles?.full_name ? `👨‍⚕️ ${a.profiles.full_name}` : '', a.opds?.name || '', a.chief_complaint || ''].filter(Boolean).join(' · ');
+    mid.append(mk('div', 'appt-pt-name', a.patients?.name || '—'), mk('div', 'appt-pt-meta', meta));
+    const st = String(a.status || '');
+    item.append(mk('div', 'appt-time-badge', _fmt12(a.appointment_time)), mid, mk('span', `appt-s-badge appt-s-${st.replace(/[^a-z_]/g, '')}`, STATUS[st] || st));
+    if (['scheduled', 'confirmed'].includes(st) && a.appointment_date === today) {   // Check In only on the day itself
+      const b = mk('button', 'btn-checkin', 'Check In');
+      b.type = 'button'; b.dataset.onclick = 'checkIn'; b.dataset.onclickA0 = a.id;
+      item.append(b);
+    }
+    out.push(item);
   }
-
-  const pending = data.filter(a => ['scheduled','confirmed'].includes(a.status)).length;
-  badge.textContent = pending ? `(${pending})` : '';
-
-  list.innerHTML = data.map(a => {
-    const statusClass = `appt-s-${a.status}`;
-    const statusLabel = {scheduled:'Scheduled',confirmed:'Confirmed',arrived:'Arrived',completed:'Done',cancelled:'Cancelled',no_show:'No Show'}[a.status] || a.status;
-    const canCheckin  = ['scheduled','confirmed'].includes(a.status);
-    return `<div class="appt-item">
-      <div class="appt-time-badge">${_fmt12(a.appointment_time)}</div>
-      <div style="flex:1;min-width:0">
-        <div class="appt-pt-name">${_esc(a.patients?.name || '—')}</div>
-        <div class="appt-pt-meta">
-          ${a.profiles?.full_name ? `👨‍⚕️ ${_esc(a.profiles.full_name)}` : ''}
-          ${a.opds?.name ? ` · ${_esc(a.opds.name)}` : ''}
-          ${a.chief_complaint ? ` · ${_esc(a.chief_complaint)}` : ''}
-        </div>
-      </div>
-      <span class="appt-s-badge ${statusClass}">${statusLabel}</span>
-      ${canCheckin ? `<button class="btn-checkin" data-onclick="checkIn" data-onclick-a0="${a.id}">Check In</button>` : ''}
-    </div>`;
-  }).join('');
+  body.replaceChildren(...out);
 }
 
 async function checkIn(apptId) {
@@ -5535,8 +6284,9 @@ async function checkIn(apptId) {
     .eq('id', apptId).single();
   if (!appt) return;
 
-  // Mark appointment arrived
-  await supabase.from('appointments').update({ status: 'arrived' }).eq('id', apptId);
+  // Mark appointment arrived -- a refused / zero-row write is said, never a silent success (353A rule)
+  const { data: upd, error: updErr } = await supabase.from('appointments').update({ status: 'arrived' }).eq('id', apptId).select('id');
+  if (updErr || !upd?.length) { _alert('error', safeErrorMessage(updErr, 'The appointment could not be marked as arrived.')); return; }
 
   // Pre-fill the walk-in form and switch to walk-in mode
   _setMode('walkin');
@@ -5547,24 +6297,37 @@ async function checkIn(apptId) {
     .eq('id', appt.patient_id).single();
 
   if (patient) {
-    document.getElementById('phone').value = patient.phone || '';
+    _findEl.value = patient.phone || uhidOf(patient);
     await _selectPatient(patient);
   }
   if (appt.chief_complaint) document.getElementById('complaint').value = appt.chief_complaint;
-  if (appt.opd_id)   document.getElementById('opd').value    = appt.opd_id;
-  if (appt.doctor_id) document.getElementById('doctor').value = appt.doctor_id;
+  // Owner (31 Oct 2026, rehearsal): the routing rule decides, not the booking -- a new patient / new complaint stays at the Screening
+  // OPD with no doctor, a follow-up keeps its previous OPD + doctor (both set by _selectPatient). Only where reception CHOOSES (the
+  // OPD field is open: Screening OFF) the booked OPD and doctor are filled in -- the doctor only when on today's duty list.
+  const opdEl = document.getElementById('opd'), docEl = document.getElementById('doctor');
+  if (appt.opd_id && !opdEl.disabled && [...opdEl.options].some(o => o.value === appt.opd_id)) {
+    opdEl.value = appt.opd_id;
+    await Promise.all([loadDoctors(appt.opd_id), loadFees(appt.opd_id)]);
+    if (appt.doctor_id && !docEl.disabled && [...docEl.options].some(o => o.value === appt.doctor_id)) docEl.value = appt.doctor_id;
+  }
 
-  // Switch view back to queue tab and scroll form into view
+  // Switch view back to queue tab and bring the registration form into view
   document.getElementById('tab-queue').click();
-  document.querySelector('.panel').scrollIntoView({ behavior: 'smooth' });
+  _showRegistration('form');
   _alert('info', `✓ Patient pre-filled from appointment. Complete registration to add to queue.`);
   loadTodaysAppointments();
 }
 window.checkIn = checkIn;
 
 // ── Boot ──────────────────────────────────────────
+_initDetailsForm();
+await _initLayout();
+_mountStrip();
+setInterval(_mountStrip, 5 * 60_000);
 await loadOPDs();
-await loadDoctors('');
+// rehearsal (31 Oct 2026): the empty doctor list only where reception chooses -- with Screening the routing rule (re)draws the field,
+// so a new patient's Doctor box reads "— assigned at Screening —" from the start
+if (_screeningOn) _applyOpdRule(); else await loadDoctors('');
 await loadQueue();
 await loadTodaysAppointments();
 await loadPendingLabBills();

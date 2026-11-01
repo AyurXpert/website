@@ -10,6 +10,7 @@
 // the Original or a Duplicate copy is decided by record_document_print() when the slip is printed (fail closed).
 // Built with createElement / textContent only (no innerHTML): names and remarks are user-entered text.
 import { el } from './invoiceLayout.js'
+import { notify } from '../../components/notify.js'   // Session 371B
 import { safeErrorMessage } from '../../utils/errors.js'
 import { printDocument } from '../../utils/printDocument.js'
 import { istDateStr, istDayStartUTC } from '../../utils/dateUtils.js'
@@ -264,6 +265,11 @@ function closeForm(supabase, preview, { onBehalfOf = null, onDone }) {
     submit.disabled = false
     if (error) { msg.textContent = safeErrorMessage(error, 'Could not close the shift. Please try again.'); return }
     onDone(data)
+    // Session 371B (plan session 370 B8): closing my shift also ends my open duty sessions (close_shift itself is not changed)
+    supabase.rpc('end_my_duty').then(({ data: n, error: dErr }) => {
+      if (dErr) { notify(safeErrorMessage(dErr, 'The shift is closed, but your registration duty could not be ended — it ends tonight by itself.'), 'warning'); return }
+      if (Number(n) > 0) { sessionStorage.removeItem('ax_reg_duty_session_id'); notify(`Your duty has ended (${n} open duty session${Number(n) === 1 ? '' : 's'} closed).`, 'info') }
+    })
   })
 
   refresh()

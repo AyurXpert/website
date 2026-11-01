@@ -291,18 +291,20 @@ async function loadAll() {
   // §21d + §21i — Institution-level OPD: exclude teleconsultation + preventive (Swasthya Rakshana) visits
   // NCISM Regulation 42 footnote: tele visits NOT counted in mandatory OPD minimum
   // NCISM Regulation 40(7): Swasthya Rakshana (preventive) visits NOT counted in OPD minimum
-  const clinicalVisits = visits.filter(v =>
-    !v.is_teleconsultation &&
-    (v.visit_category || 'clinical') === 'clinical'
-  );
+  // Session 371B (plan session 370 B1): the institution OPD is the SERVER's one NCISM count (ncism_opd_daily): each patient once per
+  // IST day, Screening + specialty = one, no tele / lab-only / deleted / cancelled, an emergency only when a doctor saw it, a no-show
+  // never. The old "clinical" category filter counted NOTHING (reception never writes 'clinical'). The divisor is the server's OPD
+  // days (weekly off + the hospital's holidays left out).
+  const { data: ncDays, error: ncErr } = await supabase.rpc('ncism_opd_daily', { p_from: from, p_to: to });
+  if (ncErr) notify(safeErrorMessage(ncErr, 'The NCISM OPD count could not be loaded — the institution OPD shows 0.'), 'error');
   const teleVisits      = visits.filter(v => v.is_teleconsultation);
-  const preventiveVisits= visits.filter(v => (v.visit_category || 'clinical') === 'preventive');
-  const totalActualOpd  = clinicalVisits.length;
-  // §21d — 300-day denominator: use period days but note annualized target
-  const instOpdTarget  = _cfg.opdTarget * wdays;
+  const preventiveVisits= visits.filter(v => v.visit_category === 'preventive');
+  const totalActualOpd  = (ncDays || []).reduce((n, r) => n + Number(r.total || 0), 0);
+  const opdDaysServer   = (ncDays || []).filter(r => r.is_opd_day !== false).length;
+  const instOpdTarget  = _cfg.opdTarget * opdDaysServer;
   const instOpdPct     = instOpdTarget > 0 ? Math.round(totalActualOpd / instOpdTarget * 100) : 0;
-  // Annualized projection for 300-day NCISM assessment
-  const annualisedOpd  = periodDays > 0 ? Math.round(totalActualOpd / periodDays * 300) : 0;
+  // Annualised for the 300-day NCISM year: the average per OPD day x 300
+  const annualisedOpd  = opdDaysServer > 0 ? Math.round(totalActualOpd / opdDaysServer * 300) : 0;
 
   const rows = depts.filter(d => d.is_active).map(dept => {
     const actualOpd    = visitsByOpd[dept.opd_id] || 0;

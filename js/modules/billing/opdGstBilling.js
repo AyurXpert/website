@@ -44,15 +44,19 @@ export async function previewOpdBill({ supabase, billType, feeIds, packageCover 
 // Creates the visit's bill: GST-live -> finalised invoice (Tax Invoice / Bill of Supply / Bill);
 // otherwise today's plain bill (registration / consultation / surcharge columns, no number).
 // A package, when given, is redeemed in the same transaction -- no bill without the session.
-export async function createOpdBill({ supabase, visitId, feeIds, payerType, paymentMode, paymentStatus, paymentReference = null, patientPackageId = null, regime = 'gst_v1' }) {
-  const { data, error } = await supabase.rpc('create_opd_bill', {
+export async function createOpdBill({ supabase, visitId, feeIds, payerType, paymentMode, paymentStatus, paymentReference = null, patientPackageId = null, regime = 'gst_v1', overrideReason = null }) {
+  const args = {
     p_visit: visitId, p_lines: _lines(feeIds, regime), p_payer_type: payerType,
     p_payment_mode: paymentMode, p_payment_status: paymentStatus,
     p_bill_discount: 0, p_discount_reason: null,
     p_patient_package_id: patientPackageId, p_service_nature: 'treatment',
     // Session 327: money received at registration gets a receipt (RCPT); UPI / card need the transaction reference
     p_payment_reference: paymentMode === 'cash' ? null : (paymentReference || null),
-  });
+  };
+  // Session 371B (plan session 370 B2): a consultation fee other than the server's choice is billed only with reception's reason
+  // (the server writes it to audit_logs as opd_fee_override). Sent only when there is one.
+  if (overrideReason) args.p_override_reason = overrideReason;
+  const { data, error } = await supabase.rpc('create_opd_bill', args);
   return error ? { error } : data;
 }
 

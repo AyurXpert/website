@@ -39,6 +39,11 @@
   @page ax-a3l { size: A3 landscape; margin: 12mm; }
   .ax-print-root.ax-size-A4-landscape { page: ax-a4l; }
   .ax-print-root.ax-size-A3-landscape { page: ax-a3l; }
+  /* 'A4-clean' (Session 371, owner 31 Oct 2026, like TODO §336): A4 portrait with NO browser header / footer line --
+     the page margin is 0, so the browser has no room for its date / title / "Page 1 of 2"; the document keeps its
+     own 12 mm margin as padding, repeated on every page (box-decoration-break: clone). */
+  @page ax-a4c { size: A4; margin: 0; }
+  .ax-print-root.ax-size-A4-clean { page: ax-a4c; padding: 12mm 12mm 14mm; -webkit-box-decoration-break: clone; box-decoration-break: clone; }
 
   body.ax-printing > *:not(.ax-print-root) { display: none !important; }
   body.ax-printing .ax-print-root { display: block !important; }

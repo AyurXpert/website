@@ -35,5 +35,7 @@ tabs.mine.addEventListener('click', () => show('mine'))
 tabs.review.addEventListener('click', () => show('review'))
 if (isChecker) tabs.review.style.display = ''
 
+// owner (31 Oct 2026, rehearsal): "← Back to reception" for the roles that work at reception (or when we came from it)
+if (roles.some(r => ['receptionist', 'cashier', 'nurse'].includes(r)) || /reception\.html/.test(document.referrer || '')) document.getElementById('sc-back').hidden = false
 mountMyShift(panels.mine, { supabase })
 if (new URLSearchParams(location.search).get('tab') === 'review' && isChecker) show('review')

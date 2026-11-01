@@ -140,6 +140,82 @@ if (isFeeFinalApprover(profile) || canEditFeeContent(profile)) {
   });
 }
 
+// ── Session 371B (plan session 370 B2): the follow-up window + duplicate-fee warning ──────────────────────────────────────────
+// A returning patient pays the follow-up consultation rate when the last consultation in the SAME OPD (or a doctor's internal referral
+// to it) was within N days. N is this hospital's own setting (tenants.followup_window_days; empty = the default of 30 days, owner 31 Oct 2026). It is changed only
+// through set_followup_window (an active Super Admin or the finance manager, with a reason, audited) -- others see it read-only. The page
+// says "saved" only after the server confirms.
+{
+  const mayChangeWindow = [profile?.role, profile?.secondary_role].some(r => r === 'super_admin' || r === 'finance_manager');
+  const card = document.createElement('div');
+  card.id = 'followup-window-card';
+  card.style.cssText = 'background:#fff;border:1.5px solid var(--border);border-radius:10px;padding:14px 18px;margin-bottom:16px';
+  const h = document.createElement('div'); h.style.cssText = 'font-weight:700;font-size:14px;color:var(--green-deep)'; h.textContent = '↩ Follow-up consultation window';
+  const help = document.createElement('div'); help.style.cssText = 'font-size:12px;color:var(--text-mid);margin:4px 0 10px;line-height:1.5';
+  help.textContent = 'A returning patient pays the active "Follow-up consultation" fee when their last consultation in the same OPD (or a doctor\'s internal referral to it) was within this many days. "Different issue this time" pays the full fee. Empty = the default of 30 days. No follow-up rate at all = no active "Follow-up consultation" fee.';
+  const row = document.createElement('div'); row.style.cssText = 'display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap';
+  const mk = (id, label, el) => { const w = document.createElement('div'); w.style.cssText = 'display:flex;flex-direction:column;gap:4px;font-size:12px;font-weight:600'; const l = document.createElement('label'); l.htmlFor = id; l.textContent = label; el.id = id; w.append(l, el); return w; };
+  const days = document.createElement('input'); days.type = 'number'; days.min = '1'; days.max = '365'; days.step = '1';
+  days.style.cssText = 'min-height:44px;width:120px;border:1.5px solid var(--border);border-radius:8px;padding:0 10px;font:inherit';
+  const reason = document.createElement('input'); reason.type = 'text'; reason.maxLength = 300; reason.placeholder = 'Reason for the change (required)';
+  reason.style.cssText = 'min-height:44px;min-width:260px;border:1.5px solid var(--border);border-radius:8px;padding:0 10px;font:inherit';
+  const save = document.createElement('button'); save.type = 'button'; save.className = 'act-btn act-edit'; save.textContent = 'Save window'; save.style.minHeight = '44px';
+  const msg = document.createElement('div'); msg.setAttribute('role', 'status'); msg.style.cssText = 'font-size:12px;margin-top:6px';
+  row.append(mk('fu-window-days', 'Days (1–365, empty = default 30)', days));
+  if (mayChangeWindow) row.append(mk('fu-window-reason', 'Reason', reason), save);
+  else { days.disabled = true; msg.textContent = '🔒 Changed only by the Super Admin or the finance manager.'; }
+  const dup = document.createElement('div'); dup.id = 'fee-dup-warn'; dup.setAttribute('role', 'status'); dup.hidden = true;
+  dup.style.cssText = 'margin-top:10px;padding:10px 12px;border:1.5px solid #e8c48a;background:#fdf1e8;border-radius:8px;font-size:12.5px;line-height:1.5';
+  card.append(h, help, row, msg, dup);
+  (document.getElementById('fee-log-card') || document.getElementById('advance-policy-card'))?.after(card);
+
+  const loadWindow = async () => {
+    const { data, error } = await supabase.from('tenants').select('followup_window_days').eq('id', tenantId).maybeSingle();
+    if (error) { msg.textContent = safeErrorMessage(error, 'The follow-up window could not be loaded.'); return; }
+    days.value = data?.followup_window_days ?? '';
+    days.placeholder = '30 (default)';
+  };
+  save.addEventListener('click', async () => {
+    msg.textContent = '';
+    const v = days.value.trim();
+    const n = v === '' ? null : Number(v);
+    if (n !== null && (!Number.isInteger(n) || n < 1 || n > 365)) { msg.textContent = 'Enter whole days from 1 to 365, or leave it empty for the default of 30 days.'; days.focus(); return; }
+    if (reason.value.trim().length < 5) { msg.textContent = 'Give the reason for the change (at least 5 characters).'; reason.focus(); return; }
+    save.disabled = true;
+    const { error } = await supabase.rpc('set_followup_window', { p_days: n, p_reason: reason.value.trim() });
+    save.disabled = false;
+    if (error) { msg.textContent = safeErrorMessage(error, 'The follow-up window was not saved.'); return; }
+    reason.value = '';
+    await loadWindow();
+    notify(n === null ? 'Follow-up window back to the default: 30 days.' : `Follow-up window saved: ${n} day${n === 1 ? '' : 's'}.`, 'success');
+  });
+  loadWindow();
+
+  // One active fee per type (B2): an admin sees "2 active consultation fees — keep one" until it is sorted (the server refuses a NEW
+  // second active fee of a type at activation; the old duplicates are switched off here by the organisation's own admin)
+  if (canEditFeeContent(profile) || isFeeFinalApprover(profile)) {
+    (async () => {
+      const { data } = await supabase.from('fee_structures').select('id, label, category, fee_type, opd_id, amount, opds(name)')
+        .eq('tenant_id', tenantId).eq('approval_status', 'active').eq('is_active', true).eq('category', 'opd')
+        .in('fee_type', ['registration', 'consultation', 'followup_consultation', 'teleconsultation', 'on_request_surcharge']);
+      const groups = {};
+      (data || []).forEach(f => { const k = `${f.fee_type}|${f.opd_id || 'all'}`; (groups[k] = groups[k] || []).push(f); });
+      const dups = Object.values(groups).filter(g => g.length > 1);
+      if (!dups.length) return;
+      const t = document.createElement('strong'); t.textContent = '⚠ More than one active fee of the same type — keep one, deactivate the others:';
+      const ul = document.createElement('ul'); ul.style.cssText = 'margin:6px 0 0 18px';
+      dups.forEach(g => {
+        const li = document.createElement('li');
+        const where = g[0].opd_id ? (g[0].opds?.name || 'one OPD') : 'hospital-wide';
+        li.textContent = `${g.length} active "${g[0].fee_type.replace(/_/g, ' ')}" fees (${where}): ` + g.map(f => `${f.label} ₹${Number(f.amount).toLocaleString('en-IN')}`).join(' · ');
+        ul.append(li);
+      });
+      dup.replaceChildren(t, ul);
+      dup.hidden = false;
+    })();
+  }
+}
+
 // ── NCISM/Ayush benchmark-rate catalog (Session 207) ──────────────────────
 // Full citation shown wherever a catalog-derived fee's benchmark rate is displayed --
 // the source document is a rate CARD, not something this platform enforces, so the
@@ -154,6 +230,8 @@ const CAT_TYPES = {
   opd: [
     { value:'registration',       label:'Registration Fee' },
     { value:'consultation',       label:'Consultation Fee' },
+    { value:'followup_consultation', label:'Follow-up Consultation Fee' },   // Session 371B (B2): one fee per type
+    { value:'teleconsultation',   label:'Teleconsultation Fee' },
     { value:'on_request_surcharge',label:'On-Request Surcharge' }
   ],
   ipd: [
@@ -1208,10 +1286,10 @@ const QS_TEMPLATES = {
     // ── OPD (general) ──
     { label:'Registration Fee',          category:'opd', fee_type:'registration',        amount:200  },
     { label:'OPD Consultation',          category:'opd', fee_type:'consultation',         amount:500  },
-    { label:'Follow-up Consultation',    category:'opd', fee_type:'consultation',         amount:200,  notes:'Within 7 days of previous visit' },
-    { label:'Senior / Specialist Consultation', category:'opd', fee_type:'consultation',  amount:700  },
+    // Session 371 merge: one active fee per type (server rule) -- follow-up / tele have their own types; no second 'consultation' row
+    { label:'Follow-up Consultation',    category:'opd', fee_type:'followup_consultation', amount:200,  notes:'Within the follow-up window (Fee Management)' },
     { label:'On-Request Surcharge',      category:'opd', fee_type:'on_request_surcharge', amount:200  },
-    { label:'Teleconsultation',          category:'opd', fee_type:'consultation',         amount:300  },
+    { label:'Teleconsultation',          category:'opd', fee_type:'teleconsultation',     amount:300  },
 
     // ── IPD (facility / room) ──
     { label:'Admission Charge',          category:'ipd', fee_type:'admission',            amount:1000 },
@@ -1442,6 +1520,11 @@ window.runQuickSetup = async function() {
   const existing = new Set((existingRows || []).map(f => `${f.category}::${f.fee_type}`));
   const skippedCount = selected.filter(t => existing.has(`${t.category}::${t.fee_type}`)).length;
   selected = selected.filter(t => !existing.has(`${t.category}::${t.fee_type}`));
+  // Session 371 merge: the server keeps ONE active fee per visit-fee type (hospital-wide) -- the hospital template lists Registration /
+  // OPD Consultation under Administration AND OPD (Session 110); add only the first ticked row of each such type in one run
+  const ONE_PER_TYPE = new Set(['registration', 'consultation', 'followup_consultation', 'teleconsultation', 'on_request_surcharge']);
+  const seenType = new Set();
+  selected = selected.filter(t => { if (!ONE_PER_TYPE.has(t.fee_type)) return true; if (seenType.has(t.fee_type)) return false; seenType.add(t.fee_type); return true; });
 
   if (!selected.length) {
     btn.classList.remove('loading'); btn.disabled = false;

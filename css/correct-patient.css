@@ -25,3 +25,5 @@
   font-size:13px;font-weight:600;cursor:pointer;font-family:inherit}
 .cpd-open-btn:focus-visible{outline:2px solid var(--gold,#c9902a);outline-offset:2px}
 @media (max-width:520px){.cpd-grid{grid-template-columns:1fr}}
+/* the correction button when the server rule would refuse reception: still clickable, it says why (owner 31 Oct 2026) */
+.cpd-open-btn.cpd-locked{border-style:dashed;color:var(--text-mid,#4a6352);border-color:var(--text-mid,#4a6352)}

@@ -11,7 +11,9 @@ const _fmtDay = iso => new Date(iso).toLocaleDateString('en-IN', { timeZone: 'As
 const _el = (tag, css, text) => { const e = document.createElement(tag); if (css) e.style.cssText = css; if (text != null) e.textContent = text; return e; };
 const _btnCss = 'min-height:44px;padding:0 14px;background:var(--green-deep);color:#fff;border:none;border-radius:6px;font-family:inherit;font-size:12px;font-weight:600;cursor:pointer';
 
-export async function loadPendingFollowups({ supabase, tenantId, container, countEl }) {
+// section (owner, 31 Oct 2026 rehearsal): 'reports' = Reports → 🔬 Waiting for reports only; 'incomplete' = Patients →
+// ⚠ Incomplete registrations only; undefined = both (the old tab)
+export async function loadPendingFollowups({ supabase, tenantId, container, countEl, section }) {
   container.replaceChildren(_el('div', 'padding:14px;font-size:12px;color:var(--text-muted)', 'Loading…'));
   const [aw, inc] = await Promise.all([
     supabase.from('visits').select('id, created_at, awaiting_reports_since, returned_with_reports_at, doctor_id, patients(name, uhid), doctor:profiles!visits_doctor_id_fkey(full_name)')
@@ -21,8 +23,11 @@ export async function loadPendingFollowups({ supabase, tenantId, container, coun
   ]);
   const awRows = aw.error ? [] : (aw.data || []);
   const incRows = inc.error ? [] : (inc.data || []);
-  if (countEl) countEl.textContent = (awRows.length + incRows.length) ? `(${awRows.length + incRows.length})` : '';
+  const ctx = { supabase, tenantId, container, countEl, section };
+  const n = section === 'reports' ? awRows.length : section === 'incomplete' ? incRows.length : awRows.length + incRows.length;
+  if (countEl) countEl.textContent = n ? `(${n})` : '';
   const out = [];
+  if (section !== 'incomplete') {
 
   out.push(_el('div', 'padding:10px 12px 4px;font-size:12.5px;font-weight:700;color:var(--blue,#1a4080)', `🔬 Waiting for reports (${awRows.length})`));
   if (aw.error) out.push(_el('div', 'padding:4px 12px;font-size:12px;color:var(--red,#a01a1a)', safeErrorMessage(aw.error, 'Could not load the visits waiting for reports.')));
@@ -41,16 +46,22 @@ export async function loadPendingFollowups({ supabase, tenantId, container, coun
       const { error } = await supabase.rpc('mark_returned_with_reports', { p_visit_id: v.id });
       if (error) { notify(safeErrorMessage(error, 'The return could not be recorded.'), 'error'); b.disabled = false; return; }
       notify(`${v.patients?.name || 'Patient'}: the doctor has been told the patient is back with the reports. No new visit or fee.`, 'success');
-      loadPendingFollowups({ supabase, tenantId, container, countEl });
+      loadPendingFollowups(ctx);
     });
     row.append(b);
     out.push(row);
   });
+  }
+  if (section === 'reports') { container.replaceChildren(...out); return; }
 
   out.push(_el('div', 'padding:14px 12px 4px;font-size:12.5px;font-weight:700;color:#7a3a00', `⚠ Registration incomplete (${incRows.length})`));
+  // owner (31 Oct 2026): say plainly what reception may complete and what it may not
+  out.push(_el('div', 'padding:0 12px 8px;font-size:12px;line-height:1.5;color:var(--text-mid)',
+    'Patients registered in casualty. Reception completes the BLANK details: mobile, address, date of birth and blood group. ' +
+    'A detail already recorded — and the real name and age of an unidentified patient — are changed only by Medical Records (MRD) or the Super Admin, through ✎ Correct patient details, with a reason.'));
   if (inc.error) out.push(_el('div', 'padding:4px 12px;font-size:12px;color:var(--red,#a01a1a)', safeErrorMessage(inc.error, 'Could not load the incomplete registrations.')));
   else if (!incRows.length) out.push(_el('div', 'padding:4px 12px 10px;font-size:12px;color:var(--text-muted)', 'Every casualty registration is complete.'));
-  incRows.forEach(p => out.push(_incompleteRow(p, { supabase, tenantId, container, countEl })));
+  incRows.forEach(p => out.push(_incompleteRow(p, ctx)));
   container.replaceChildren(...out);
 }
 
@@ -81,7 +92,7 @@ function _incompleteRow(p, ctx) {
     wrap.append(lab, inp);
     return wrap;
   };
-  form.append(field('phone', 'Phone', 'text', p.phone), field('address', 'Address', 'text', p.address),
+  form.append(field('phone', 'Mobile', 'text', p.phone), field('address', 'Address', 'text', p.address),
               field('date_of_birth', 'Date of birth', 'date', p.date_of_birth), field('blood_group', 'Blood group', 'select', p.blood_group));
   const save = _el('button', _btnCss, 'Save — registration complete');
   save.type = 'button';
@@ -95,7 +106,7 @@ function _incompleteRow(p, ctx) {
     loadPendingFollowups(ctx);
   });
   form.append(save);
-  const open = _el('button', _btnCss + ';margin-top:6px;background:#fff;color:var(--green-deep);border:1.5px solid var(--green-deep)', 'Complete registration');
+  const open = _el('button', _btnCss + ';margin-top:6px;background:#fff;color:var(--green-deep);border:1.5px solid var(--green-deep)', 'Complete registration (mobile, address, date of birth, blood group)');
   open.type = 'button';
   open.setAttribute('aria-expanded', 'false');
   open.addEventListener('click', () => {

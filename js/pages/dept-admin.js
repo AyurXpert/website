@@ -14,7 +14,7 @@ import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
 import { isNCISMType, UG_BED_RATIOS } from '../config/ncism.js';
 import { ROLE_HOME } from '../config/constants.js';
-import { localDateStr, todayLocalStr, istDayStartUTC, istDayEndUTC } from '../utils/dateUtils.js';
+import { localDateStr, todayLocalStr, istDayStartUTC, istDayEndUTC, todayISTStr } from '../utils/dateUtils.js';
 import { notify } from '../components/notify.js';
 import { isRuleDHod } from '../utils/hodAccess.js';
 
@@ -210,7 +210,7 @@ async function renderOpdDoctors(){
   if (!_deptOpds.length) { wrap.innerHTML = ''; return; }
 
   const { data:assignments } = await supabase.from('opd_doctors')
-    .select('id,opd_id,doctor_id,is_active_today').eq('tenant_id',tenantId).in('opd_id',_deptOpds.map(o=>o.id));
+    .select('id,opd_id,doctor_id,active_on').eq('tenant_id',tenantId).in('opd_id',_deptOpds.map(o=>o.id));   // 371B (B7): ticked for TODAY's date
   const byOpd = {};
   (assignments||[]).forEach(a => { (byOpd[a.opd_id] = byOpd[a.opd_id]||[]).push(a); });
 
@@ -224,20 +224,22 @@ async function renderOpdDoctors(){
         <span>${_esc(doc?.full_name || 'Unknown doctor')}</span>
         <span style="display:flex;align-items:center;gap:8px">
           <label style="font-size:11px;color:var(--text-muted);display:flex;align-items:center;gap:4px">
-            <input type="checkbox" data-onchange="toggleOpdDoctorToday" data-onchange-a0="${_esc(r.id)}" data-onchange-a1="@this" ${r.is_active_today?'checked':''}/> Active today
+            <input type="checkbox" data-onchange="toggleOpdDoctorToday" data-onchange-a0="${_esc(r.id)}" data-onchange-a1="@this" ${r.active_on===todayISTStr()?'checked':''}/> Active today
           </label>
           <button class="cell-x" style="position:static" data-onclick="removeOpdDoctor" data-onclick-a0="${_esc(r.id)}">&times;</button>
         </span>
       </div>`;
     }).join('') : '<div class="empty-sm">No doctors assigned to this OPD yet.</div>';
-    const addHtml = unassigned.length
+    // Session 371B (plan session 370 B7): "Copy yesterday's doctors" (logged by the server)
+    const copyHtml = rows.length ? `<button class="btn btn-secondary" style="min-height:44px;padding:0 12px;font-size:12px;margin-top:8px" data-onclick="copyOpdDoctorsYesterday" data-onclick-a0="${_esc(opd.id)}">↻ Copy yesterday's doctors</button>` : '';
+    const addHtml = copyHtml + (unassigned.length
       ? `<div style="display:flex;gap:8px;margin-top:8px">
           <select id="add-doc-${_esc(opd.id)}" style="flex:1;height:34px;border:1.5px solid var(--border);border-radius:6px;padding:0 8px;font-size:12.5px">
             ${unassigned.map(d=>`<option value="${_esc(d.id)}">${_esc(d.full_name)}</option>`).join('')}
           </select>
           <button class="btn btn-secondary" style="height:34px;padding:0 12px;font-size:12px" data-onclick="addOpdDoctor" data-onclick-a0="${_esc(opd.id)}">+ Add</button>
         </div>`
-      : '<div class="empty-sm">All department doctors are already assigned here.</div>';
+      : '<div class="empty-sm">All department doctors are already assigned here.</div>');
     return `<div class="snap-card">
       <div class="snap-title">🩺 ${_esc(opd.name)}${DEDICATED_PAIRS[opd.ncism_code]?' <span style="font-weight:400;text-transform:none;color:var(--text-muted)">(NCISM §7 dedicated consultant)</span>':''}</div>
       ${rowsHtml}
@@ -262,6 +264,14 @@ window.removeOpdDoctor = async function(opdDoctorId){
   if (error) { _toast(safeErrorMessage(error, 'Could not remove doctor.'), true); return; }
   _toast('Doctor removed.');
   await renderOpdDoctors();
+};
+
+window.copyOpdDoctorsYesterday = async function(opdId){
+  const { data, error } = await supabase.rpc('copy_opd_doctors_from_yesterday', { p_opd_id: opdId });
+  if (error) { _toast(safeErrorMessage(error, "Yesterday's doctors could not be copied."), true); return; }
+  const n = Number(data) || 0;
+  _toast(n ? `${n} doctor${n === 1 ? '' : 's'} from yesterday marked on duty today.` : "Nobody was on duty there yesterday — tick today's doctors one by one.");
+  renderOpdDoctors();
 };
 
 window.toggleOpdDoctorToday = async function(opdDoctorId, chk){

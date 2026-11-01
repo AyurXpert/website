@@ -5,6 +5,7 @@ import { safeErrorMessage } from '../utils/errors.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { isNCISMType } from '../config/ncism.js';
 import { notify } from '../components/notify.js';
+import { todayISTStr } from '../utils/dateUtils.js';   // Session 371B
 
 await requireAuth(['dept_admin', 'super_admin']);
 initNavbar();
@@ -437,7 +438,7 @@ async function selectOpd(opd) {
 
   const { data: opdDocs, error } = await supabase
     .from('opd_doctors')
-    .select('id, doctor_id, is_active_today')
+    .select('id, doctor_id, active_on')   // 371B (B7): "active today" = ticked for TODAY's date
     .eq('opd_id', opd.id)
     .eq('tenant_id', tenantId);
 
@@ -470,13 +471,13 @@ function renderDoctors(opdDocs) {
         <div class="doctor-row" data-opd-doc-id="${od.id}">
           <div class="doctor-info">
             <div class="doctor-name">${_esc(name)}</div>
-            <div class="doctor-sub">${od.is_active_today ? 'Active today' : 'Not active today'}</div>
+            <div class="doctor-sub">${_onToday(od) ? 'Active today' : 'Not active today'}</div>
           </div>
           <div class="toggle-wrap">
             <span class="toggle-label">Today</span>
             <label class="toggle">
               <input type="checkbox" class="chk-today" data-id="${od.id}"
-                ${od.is_active_today ? 'checked' : ''}/>
+                ${_onToday(od) ? 'checked' : ''}/>
               <div class="toggle-track"></div>
             </label>
             <button class="btn btn-danger btn-sm btn-remove-doc" data-id="${od.id}" title="Remove from OPD"
@@ -489,15 +490,20 @@ function renderDoctors(opdDocs) {
     content.innerHTML = `
       <div class="today-bar">
         <div class="today-bar-label">
-          <strong>${opdDocs.filter(d => d.is_active_today).length}</strong> of ${opdDocs.length} doctors active today
+          <strong>${opdDocs.filter(_onToday).length}</strong> of ${opdDocs.length} doctors active today
         </div>
+        <button type="button" class="btn btn-sm" id="btn-copy-yesterday" style="min-height:44px">↻ Copy yesterday's doctors</button>
       </div>
       <div class="doctor-list">${rows}</div>
       ${_addDoctorRow(unassigned)}
     `;
   }
 
-  // Toggle is_active_today
+  // Session 371B (plan session 370 B7): "active today" lasts only for today's date -- tomorrow nobody is on duty until ticked again or
+  // copied from yesterday here (logged by the server; HOD / Dept Admin of the OPD's department or the Super Admin -- NOT the MS, owner 30 Oct)
+  content.querySelector('#btn-copy-yesterday')?.addEventListener('click', copyYesterday);
+
+  // Toggle today's duty
   content.querySelectorAll('.chk-today').forEach(chk => {
     chk.addEventListener('change', () => toggleActiveToday(chk.dataset.id, chk.checked));
   });
@@ -531,6 +537,19 @@ function _addDoctorRow(unassigned) {
 }
 
 // ── Toggle active today ────────────────────────────
+const _onToday = od => od.active_on === todayISTStr();
+async function copyYesterday() {
+  if (!_selectedOpd) return;
+  const btn = document.getElementById('btn-copy-yesterday');
+  if (btn) btn.disabled = true;
+  const { data, error } = await supabase.rpc('copy_opd_doctors_from_yesterday', { p_opd_id: _selectedOpd.id });
+  if (btn) btn.disabled = false;
+  if (error) { _alert('error', safeErrorMessage(error, "Yesterday's doctors could not be copied.")); return; }
+  const n = Number(data) || 0;
+  _alert(n ? 'success' : 'info', n ? `${n} doctor${n === 1 ? '' : 's'} from yesterday marked on duty today.` : "Nobody was on duty here yesterday — tick today's doctors one by one.");
+  await selectOpd(_selectedOpd);
+}
+
 async function toggleActiveToday(opdDocId, active) {
   // Session 348 (TODO §211): opd_doctors is read-only from the browser -- changes go through the server functions
   const { error } = await supabase.rpc('opd_doctor_set_today', { p_opd_doctor_id: opdDocId, p_active: !!active });

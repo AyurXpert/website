@@ -409,6 +409,11 @@ export async function verifyBackupCodeAndFinishLogin({ code }) {
 
 export async function logout() {
   clearTimeout(_inactivityTimer);
+  // Session 371B (plan session 370 B8 / D1a 7): signing out ends my open duty sessions (registration, screening ...) on the server.
+  // Best effort, at most 2 s -- a slow network must never stop a sign-out; the nightly job ends anything left open.
+  try {
+    await Promise.race([supabase.rpc('end_my_duty'), new Promise(r => setTimeout(r, 2000))]);
+  } catch { /* the sign-out goes on */ }
   await supabase.auth.signOut({ scope: 'global' }); // invalidate ALL sessions on all devices
   sessionStorage.clear();
   window.location.replace('login.html'); // replace prevents back-button returning to protected page

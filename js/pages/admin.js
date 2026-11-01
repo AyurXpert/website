@@ -7372,26 +7372,31 @@ window.generateSDF = async function() {
   const from = month + '-01', to = monthEndStr(month);   // real month end (not '-31')
   const el = document.getElementById('sdf-content');
   el.textContent = 'Generating…';
-  const [visitsRes, admRes, staffRes] = await Promise.all([
+  // Session 371B (plan session 370 B1): the OPD total = the SERVER's one NCISM count (ncism_opd_daily); the old "clinical" filter
+  // counted nothing (reception never writes 'clinical'). The by-department line stays a count of visits (not tele) -- labelled so.
+  const [visitsRes, admRes, staffRes, ncRes] = await Promise.all([
     supabase.from('visits').select('id,is_teleconsultation,visit_category,opds(ncism_code)').eq('tenant_id',tenantId).or('visit_category.is.null,visit_category.neq.lab_only').gte('created_at',from+'T00:00:00+05:30').lte('created_at',to+'T23:59:59.999+05:30'),
     supabase.from('ipd_admissions').select('id,departments(ncism_code)').eq('tenant_id',tenantId).gte('admission_date',from).lte('admission_date',to),
     supabase.from('profiles').select('id,role').eq('tenant_id',tenantId).eq('is_active',true),
+    supabase.rpc('ncism_opd_daily', { p_from: from, p_to: to }),
   ]);
+  if (ncRes.error) { el.textContent = safeErrorMessage(ncRes.error, 'The NCISM OPD count could not be loaded.'); return; }
+  const ncismOpd = (ncRes.data || []).reduce((n, r) => n + Number(r.total || 0), 0);
   const visits = visitsRes.data || [];
   const adms   = admRes.data   || [];
   const staff  = staffRes.data || [];
-  const clinicalVisits = visits.filter(v => !v.is_teleconsultation && (v.visit_category||'clinical')==='clinical');
+  const clinicalVisits = visits.filter(v => !v.is_teleconsultation && v.visit_category !== 'lab_only');
   const teleVisits     = visits.filter(v => v.is_teleconsultation);
   const deptOPD = {}; clinicalVisits.forEach(v => { const c = v.opds?.ncism_code||'UNK'; deptOPD[c]=(deptOPD[c]||0)+1; });
   const deptIPD = {}; adms.forEach(a => { const c = a.departments?.ncism_code||'UNK'; deptIPD[c]=(deptIPD[c]||0)+1; });
   const roleCounts = {}; staff.forEach(s => { roleCounts[s.role]=(roleCounts[s.role]||0)+1; });
   el.innerHTML = `<div style="font-weight:600;font-size:14px;color:var(--green-deep);margin-bottom:10px">SDF Data — ${month}</div>
     <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:12px">
-      <div style="padding:10px;background:var(--green-light);border-radius:8px;text-align:center"><div style="font-size:10px;color:var(--text-muted);text-transform:uppercase">OPD (clinical)</div><div style="font-size:24px;font-weight:700;color:var(--green-deep)">${clinicalVisits.length}</div></div>
+      <div style="padding:10px;background:var(--green-light);border-radius:8px;text-align:center"><div style="font-size:10px;color:var(--text-muted);text-transform:uppercase">OPD patients (NCISM count)</div><div style="font-size:24px;font-weight:700;color:var(--green-deep)">${ncismOpd}</div></div>
       <div style="padding:10px;background:#e3f0ff;border-radius:8px;text-align:center"><div style="font-size:10px;color:var(--text-muted);text-transform:uppercase">Teleconsultations</div><div style="font-size:24px;font-weight:700;color:#1a4080">${teleVisits.length}</div></div>
       <div style="padding:10px;background:#fdf3e2;border-radius:8px;text-align:center"><div style="font-size:10px;color:var(--text-muted);text-transform:uppercase">IPD Admissions</div><div style="font-size:24px;font-weight:700;color:var(--gold)">${adms.length}</div></div>
     </div>
-    <div style="font-size:12px;margin-bottom:8px"><strong>OPD by Dept:</strong> ${Object.entries(deptOPD).map(([c,n])=>`${_esc(c)}:${n}`).join(' · ')||'—'}</div>
+    <div style="font-size:12px;margin-bottom:8px"><strong>OPD visits by Dept (not tele):</strong> ${Object.entries(deptOPD).map(([c,n])=>`${_esc(c)}:${n}`).join(' · ')||'—'}</div>
     <div style="font-size:12px;margin-bottom:8px"><strong>IPD by Dept:</strong> ${Object.entries(deptIPD).map(([c,n])=>`${_esc(c)}:${n}`).join(' · ')||'—'}</div>
     <div style="font-size:12px;margin-bottom:10px"><strong>Staff:</strong> ${Object.entries(roleCounts).map(([r,n])=>`${_esc(r)}:${n}`).join(' · ')}</div>
     <div style="font-size:11px;color:var(--text-muted);padding:10px;background:#f5faf7;border-radius:6px">Upload this data to NCISM SDF portal by the 10th. Copy dept-wise OPD + IPD figures into the portal fields.</div>`;

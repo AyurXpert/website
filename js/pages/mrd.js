@@ -9,6 +9,7 @@ import { localDateStr, todayLocalStr, istMonthStr } from '../utils/dateUtils.js'
 import { uhidOf } from '../utils/uhid.js';
 import { notify } from '../components/notify.js';
 import { canCorrectPatient, openCorrectPatientDetails } from '../modules/patient/correctPatientDetails.js';
+import { genderCode, genderLabel } from '../utils/gender.js';   // Session 371B
 
 const ALLOWED = ['super_admin','dept_admin','mrd_staff'];
 await requireAuth(ALLOWED);
@@ -99,7 +100,7 @@ async function _doPatientSearch() {
       <div class="sr-meta">
         UHID: ${_esc(uhidOf(p))} &nbsp;·&nbsp;
         ${_esc(p.phone||'No phone')} &nbsp;·&nbsp;
-        ${p.age ? p.age+'y' : ''} ${_esc(p.gender||'')} &nbsp;·&nbsp;
+        ${p.age ? p.age+'y' : ''} ${_esc(genderLabel(p.gender, ''))} &nbsp;·&nbsp;
         ${p.prakriti_data?.result ? '🌿 '+_esc(p.prakriti_data.result) : 'Prakriti not assessed'}
       </div>
     </div>`).join('')
@@ -144,7 +145,7 @@ window.openPatientFile = async function(patientId) {
     <div class="pf-body">
       <div class="pf-demog">
         <div class="pf-demog-item">Age: <span>${pat.age||'—'}</span></div>
-        <div class="pf-demog-item">Gender: <span>${_esc(pat.gender||'—')}</span></div>
+        <div class="pf-demog-item">Gender: <span>${_esc(genderLabel(pat.gender))}</span></div>
         <div class="pf-demog-item">DOB: <span>${pat.date_of_birth||'—'}</span></div>
         <div class="pf-demog-item">Blood Group: <span>${_esc(pat.blood_group||'—')}</span></div>
         <div class="pf-demog-item">Phone: <span>${_esc(pat.phone||'—')}</span></div>
@@ -196,7 +197,7 @@ window.openPatientFile = async function(patientId) {
 // Session 353C (TODO §216, D11): "Correct patient details" -- MRD / the Super Admin, with a reason, audited (patient_change_log)
 window.openCorrectPatient = async function(patientId) {
   const { data: row, error } = await supabase.from('patients')
-    .select('id, uhid, name, phone, gender, date_of_birth, age, blood_group, address, has_allergies, abha_number, created_at')
+    .select('id, uhid, name, phone, gender, date_of_birth, age, blood_group, address, address_line, address_town, address_district, address_state, address_pin, no_mobile, no_mobile_reason, has_allergies, abha_number, created_at')
     .eq('id', patientId).eq('tenant_id', tenantId).single();
   if (error || !row) { _toast(safeErrorMessage(error, 'Could not load the patient.'), 'error'); return; }
   openCorrectPatientDetails({ supabase, patient: row, uhidText: uhidOf(row), notify, onSaved: () => window.openPatientFile(patientId) });
@@ -295,11 +296,13 @@ window.loadStats = async function() {
     </div>`;
 
   // Gender
-  const gMap = {M:0,F:0,other:0};
-  (patRows||[]).forEach(p => { gMap[p.gender||'other'] = (gMap[p.gender||'other']||0)+1; });
+  // Session 371B (D1a 4): both spellings counted ('male' / 'M' ...) -- the old map silently dropped 'male' / 'female' and counted a
+  // missing gender as Other
+  const gMap = {M:0,F:0,O:0,NR:0};
+  (patRows||[]).forEach(p => { gMap[genderCode(p.gender) || 'NR']++; });
   const maxG = Math.max(...Object.values(gMap)) || 1;
   document.getElementById('stat-gender-chart').innerHTML = [
-    ['Male (M)', gMap.M], ['Female (F)', gMap.F], ['Other', gMap.other]
+    ['Male (M)', gMap.M], ['Female (F)', gMap.F], ['Other', gMap.O], ['Not recorded', gMap.NR]
   ].map(([l,c]) => `<div class="bar-row">
     <div class="bar-label">${l}</div>
     <div class="bar-track"><div class="bar-fill" style="width:${Math.round(c/maxG*100)}%"></div></div>
@@ -462,7 +465,7 @@ window.filterIPD = function() {
     return `<tr>
       <td style="font-size:12px;white-space:nowrap">${_fmtD(admDate)}</td>
       <td style="font-weight:500">${_esc(a.patients?.name||'—')}</td>
-      <td style="font-size:12px">${a.patients?.age||'—'}y ${_esc(a.patients?.gender||'')}</td>
+      <td style="font-size:12px">${a.patients?.age||'—'}y ${_esc(genderLabel(a.patients?.gender, ''))}</td>
       <td style="font-size:12px">${_esc(a.departments?.name||'—')}</td>
       <td style="font-size:12px">${_esc(a.profiles?.full_name||'—')}</td>
       <td style="font-size:12px;max-width:180px;word-break:break-word">${_esc(a.diagnosis_primary||'—')}</td>
@@ -503,7 +506,7 @@ window.releaseIpdRecord = async function(admId) {
 window.exportIPDCSV = function() {
   _csvDownload(_ipdData.map(a => ({
     AdmissionDate: a.admission_date, Patient: a.patients?.name,
-    Age: a.patients?.age, Gender: a.patients?.gender,
+    Age: a.patients?.age, Gender: genderLabel(a.patients?.gender, ''),
     Department: a.departments?.name, Doctor: a.profiles?.full_name,
     Diagnosis: a.diagnosis_primary, DischargeDate: a.charges_locked_at?.slice(0,10),
     Status: a.status, Disposition: a.disposition || '',

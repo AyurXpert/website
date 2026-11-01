@@ -395,25 +395,14 @@ async function loadOpdDoctors(opdId) {
   const sel = document.getElementById('scr-doctor');
   if (!opdId) { sel.innerHTML = '<option value="">— Select department first —</option>'; return; }
 
-  const { data: opdDocs } = await supabase
-    .from('opd_doctors')
-    .select('doctor_id')
-    .eq('opd_id', opdId)
-    .eq('tenant_id', tenantId)
-    .eq('is_active_today', true);
-
-  const doctorIds = (opdDocs || []).map(d => d.doctor_id);
-  if (doctorIds.length === 0) {
-    sel.innerHTML = '<option value="">— No doctors active today for this OPD —</option>';
+  // Session 371B (plan session 370 B7): the SERVER's duty list for today (ticked for today's date; doctors by second role included)
+  const { data: onDuty, error: dErr } = await supabase.rpc('opd_doctors_on_duty', { p_opd_id: opdId });
+  if (dErr) { sel.innerHTML = '<option value="">— Doctor list not loaded — reload the page —</option>'; return; }
+  const doctors = (onDuty || []).map(d => ({ id: d.doctor_id, full_name: d.name })).sort((a, b) => String(a.full_name || '').localeCompare(String(b.full_name || '')));
+  if (!doctors.length) {
+    sel.innerHTML = '<option value="">— No doctors on duty today for this OPD —</option>';
     return;
   }
-
-  const { data: doctors } = await supabase
-    .from('profiles')
-    .select('id, full_name')
-    .in('id', doctorIds)
-    .eq('status', 'active')
-    .order('full_name');
 
   sel.innerHTML = '<option value="">— Select doctor —</option>' +
     (doctors || []).map(d => `<option value="${d.id}">${_esc(d.full_name)}</option>`).join('');

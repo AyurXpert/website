@@ -6,6 +6,8 @@
 //   initAlertBell({ supabase, userId, button, badge })  -- an existing bell button + badge (doctor.html)
 //   mountAlertBell({ supabase, userId })               -- adds a bell to the shared navbar (admin.html, reception.html)
 import { notify } from './notify.js';
+import { logoutChecked } from './shiftLogout.js';
+import { logout } from '../core/auth.js';   // Session 371B (Q9): Logout in the bell panel
 
 const DAYS = 30;
 const LIMIT = 100;
@@ -86,6 +88,11 @@ export function initAlertBell({ supabase, userId, button, badge, onChange }) {
     const h = _el('div', "font-family:'Cormorant Garamond',serif;font-size:18px;font-weight:700;color:var(--green-deep,#1a4a2e)",
       `Your alerts — last ${DAYS} days`);
     const btns = _el('div', 'display:flex;gap:6px');
+    // Session 371B (plan session 370 Q9): where there is a bell, Logout sits with it (gold) -- here in the panel and beside the bell
+    const out = _el('button', 'min-height:44px;padding:0 14px;border:0;border-radius:8px;background:var(--gold,#c9902a);color:var(--text-dark,#1c2b1f);'
+      + 'font-weight:700;cursor:pointer;font-size:13px', 'Logout');
+    out.type = 'button';
+    out.addEventListener('click', () => { logoutChecked(); });   // owner 31 Oct 2026: an open shift is named first (never blocks)
     const all = _el('button', 'min-height:44px;padding:0 12px;border:1px solid var(--border,#ddd);border-radius:8px;background:#fff;cursor:pointer;font-size:12px',
       'Mark all read');
     all.type = 'button';
@@ -93,7 +100,7 @@ export function initAlertBell({ supabase, userId, button, badge, onChange }) {
     const x = _el('button', 'min-width:44px;min-height:44px;border:none;background:none;cursor:pointer;font-size:18px', '✕');
     x.type = 'button';
     x.setAttribute('aria-label', 'Close the alert list');
-    btns.append(all, x);
+    btns.append(out, all, x);
     head.append(h, btns);
     p.append(head);
     const list = _el('div');
@@ -186,6 +193,9 @@ export function mountAlertBell({ supabase, userId }) {
         + 'background:#a01a1a;color:#fff;font-size:10.5px;font-weight:700;display:none;align-items:center;justify-content:center';
       btn.append(dot);
       right.prepend(btn);
+      // Session 371B (Q9): on a page with the bell, the navbar's Logout moves right beside it and turns gold (same button, same action)
+      const lo = right.querySelector('#ax-logout-btn');
+      if (lo) { lo.classList.add('ax-logout-gold'); btn.after(lo); }
       resolve(initAlertBell({ supabase, userId, button: btn, badge: dot }));
     };
     tick();

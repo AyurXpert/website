@@ -9,6 +9,7 @@ import { loadLabCatalogue, SECTION_LABELS, SECTION_ORDER } from './catalogue.js'
 import { createPatient } from '../patient/patientService.js';
 import { safeErrorMessage } from '../../utils/errors.js';
 import { uhidOf } from '../../utils/uhid.js';
+import { genderLabel } from '../../utils/gender.js';   // Session 371B
 import { computeLabBillingLines } from '../billing/labBilling.js';
 
 function el(tag, attrs, ...kids) {
@@ -29,8 +30,10 @@ export function canBookWalkin(profile) {
 }
 
 // slot: where the panel opens; getPatient(): reception's currently selected patient (or null); onBooked(): reload Lab Bills
-export function openWalkinPanel({ supabase, tenantId, slot, getPatient, onBooked, notify }) {
-  if (slot.childElementCount) { slot.replaceChildren(); return; }   // the button toggles the panel
+// mode: 'search' (default) or 'outside' (owner, 31 Oct 2026: the direct "Outside / non-hospital patient" entry)
+export function openWalkinPanel({ supabase, tenantId, slot, getPatient, onBooked, notify, mode = 'search' }) {
+  if (slot.childElementCount && slot.dataset.mode === mode) { slot.replaceChildren(); return; }   // the same button toggles the panel
+  slot.dataset.mode = mode;
   let patient = getPatient?.() || null;
   let cat = { tests: [] };
   let fees = null;   // owner B1: a test with no matching fee is shown "no price" and cannot be ticked (the server refuses it anyway)
@@ -52,42 +55,74 @@ export function openWalkinPanel({ supabase, tenantId, slot, getPatient, onBooked
   const close = el('button', { type: 'button', class: 'q-edit-btn', on: { click: () => slot.replaceChildren() } }, 'Close');
 
   slot.replaceChildren(el('div', { class: 'wk-panel', role: 'region', 'aria-label': 'Lab only walk-in booking' },
-    el('div', { class: 'wk-title' }, '🧪 Lab only (walk-in) — not an OPD visit'),
+    el('div', { class: 'wk-title' }, mode === 'outside' ? '🧾 Outside / non-hospital patient — lab tests only, not an OPD visit' : '🧪 Lab only (walk-in) — not an OPD visit'),
     ptBox,
     el('div', { class: 'wk-ref' }, el('span', { class: 'wk-lbl' }, 'Referred by:'),
       el('label', null, refSelf, ' Self'), el('label', null, refOut, ' Outside doctor'), outBox),
     search, testsBox, consentBox, notes, msg, el('div', { class: 'wk-actions' }, book, close)));
 
   const isSelf = () => refSelf.checked;
+  // Owner (31 Oct 2026, rehearsal): SEARCH FIRST -- the hospital's patients by name, UHID or mobile; only when the patient is not found,
+  // "+ New walk-in". mode 'outside' (the "Outside / non-hospital patient" button) opens the new-patient details directly.
+  // Patient safety: with several matches the receptionist picks one explicitly (never the first).
+  let showNew = mode === 'outside';
+  let newPhone = '';
   function drawPatient() {
     if (patient) {
       ptBox.replaceChildren(el('div', { class: 'wk-ptline' }, el('strong', null, patient.name), ` · ${uhidOf(patient) || ''} · ${patient.phone || ''}`
-        + (patient.age ? ` · ${patient.age} y` : '') + (patient.gender ? ` · ${patient.gender}` : '')),
-        el('button', { type: 'button', class: 'q-edit-btn', on: { click: () => { patient = null; drawPatient(); } } }, 'Change patient'));
+        + (patient.age ? ` · ${patient.age} y` : '') + (patient.gender ? ` · ${genderLabel(patient.gender)}` : '')),
+        el('button', { type: 'button', class: 'q-edit-btn', on: { click: () => { patient = null; showNew = mode === 'outside'; drawPatient(); } } }, 'Change patient'));
       return;
     }
-    const phone = el('input', { type: 'tel', inputmode: 'numeric', maxlength: '10', placeholder: 'Phone (10 digits)', 'aria-label': 'Patient phone' });
-    const found = el('div', { class: 'wk-found' });
-    const find = el('button', { type: 'button', class: 'q-edit-btn', on: { click: async () => {
-      const p = phone.value.replace(/\D/g, '');
-      if (p.length !== 10) { found.replaceChildren(el('div', { class: 'wk-err' }, 'Enter the 10-digit phone number.')); return; }
-      const { data, error } = await supabase.from('patients').select('id, name, phone, age, gender, uhid').eq('tenant_id', tenantId).eq('phone', p).order('name');
+    if (showNew) {
+      ptBox.replaceChildren(newForm(), el('button', { type: 'button', class: 'q-edit-btn wk-link', on: { click: () => { showNew = false; drawPatient(); } } },
+        '🔍 Find a hospital patient instead'));
+      return;
+    }
+    const q = el('input', { type: 'search', maxlength: '50', placeholder: 'Name, UHID or mobile', 'aria-label': 'Find the patient by name, UHID or mobile', autocomplete: 'off' });
+    const found = el('div', { class: 'wk-found', role: 'status' });
+    const run = async () => {
+      const v = q.value.trim();
+      const digits = v.replace(/\D/g, '');
+      let req = supabase.from('patients').select('id, name, phone, age, gender, uhid').eq('tenant_id', tenantId);
+      if (/^\+?[\d\s-]+$/.test(v) && digits.length >= 10) req = req.like('phone', `%${digits.slice(-10)}`);   // 371B: last 10 digits
+      else if (/[/]/.test(v) || /^ayx/i.test(v)) req = req.ilike('uhid', `%${v.replace(/[%_]/g, '')}%`);
+      else if (v.replace(/[^A-Za-z]/g, '').length >= 3) req = req.ilike('name', `%${v.replace(/[%_]/g, '')}%`);
+      else { found.replaceChildren(el('div', { class: 'wk-err' }, 'Type at least 3 letters of the name, the UHID, or the 10-digit mobile.')); return; }
+      const { data, error } = await req.order('name').limit(20);
       if (error) { found.replaceChildren(el('div', { class: 'wk-err' }, safeErrorMessage(error, 'Could not search patients.'))); return; }
-      // patient safety: with several patients on one phone the receptionist picks one explicitly (never the first)
-      found.replaceChildren(...(data || []).map(r => el('button', { type: 'button', class: 'q-edit-btn wk-pick', on: { click: () => { patient = r; drawPatient(); } } },
-        `${r.name} · ${uhidOf(r) || ''}${r.age ? ' · ' + r.age + ' y' : ''}`)), newForm(p, (data || []).length));
-    } } }, 'Find');
-    ptBox.replaceChildren(el('div', { class: 'wk-lbl' }, 'Patient — find by phone (or select the patient in the search above first):'), el('div', { class: 'wk-row' }, phone, find), found);
+      const rows = data || [];
+      const addNew = el('button', { type: 'button', class: 'q-edit-btn wk-new-btn',
+        on: { click: () => { showNew = true; newPhone = digits.length >= 10 ? digits.slice(-10) : ''; drawPatient(); } } }, '+ New walk-in');
+      found.replaceChildren(
+        el('div', { class: 'wk-lbl' }, rows.length ? `${rows.length} patient${rows.length > 1 ? 's' : ''} found — pick one:` : 'Not found in this hospital.'),
+        ...rows.map(r => el('button', { type: 'button', class: 'q-edit-btn wk-pick', on: { click: () => { patient = r; drawPatient(); } } },
+          `${r.name} · ${uhidOf(r) || ''}${r.age ? ' · ' + r.age + ' y' : ''}${r.phone ? ' · ' + r.phone : ''}`)),
+        el('div', { class: 'wk-row' }, rows.length ? el('span', { class: 'wk-lbl' }, 'Not one of these?') : null, addNew));
+    };
+    q.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); run(); } });
+    const find = el('button', { type: 'button', class: 'q-edit-btn', on: { click: run } }, 'Find');
+    ptBox.replaceChildren(el('div', { class: 'wk-lbl' }, 'Patient — find in this hospital first (by name, UHID or mobile):'), el('div', { class: 'wk-row' }, q, find), found);
   }
-  function newForm(phone, n) {
+  function newForm() {
     const name = el('input', { type: 'text', maxlength: '120', placeholder: 'Full name', 'aria-label': 'New patient name' });
     const age = el('input', { type: 'number', min: '0', max: '120', placeholder: 'Age', 'aria-label': 'Age' });
-    const sex = el('select', { 'aria-label': 'Sex' }, el('option', { value: '' }, 'Sex'), el('option', { value: 'male' }, 'Male'), el('option', { value: 'female' }, 'Female'), el('option', { value: 'other' }, 'Other'));
+    const sex = el('select', { 'aria-label': 'Sex' }, el('option', { value: '' }, 'Sex'), el('option', { value: 'M' }, 'Male'), el('option', { value: 'F' }, 'Female'), el('option', { value: 'O' }, 'Other'));   // 371B: M / F / O
+    const mob = el('input', { type: 'tel', inputmode: 'numeric', maxlength: '10', placeholder: 'Mobile (10 digits)', 'aria-label': 'Mobile' });
+    mob.value = newPhone;
     const err = el('div', { class: 'wk-err', role: 'alert' });
-    return el('div', { class: 'wk-new' }, el('div', { class: 'wk-lbl' }, n ? 'Not one of these? Register a new patient on this phone:' : 'No patient with this phone — register:'),
-      el('div', { class: 'wk-row' }, name, age, sex, el('button', { type: 'button', class: 'q-edit-btn', on: { click: async () => {
-        if (name.value.trim().length < 2) { err.textContent = "Enter the patient's name."; return; }
-        try { patient = await createPatient(name.value, phone, tenantId, null, { age: age.value ? Number(age.value) : null, gender: sex.value || null }); drawPatient(); }
+    return el('div', { class: 'wk-new' }, el('div', { class: 'wk-lbl' }, mode === 'outside'
+        ? 'Outside / non-hospital patient — the details, then the tests below. The payment is collected in the Lab Bills list; then the order goes to the lab.'
+        : 'New walk-in — the details:'),
+      el('div', { class: 'wk-row' }, name, age, sex, mob, el('button', { type: 'button', class: 'q-edit-btn', on: { click: async () => {
+        if (name.value.trim().length < 2) { err.textContent = "Enter the patient's name."; name.focus(); return; }
+        // Session 371B (plan session 370 B6 / C4): the server refuses a new patient without age and sex -- asked here first
+        const ageN = Number(age.value);
+        if (age.value === '' || !Number.isInteger(ageN) || ageN < 0 || ageN > 120) { err.textContent = 'Enter the age (a whole number from 0 to 120).'; age.focus(); return; }
+        if (!sex.value) { err.textContent = 'Choose the sex.'; sex.focus(); return; }
+        const m = mob.value.replace(/\D/g, '');
+        if (!/^[6-9]\d{9}$/.test(m)) { err.textContent = 'Enter the 10-digit mobile (starting 6–9).'; mob.focus(); return; }
+        try { patient = await createPatient(name.value, m, tenantId, null, { age: ageN, gender: sex.value }, null, { no_mobile: false }); drawPatient(); }
         catch (e) { err.textContent = safeErrorMessage(e, 'Could not register the patient.'); }
       } } }, 'Register')), err);
   }

@@ -6,7 +6,7 @@
 //   title  — optional; set as document.title while printing (it becomes the PDF file name
 //            and the browser's header text), restored afterwards.
 //   size   — optional; 'A4' (default, portrait), 'A4-landscape' or 'A3-landscape' for wide
-//            registers/flowsheets.
+//            registers/flowsheets, 'A4-clean' = A4 portrait with no browser header / footer.
 //
 // How it works: the source is deep-cloned into a fresh `.ax-print-root` container appended
 // as the LAST child of <body>, and <body> gets the `ax-printing` class. css/print.css then
@@ -33,7 +33,8 @@ const BODY_CLASS = 'ax-printing';
 let _cleanup = null;
 
 // + Session 336 paper sizes for slips / receipts: 'a5', 't80', 't58' (css/paper-size.css; 'a4' = no class)
-const SIZES = new Set(['A4-landscape', 'A3-landscape', 'a5', 't80', 't58']);
+// + Session 371: 'A4-clean' = A4 portrait without the browser's own header / footer line (css/print.css)
+const SIZES = new Set(['A4-landscape', 'A3-landscape', 'A4-clean', 'a5', 't80', 't58']);
 const PAPER_SIZES = new Set(['a5', 't80', 't58']);
 
 export function printDocument(source, { title, size } = {}) {

@@ -2,6 +2,7 @@
 // White-label grouped-dropdown navbar — runs on every protected page.
 
 import { getCurrentProfile, getCurrentTenant, getCurrentRole, getCurrentSecondaryRole, getCurrentHasMonitoringAccess, logout, hasModule, isPageDeniedForDesignation } from '../core/auth.js';
+import { logoutChecked } from './shiftLogout.js';
 import { DESIG_MAP, ROLE_DUTY_FALLBACK } from '../config/designations.js';
 import '../utils/versionCheck.js';   // Session 357c (TODO §108 (c)): "AyurXpert has been updated — Reload" on every app page
 import { escapeHtml } from '../utils/validators.js';
@@ -101,14 +102,14 @@ function _buildGroups(role, type, secondaryRole, hasMonitoringAccess, isDeptScop
         { href:'major-ot.html',      label:'Major OT',        roles:CLINICAL.concat(ADMIN_ROLES),            types:HOSP, module:'ipd'        },
         { href:'minor-ot.html',      label:'Minor OT',        roles:CLINICAL.concat(ADMIN_ROLES),            types:HOSP, module:'ipd'        },
         { href:'ksharasutra.html',   label:'Kshara Sutra',    roles:CLINICAL.concat(ADMIN_ROLES),            types:HOSP, module:'ipd'        },
-        { href:'anc.html',           label:'ANC Register',    roles:CLINICAL.concat(['receptionist']),       types:HOSP, module:'ipd'        },
+        { href:'anc.html',           label:'ANC Register',    roles:CLINICAL,                                types:HOSP, module:'ipd'        },   // Session 371B (Q8): not in the receptionist's menu (server access unchanged)
         { href:'kriyakalpa.html',    label:'Kriya Kalpa',     roles:CLINICAL.concat(['therapist']),          types:HOSP, module:'ipd'        },
         { href:'therapist.html',     label:'Therapy Sessions',roles:CLINICAL.concat(['therapist']),          types:PK,   module:'panchakarma'},
         // Session 205 (cont.): palha-diet.js's requireAuth() already allows 'receptionist' and
         // 'diet_staff' (diet_staff's own ROLE_HOME is this page) -- confirmed not accidental,
         // dept-hub.js's own module entry for this page (copied verbatim from requireAuth() in
         // Session 205 part 6) already grants both. Nav item never caught up.
-        { href:'palha-diet.html',    label:'Palha Diet',      roles:CLINICAL.concat(['receptionist','diet_staff']),types:PK,   module:'panchakarma'},
+        { href:'palha-diet.html',    label:'Palha Diet',      roles:CLINICAL.concat(['diet_staff']),types:PK,   module:'panchakarma'},   // Session 371B (Q8): not in the receptionist's menu (server access unchanged)
         // Session 205 real bug fix, live-confirmed on SDM: CLINICAL includes 'nurse', but
         // yoga.js's own requireAuth() only ever allowed
         // ['super_admin','dept_admin','therapist','doctor','receptionist'] -- nurse was never
@@ -116,7 +117,7 @@ function _buildGroups(role, type, secondaryRole, hasMonitoringAccess, isDeptScop
         // Narrowed to doctor+therapist (matching the destination minus receptionist at the time).
         // Session 205 (cont.): the deferred receptionist gap above is now closed too -- same
         // corroboration as palha-diet.html just above (dept-hub.js's own copy already grants it).
-        { href:'yoga.html',          label:'Yoga Sessions',   roles:ADMIN_ROLES.concat(['doctor','therapist','receptionist']),types:HOSP, module:'panchakarma'},
+        { href:'yoga.html',          label:'Yoga Sessions',   roles:ADMIN_ROLES.concat(['doctor','therapist']),types:HOSP, module:'panchakarma'},   // Session 371B (Q8): not in the receptionist's menu (server access unchanged)
         // Session 167: roster.js's own requireAuth() already grants plain `nurse` read-only
         // access (Session 137), but this nav item stayed admin-only -- confirmed live by Dr.
         // Venkatesh that a real nurse login had no discoverable way to reach a page she was
@@ -128,15 +129,15 @@ function _buildGroups(role, type, secondaryRole, hasMonitoringAccess, isDeptScop
         // requireAuth() already allows 'nurse_manager' (Session 137), nav item never caught up.
         // Session 362 (TODO §312): office_staff views the roster (roster.js requireAuth; view only)
         { href:'roster.html',        label:'Duty Roster',     roles:ADMIN_ROLES.concat(['nurse','nurse_manager','office_staff']),types:HOSP, module:'hr' },
-        { href:'facility-ops.html',  label:'Facility Ops',    roles:ADMIN_ROLES.concat(['nurse','receptionist']), types:HOSP, module:'hr'    },
+        { href:'facility-ops.html',  label:'Facility Ops',    roles:ADMIN_ROLES.concat(['nurse']), types:HOSP, module:'hr'    },   // Session 371B (Q8): not in the receptionist's menu (server access unchanged)
         { href:'emergency.html',     label:'Emergency OPD',   roles:CLINICAL.concat(['receptionist']),       types:HOSP, module:'emergency'  },
         // Session 205 (cont.): labour-room.js's requireAuth() already allows 'receptionist'
         // (dept-hub.js's own module entry, copied verbatim from requireAuth() in Session 205
         // part 6, already grants it too) -- nav item never caught up.
-        { href:'labour-room.html',   label:'Labour Room',     roles:CLINICAL.concat(['receptionist']),      types:HOSP, module:'ipd'        },
+        { href:'labour-room.html',   label:'Labour Room',     roles:CLINICAL,                               types:HOSP, module:'ipd'        },   // Session 371B (Q8): not in the receptionist's menu (server access unchanged)
         // Session 205 (cont.): same gap -- anushastra.js's requireAuth() already allows
         // 'therapist' and 'receptionist' (dept-hub.js's copy confirms both), nav never caught up.
-        { href:'anushastra.html',    label:'Anushastra Karma',roles:CLINICAL.concat(['therapist','receptionist']),types:HOSP, module:'ipd'        },
+        { href:'anushastra.html',    label:'Anushastra Karma',roles:CLINICAL.concat(['therapist']),types:HOSP, module:'ipd'        },   // Session 371B (Q8): not in the receptionist's menu (server access unchanged)
       ]
     },
     {
@@ -183,7 +184,7 @@ function _buildGroups(role, type, secondaryRole, hasMonitoringAccess, isDeptScop
         { href:'ipd-register.html',      label:'IPD Register',     roles:['super_admin','dept_admin','doctor','nurse'],            types:HOSP, module:'ipd'      },
         { href:'reports.html',           label:'Reports',          roles:['super_admin','dept_admin','accountant','lab_tech'],  types:null, module:'finance', monitoringSafe:true },
         { href:'fee-admin.html',         label:'Fee Management',   roles:['super_admin','dept_admin','accountant'],            types:null, module:'finance'  },
-        { href:'lab.html',               label:'Clinical Lab',     roles:['super_admin','dept_admin','lab_tech','doctor','nurse','receptionist'], types:null, module:'lab' },
+        { href:'lab.html',               label:'Clinical Lab',     roles:['super_admin','dept_admin','lab_tech','doctor','nurse'], types:null, module:'lab' },   // 371B (Q8): reception collects in Lab Bills
         { href:'lab-nabl.html',          label:'NABL Quality',     roles:['super_admin','dept_admin','lab_tech','doctor'],       types:null, module:'lab'      },
         { href:'ncism-compliance.html',  label:'NCISM Compliance', roles:ADMIN_ROLES,                                          types:NCISM,module:'ncism', monitoringSafe:true },
         { href:'quality.html',           label:'Quality',          roles:ADMIN_ROLES,                                          types:null, module:'quality'  },
@@ -582,7 +583,7 @@ function _navToast(msg, isError = false) {
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-async function _handleLogout() { await logout(); }
+async function _handleLogout() { await logoutChecked(); }   // owner 31 Oct 2026: an open shift is named first (never blocks)
 function _toggleMenu() {
   document.getElementById('ax-mobile-menu').classList.toggle('open');
   document.getElementById('ax-hamburger').classList.toggle('open');
@@ -611,6 +612,8 @@ function _userRoleLine(profile, role) {
   const roleLabel = profile?.secondary_role
     ? `${_roleLabel(role)} + ${_roleLabel(profile.secondary_role)}`
     : _roleLabel(role);
+  // Session 371B (plan session 370 Part C): shown once when the designation and the role read the same ("Receptionist · Receptionist")
+  if (desig && desig.toLowerCase() === roleLabel.toLowerCase()) return roleLabel;
   return desig ? `${desig} · ${roleLabel}` : roleLabel;
 }
 
@@ -699,6 +702,9 @@ function _injectStyles() {
   .ax-user-role{color:rgba(255,255,255,.4);font-size:10px;white-space:nowrap}
   .ax-logout-btn{background:rgba(255,255,255,.08);color:rgba(255,255,255,.75);border:1px solid rgba(255,255,255,.15);border-radius:8px;padding:6px 12px;font-family:'DM Sans',sans-serif;font-size:12px;cursor:pointer;white-space:nowrap;transition:background .15s}
   .ax-logout-btn:hover{background:rgba(255,255,255,.18);color:#fff}
+  /* Session 371B (Q9): Logout beside the bell = gold, 44px */
+  .ax-logout-btn.ax-logout-gold{background:var(--gold,#c9902a);color:#1c2b1f;border:0;font-weight:700;min-height:44px;padding:0 16px;font-size:13px}
+  .ax-logout-btn.ax-logout-gold:hover{background:#b07c1f;color:#1c2b1f}
   .ax-account-link{background:transparent;color:rgba(255,255,255,.6);border:none;border-radius:8px;padding:6px 10px;font-family:'DM Sans',sans-serif;font-size:12px;cursor:pointer;white-space:nowrap;text-decoration:none;transition:color .15s}
   .ax-account-link:hover{color:#fff}
 

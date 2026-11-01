@@ -729,13 +729,15 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
   display:flex;gap:3px;margin-bottom:10px;
   border-bottom:2px solid var(--border);padding-bottom:0;
 }
+/* owner 31 Oct 2026 (rehearsal): larger, darker text (WCAG AA contrast) and 44 px targets */
 .verify-tab{
-  flex:1;height:30px;border:none;
+  flex:1;min-height:44px;border:none;
   border-radius:6px 6px 0 0;background:none;
-  font-family:'DM Sans',sans-serif;font-size:10.5px;font-weight:500;
-  color:var(--text-muted);cursor:pointer;transition:background .15s,color .15s;
+  font-family:'DM Sans',sans-serif;font-size:14px;font-weight:600;
+  color:var(--text-dark);cursor:pointer;transition:background .15s,color .15s;
   border:1px solid transparent;
 }
+.verify-tab:focus-visible{outline:3px solid var(--gold);outline-offset:-3px}
 .verify-tab:hover{background:var(--green-light);color:var(--green-deep)}
 .verify-tab.active{background:var(--green-deep);color:#fff;border-color:var(--green-deep)}
 .verify-method{display:none}
@@ -793,12 +795,13 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
 <link rel="stylesheet" href="css/correct-patient.css"/>
 <link rel="stylesheet" href="css/credit-notes.css"/>
 <link rel="stylesheet" href="css/print.css"/>
+<link rel="stylesheet" href="css/reception.css"/>
 <style>
 /* Session 363: the walk-in lab booking panel (js/modules/lab/walkinPanel.js) */
 /* B3: the cashier's Lab Bills-only view -- the registration panel and every other tab hidden */
-body.lab-bills-only .page > .panel:first-of-type{display:none!important}
-body.lab-bills-only .q-tab:not(#tab-labbills):not(#tab-shiftclose){display:none!important}
-body.lab-bills-only .page{grid-template-columns:1fr!important}
+body.lab-bills-only #rx-reg-pane,body.lab-bills-only #rx-reg-rail,body.lab-bills-only #rx-layout-switch,body.lab-bills-only #rx-work-pull,body.lab-bills-only #rx-arrange-btn,body.lab-bills-only #rx-more-btn{display:none!important}
+body.lab-bills-only .rx-sub:not(#tab-labbills){display:none!important}
+body.lab-bills-only #rx-work-pane{flex:1 1 600px!important;display:block!important}
 .wk-panel [hidden],#wk-open[hidden]{display:none!important}
 .wk-panel{border:1.5px solid var(--green-mid);border-radius:10px;padding:10px 12px;margin:6px 0 10px;background:var(--cream,#faf8f3);display:flex;flex-direction:column;gap:8px}
 .wk-title{font-weight:700;color:var(--green-deep)}
@@ -827,74 +830,52 @@ body.lab-bills-only .page{grid-template-columns:1fr!important}
 
 <div id="promo-banner" style="padding:0 16px"></div>
 
-<div class="page">
+<!-- Session 371B (plan session 370 Part C): NCISM strip (purple) -- shown only for an NCISM organisation type; numbers from the server -->
+<section id="ncism-strip" aria-label="NCISM OPD compliance today" hidden></section>
 
-  <!-- ── Registration Form ──────────────────────── -->
-  <div class="panel">
-    <div class="panel-hdr">
-      <div class="panel-title" id="panel-title">New Patient Visit</div>
-      <div class="panel-sub" id="panel-sub">Register a patient and add them to today's queue</div>
-    </div>
-    <div class="mode-toggle">
-      <button class="mode-btn active" id="btn-walkin" type="button">🚶 Walk-in</button>
-      <button class="mode-btn" id="btn-appt" type="button">📅 Book Appointment</button>
-    </div>
-    <div class="form-body" id="reg-form-body">
+<div class="rx-shell">
 
-      <!-- Appointment date/time (appointment mode only) -->
-      <div id="appt-when-row" class="field-row" style="display:none">
-        <div class="field">
-          <label>Appointment Date <span class="req">*</span></label>
-          <input type="date" id="appt-date"/>
-        </div>
-        <div class="field">
-          <label>Appointment Time <span class="req">*</span></label>
-          <input type="time" id="appt-time"/>
-        </div>
+  <!-- slim line: registration duty + close my shift + layout -->
+  <div class="rx-slim">
+    <span id="reg-duty-row" style="display:none;align-items:center;gap:8px">
+      <span><span class="rx-duty-dot" id="rx-duty-dot" aria-hidden="true"></span><span id="reg-duty-status">Off duty — showing every unclaimed scan</span></span>
+      <button id="btn-reg-duty-toggle" type="button" class="rx-slim-btn" data-onclick="toggleRegistrationDuty">🟢 Go On Registration Duty</button>
+    </span>
+    <a class="rx-slim-btn" id="tab-shiftclose" href="shift-close.html">🤝 Close my shift</a>
+    <span class="rx-grow"></span>
+    <span class="rx-layout-switch" id="rx-layout-switch" role="group" aria-label="Layout">
+      <span>Layout:</span>
+      <button type="button" class="rx-layout-btn" data-pane="both" aria-pressed="true">Side by side</button>
+      <button type="button" class="rx-layout-btn" data-pane="form" aria-pressed="false">Registration full</button>
+      <button type="button" class="rx-layout-btn" data-pane="work" aria-pressed="false">Today's work full</button>
+    </span>
+  </div>
+
+  <div class="rx-layout" id="rx-layout" data-pane="both">
+
+    <button type="button" class="rx-rail" id="rx-reg-rail" aria-label="Bring back the registration pane (push in)">
+      <span class="rx-rail-t">Registration ›</span><span style="font-size:12px">push in</span>
+    </button>
+
+    <!-- ══ Registration (teal) ══ -->
+    <main class="rx-pane" id="rx-reg-pane" aria-labelledby="panel-title">
+      <div class="rx-pane-h">
+        <h1 id="panel-title">New Patient Visit</h1>
+        <span id="panel-sub" class="rx-sr-only">Register a patient and add them to today's queue</span>
+        <button type="button" class="rx-pull" id="rx-reg-pull">Pull out ⤢</button>
       </div>
-
-      <!-- Phone / Name / UHID -->
-      <div class="field">
-        <label>Phone / Name / UHID Search <span class="req">*</span></label>
-        <input id="phone" type="text" inputmode="search" placeholder="Phone number, patient name, or UHID (AYX/…)" maxlength="50"/>
-        <div class="field-hint" id="phone-hint" style="display:none"></div>
-        <div class="patient-tag" id="patient-tag">
-          <span class="pt-icon">👤</span>
-          <div class="pt-info">
-            <div class="pt-name" id="pt-name"></div>
-            <div class="pt-grid">
-              <div class="pt-item">UHID: <span id="pt-uhid">—</span></div>
-              <div class="pt-item">Visits: <span id="pt-visits">—</span></div>
-              <div class="pt-item">Age / Gender: <span id="pt-demog">—</span></div>
-              <div class="pt-item">Last Visit: <span id="pt-lastvisit">—</span></div>
-              <div class="pt-item pt-balance">Balance: <span id="pt-balance">₹0</span></div>
-            </div>
-            <div id="pt-prakriti" class="pt-prakriti none" style="display:none"></div>
-            <div id="pt-bills"></div>
-            <button id="btn-correct-patient" type="button" class="cpd-open-btn" hidden>✎ Correct patient details</button>
-            <button id="btn-diff-family" type="button" class="pt-family-btn">+ Different family member with same number</button>
-          </div>
+      <div class="rx-reg-body form-body" id="reg-form-body">
+        <div class="rx-ltabs" role="tablist" aria-label="Registration">
+          <button type="button" class="rx-ltab" role="tab" id="rx-ltab-abha" aria-controls="rx-tab-abha" aria-selected="false"><span class="rx-num rx-num-a" aria-hidden="true">A</span>ABHA / ABDM <span style="font-weight:400;font-size:13px">(optional)</span></button>
+          <button type="button" class="rx-ltab" role="tab" id="rx-ltab-form" aria-controls="rx-tab-form" aria-selected="true"><span class="rx-num" aria-hidden="true">R</span>Walk-in registration</button>
         </div>
-        <div class="patient-picker" id="patient-picker"></div>
 
-        <!-- Active package card -->
-        <div class="pkg-card" id="pkg-card">
-          <div class="pkg-card-icon">📦</div>
-          <div class="pkg-card-body">
-            <div class="pkg-card-name" id="pkg-card-name"></div>
-            <div class="pkg-card-meta" id="pkg-card-meta"></div>
-            <div class="pkg-sessions-bar"><div class="pkg-sessions-fill" id="pkg-sessions-fill" style="width:0%"></div></div>
-            <div class="pkg-use-row">
-              <input type="checkbox" class="pkg-use-chk" id="pkg-use-chk" data-onchange="togglePkgUse"/>
-              <label class="pkg-use-label" for="pkg-use-chk">Use 1 session from this package (sets fees to ₹0)</label>
-            </div>
-          </div>
-        </div>
-      </div>
-
+        <!-- (A) ABHA / ABDM -- the same buttons, modals and calls as before (plan E1: nothing in ABDM's own path changes) -->
+        <div class="rx-tabbody" id="rx-tab-abha" role="tabpanel" aria-labelledby="rx-ltab-abha" hidden>
+          <section class="rx-sec" aria-labelledby="rx-abha-h">
+            <h2 class="rx-sech" id="rx-abha-h">Verify or enrol ABHA</h2>
       <!-- ABHA -->
       <div class="field">
-        <label>ABHA Number <span style="font-size:10px;font-weight:400;color:var(--text-muted);text-transform:none;letter-spacing:0">Optional · Ayushman Bharat Health Account</span></label>
         <div class="abha-row">
           <input id="abha" type="text" inputmode="numeric" placeholder="14-digit ABHA number" maxlength="17" readonly/>
           <button class="btn-abha btn-abha-verify" id="btn-verify-abha" type="button">Verify</button>
@@ -903,15 +884,6 @@ body.lab-bills-only .page{grid-template-columns:1fr!important}
         </div>
         <div class="abha-note" id="abha-note"><span id="abha-note-text"></span></div>
 
-        <!-- ABHA Address for THIS visit — a patient can hold several addresses under
-             one ABHA Number, chosen per visit (Session 170), not a fixed patient
-             attribute. Shown once a returning patient with an on-file ABHA is
-             selected; hidden if the patient has no known address at all yet. -->
-        <div class="abha-addr-row" id="abha-addr-row" style="display:none">
-          <label for="abha-addr-select" class="abha-addr-label">ABHA Address for this visit</label>
-          <select id="abha-addr-select" class="abha-addr-select"></select>
-          <div class="abha-addr-hint" id="abha-addr-hint"></div>
-        </div>
 
         <div style="margin-top:4px">
           <button class="btn-find-abha-link" id="btn-find-abha" type="button">🔍 Patient has ABHA but no card? Fetch by mobile →</button>
@@ -1374,175 +1346,245 @@ body.lab-bills-only .page{grid-template-columns:1fr!important}
         </div>
       </div>
 
-      <!-- Name -->
-      <div class="field">
-        <label>Patient Name <span class="req">*</span></label>
-        <input id="name" type="text" placeholder="Full name" autocomplete="off"/>
-      </div>
-
-      <!-- Demographics -->
-      <div class="field-row">
-        <div class="field">
-          <label>Age <span class="req">*</span></label>
-          <input id="f-age" type="number" min="0" max="120" placeholder="Years"/>
-        </div>
-        <div class="field">
-          <label>Gender <span class="req">*</span></label>
-          <select id="f-gender">
-            <option value="">— Select —</option>
-            <option value="male">Male</option>
-            <option value="female">Female</option>
-            <option value="other">Other</option>
-          </select>
-        </div>
-      </div>
-      <div class="field-row">
-        <div class="field">
-          <label>Date of Birth <span style="font-size:10px;font-weight:400;color:var(--text-muted);text-transform:none;letter-spacing:0">auto-fills age</span></label>
-          <input id="f-dob" type="date"/>
-        </div>
-        <div class="field">
-          <label>Blood Group</label>
-          <select id="f-blood">
-            <option value="">— Unknown —</option>
-            <option>A+</option><option>A-</option>
-            <option>B+</option><option>B-</option>
-            <option>AB+</option><option>AB-</option>
-            <option>O+</option><option>O-</option>
-          </select>
-        </div>
-      </div>
-
-      <!-- NABH Allergy Panel -->
-      <div class="field" id="allergy-panel" style="display:none">
-        <label style="display:flex;justify-content:space-between;align-items:center">
-          <span>⚠️ Known Allergies <span style="font-size:10px;font-weight:400;color:var(--text-muted)">(NABH Patient Safety)</span></span>
-          <button type="button" data-onclick="openReceptionAllergyModal" style="font-size:11px;padding:2px 10px;background:var(--green-deep);color:#fff;border:none;border-radius:4px;cursor:pointer;font-family:inherit">+ Add / View</button>
-        </label>
-        <div id="reception-allergy-display" style="min-height:32px;border:1.5px solid #e0a800;border-radius:7px;padding:6px 10px;font-size:12px;background:#fffdf0">
-          <span style="color:var(--text-muted)">No allergies on record</span>
-        </div>
-      </div>
-
-      <!-- Complaint -->
-      <div class="field">
-        <label>Chief Complaint <span class="req">*</span></label>
-        <input id="complaint" type="text" placeholder="Reason for today's visit"/>
-      </div>
-
-      <!-- Visit Category + OPD -->
-      <div class="field-row">
-        <div class="field">
-          <label>Visit Category</label>
-          <select id="visit-category">
-            <option value="opd">OPD</option>
-            <option value="followup">Follow-up</option>
-            <option value="panchakarma">Panchakarma</option>
-            <option value="emergency">Emergency</option>
-            <option value="teleconsultation">Teleconsultation</option>
-            <option value="camp">Camp Consultation</option>
-          </select>
-        </div>
-        <div class="field">
-          <label>OPD / Department</label>
-          <select id="opd">
-            <option value="">— General —</option>
-          </select>
-          <div id="opd-routing-hint" style="display:none;font-size:11px;margin-top:4px;font-weight:500"></div>
-        </div>
-      </div>
-
-      <!-- Doctor -->
-      <div class="field">
-        <label>Assign Doctor</label>
-        <select id="doctor">
-          <option value="">— No preference —</option>
-        </select>
-      </div>
-
-      <!-- On Request -->
-      <div class="field">
-        <label>Special Request</label>
-        <div class="check-wrap" id="on-request-wrap">
-          <input type="checkbox" id="on-request"/>
-          <span class="check-label">On Request by Doctor</span>
-          <span class="check-hint">Surcharge applies</span>
-        </div>
-      </div>
-
-      <!-- Fees -->
-      <div class="field-row">
-        <div class="field">
-          <label>Reg. Fee (₹)</label>
-          <input id="reg-fee" type="number" min="0" step="0.01" placeholder="0"/>
-        </div>
-        <div class="field">
-          <label>Consult. Fee (₹)</label>
-          <input id="fee" type="number" min="0" step="0.01" placeholder="0"/>
-        </div>
-      </div>
-
-      <!-- Surcharge -->
-      <div class="field" id="surcharge-row" style="display:none">
-        <label>On-Request Surcharge (₹)</label>
-        <input id="surcharge" type="number" min="0" step="0.01" placeholder="0"/>
-      </div>
-
-      <!-- Total -->
-      <div class="fee-summary">
-        <span class="fs-label">Total Payable</span>
-        <span class="fs-amount" id="fee-total">₹0</span>
-      </div>
-
-      <!-- Payment Mode + Status -->
-      <div class="field-row">
-        <div class="field">
-          <label>Payment Mode</label>
-          <select id="payment-mode">
-            <option value="cash">Cash</option>
-            <option value="upi">UPI</option>
-            <option value="card">Card</option>
-            <option value="credit">Credit / Due</option>
-            <option value="package">Package</option>
-          </select>
-          <input id="payment-ref" type="text" maxlength="60" placeholder="UPI / card transaction reference" aria-label="UPI / card transaction reference"
-                 style="display:none;margin-top:6px;width:100%;min-height:44px;font-size:13px;border-radius:6px;border:1px solid var(--border);padding:0 10px"/>
-        </div>
-        <div class="field">
-          <label>Payment Status</label>
-          <div class="pay-toggle">
-            <div class="pay-opt">
-              <input type="radio" name="payment" id="pay-paid" value="paid" checked/>
-              <label for="pay-paid">✓ Paid</label>
+            <div class="rx-abha-found" id="rx-abha-found" role="status" hidden></div>
+            <div style="margin-top:14px;display:flex;flex-wrap:wrap;gap:10px;align-items:center">
+              <button type="button" class="rx-continue" id="rx-abha-continue">Continue to registration →</button>
+              <span class="rx-abha-status">No ABHA? Go straight to Walk-in registration — ABHA stays optional.</span>
             </div>
-            <div class="pay-opt">
-              <input type="radio" name="payment" id="pay-pending" value="pending"/>
-              <label for="pay-pending">⏳ Pending</label>
-            </div>
+          </section>
+        </div>
+
+        <!-- (R) Walk-in registration: ① Find ② Details ③ Visit ④ Payment + the sticky Register bar -->
+        <div class="rx-tabbody" id="rx-tab-form" role="tabpanel" aria-labelledby="rx-ltab-form">
+          <div class="rx-mode mode-toggle">
+            <button class="mode-btn active" id="btn-walkin" type="button">🚶 Walk-in</button>
+            <button class="mode-btn" id="btn-appt" type="button">📅 Book Appointment</button>
+            <span class="rx-mode-note">Fields marked <span class="req" style="color:var(--red)">*</span> are required · <span class="rx-from-abha" style="margin:0">from ABHA</span> = filled by ABDM</span>
           </div>
-        </div>
-      </div>
 
-      <!-- Payer Type — one click only -->
-      <div style="margin-bottom:13px">
-        <label style="font-size:12px;font-weight:500;color:var(--text-mid);display:block;margin-bottom:2px">Who is paying?</label>
-        <div class="payer-type-btns">
-          <label class="pt-btn"><input type="radio" name="payer_type" value="self_pay" checked data-onchange="onPayerTypeChange"/><span>💵 Self-Pay</span></label>
-          <label class="pt-btn"><input type="radio" name="payer_type" value="insurance" data-onchange="onPayerTypeChange"/><span>🏥 Insurance / TPA</span></label>
-          <label class="pt-btn"><input type="radio" name="payer_type" value="pmjay" data-onchange="onPayerTypeChange"/><span>🟢 PMJAY</span></label>
-          <label class="pt-btn"><input type="radio" name="payer_type" value="cghs" data-onchange="onPayerTypeChange"/><span>🔵 CGHS / ECHS</span></label>
-        </div>
-        <div id="ins-note" style="display:none;font-size:12px;color:#7a5200;margin-top:8px;padding:8px 12px;background:#fffdf0;border-radius:6px;border:1px solid #f0c060;line-height:1.5">
-          🏥 Insurance patient — TPA / policy details will be filled by the accounts department. Mark payment as <strong>Pending</strong>.
-        </div>
-      </div>
+          <section class="rx-sec" aria-labelledby="rx-s1">
+            <h2 class="rx-sech" id="rx-s1"><span class="rx-num" aria-hidden="true">1</span>Find patient</h2>
+            <div class="rx-field rx-find-wrap">
+              <label class="rx-lbl" for="rx-find">Search by mobile, name or UHID (search only — nothing typed here is saved)</label>
+              <span class="rx-find-ico" aria-hidden="true">🔍</span>
+              <input id="rx-find" type="search" inputmode="search" maxlength="50" autocomplete="off" placeholder="Mobile number, patient name, or UHID (AYX/…)"/>
+              <button type="button" class="rx-clear" id="rx-find-clear" aria-label="Clear the search">✕</button>
+            </div>
+            <div class="field-hint" id="phone-hint" style="display:none" role="status"></div>
+            <button type="button" class="rx-use-mobile" id="rx-use-mobile" hidden></button>
+            <div class="patient-tag" id="patient-tag">
+              <span class="pt-icon">👤</span>
+              <div class="pt-info">
+                <div class="pt-name" id="pt-name"></div>
+                <div class="pt-grid">
+                  <div class="pt-item">UHID: <span id="pt-uhid">—</span></div>
+                  <div class="pt-item">Visits: <span id="pt-visits">—</span></div>
+                  <div class="pt-item">Age / Gender: <span id="pt-demog">—</span></div>
+                  <div class="pt-item">Last Visit: <span id="pt-lastvisit">—</span></div>
+                  <div class="pt-item pt-balance">Balance: <span id="pt-balance">₹0</span></div>
+                </div>
+                <div id="pt-prakriti" class="pt-prakriti none" style="display:none"></div>
+                <div id="pt-bills"></div>
+                <button id="btn-correct-patient" type="button" class="cpd-open-btn" hidden>✎ Correct patient details</button>
+                <button id="btn-diff-family" type="button" class="pt-family-btn">+ Different family member with same number</button>
+              </div>
+            </div>
+            <div class="patient-picker" id="patient-picker"></div>
+            <div class="pkg-card" id="pkg-card">
+              <div class="pkg-card-icon">📦</div>
+              <div class="pkg-card-body">
+                <div class="pkg-card-name" id="pkg-card-name"></div>
+                <div class="pkg-card-meta" id="pkg-card-meta"></div>
+                <div class="pkg-sessions-bar"><div class="pkg-sessions-fill" id="pkg-sessions-fill" style="width:0%"></div></div>
+                <div class="pkg-use-row">
+                  <input type="checkbox" class="pkg-use-chk" id="pkg-use-chk" data-onchange="togglePkgUse"/>
+                  <label class="pkg-use-label" for="pkg-use-chk">Use 1 session from this package (sets fees to ₹0)</label>
+                </div>
+              </div>
+            </div>
+          </section>
 
-      <!-- Submit -->
-      <button class="btn-submit" id="btn-submit" type="button">
-        <span class="btn-text">Register &amp; Create Visit</span>
-        <span class="btn-spinner"><span class="spinner"></span></span>
-      </button>
+          <section class="rx-sec" aria-labelledby="rx-s2">
+            <h2 class="rx-sech" id="rx-s2"><span class="rx-num" aria-hidden="true">2</span>Patient details</h2>
+            <!-- owner 31 Oct 2026 (rehearsal): a visible info line WITH the button, not a small grey note in the heading -->
+            <div class="rx-known-info" id="rx-known-note" role="note" hidden>
+              <span class="rx-known-ico" aria-hidden="true">ℹ️</span>
+              <span class="rx-known-t">The recorded details of this patient are shown read-only. A wrong name, mobile, age or address is changed only through <b>✎ Correct patient details</b><span id="rx-known-who" hidden> (for this patient: Medical Records (MRD) or the Super Admin)</span>.</span>
+              <button id="rx-known-correct" type="button" class="cpd-open-btn" hidden>✎ Correct patient details</button>
+            </div>
+            <div class="rx-grid">
+              <div class="rx-field rx-span2">
+                <label class="rx-lbl" for="name">Full name <span class="req">*</span><span class="rx-from-abha" data-abha-for="name" hidden>from ABHA</span></label>
+                <input id="name" type="text" placeholder="Full name" autocomplete="off" maxlength="120"/>
+              </div>
+              <div class="rx-field rx-span2">
+                <label class="rx-lbl" for="rx-mobile">Mobile <span class="req">*</span><span class="rx-from-abha" data-abha-for="rx-mobile" hidden>from ABHA</span></label>
+                <div class="rx-mobile-row"><span class="rx-prefix" aria-hidden="true">+91</span><input id="rx-mobile" type="tel" inputmode="numeric" maxlength="14" autocomplete="off" placeholder="10-digit mobile"/></div>
+                <label class="rx-check"><input type="checkbox" id="rx-no-mobile"/>Patient has no mobile</label>
+                <div class="rx-field" id="rx-no-mobile-wrap" hidden>
+                  <label class="rx-lbl" for="rx-no-mobile-reason">Why no mobile? <span class="req">*</span></label>
+                  <select id="rx-no-mobile-reason"><option value="">— choose —</option></select>
+                </div>
+              </div>
+              <div class="rx-field">
+                <label class="rx-lbl" for="f-age">Age <span class="req">*</span> <span style="font-weight:400">(or DOB)</span></label>
+                <input id="f-age" type="number" min="0" max="120" placeholder="Years"/>
+              </div>
+              <div class="rx-field">
+                <label class="rx-lbl" for="f-dob">Date of birth<span class="rx-from-abha" data-abha-for="f-dob" hidden>from ABHA</span></label>
+                <input id="f-dob" type="date"/>
+              </div>
+              <div class="rx-field rx-span2">
+                <span class="rx-lbl" id="rx-gender-lbl">Gender <span class="req">*</span><span class="rx-from-abha" data-abha-for="f-gender" hidden>from ABHA</span></span>
+                <div class="rx-chips" id="rx-gender-group" role="radiogroup" aria-labelledby="rx-gender-lbl" tabindex="-1">
+                  <label class="rx-chip"><input type="radio" name="rx-gender" value="M"/><span>Male</span></label>
+                  <label class="rx-chip"><input type="radio" name="rx-gender" value="F"/><span>Female</span></label>
+                  <label class="rx-chip"><input type="radio" name="rx-gender" value="O"/><span>Other</span></label>
+                </div>
+                <input type="hidden" id="f-gender"/>
+              </div>
+              <div class="rx-field">
+                <label class="rx-lbl" for="f-blood">Blood group</label>
+                <select id="f-blood">
+                  <option value="">— Unknown —</option>
+                  <option>A+</option><option>A-</option><option>B+</option><option>B-</option>
+                  <option>AB+</option><option>AB-</option><option>O+</option><option>O-</option>
+                </select>
+              </div>
+              <div class="rx-field rx-span3" id="allergy-panel" style="display:none">
+                <span class="rx-lbl" style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+                  <span>⚠️ Known allergies <span style="font-weight:400;color:var(--text-mid)">(NABH patient safety)</span></span>
+                  <button type="button" class="rx-btn" data-onclick="openReceptionAllergyModal">+ Add / View</button>
+                </span>
+                <div id="reception-allergy-display" style="min-height:40px;border:1.5px solid #e0a800;border-radius:8px;padding:8px 10px;font-size:13px;background:#fffdf0">
+                  <span style="color:var(--text-mid)">No allergies on record</span>
+                </div>
+              </div>
+            </div>
+            <div class="rx-addr">
+              <div class="rx-addr-t">Address <span class="rx-from-abha" data-abha-for="rx-addr" hidden>from ABHA</span> <span style="font-weight:400;font-size:13px;color:var(--text-mid)" id="rx-addr-note"></span></div>
+              <div class="rx-grid">
+                <div class="rx-field rx-span4"><label class="rx-lbl" for="rx-addr-line">House / street</label><input id="rx-addr-line" type="text" maxlength="200" placeholder="House no., street, landmark" autocomplete="off"/></div>
+                <div class="rx-field"><label class="rx-lbl" for="rx-addr-town">Village / town <span class="req" data-addr-req>*</span></label><input id="rx-addr-town" type="text" maxlength="100" autocomplete="off"/></div>
+                <div class="rx-field"><label class="rx-lbl" for="rx-addr-district">District <span class="req" data-addr-req>*</span></label><input id="rx-addr-district" type="text" maxlength="100" autocomplete="off"/></div>
+                <div class="rx-field"><label class="rx-lbl" for="rx-addr-state">State</label><input id="rx-addr-state" type="text" maxlength="100" autocomplete="off"/></div>
+                <div class="rx-field"><label class="rx-lbl" for="rx-addr-pin">PIN code</label><input id="rx-addr-pin" type="text" inputmode="numeric" maxlength="6" autocomplete="off"/></div>
+              </div>
+              <div class="rx-abha-warn" id="rx-abha-edit-warn" role="status" hidden>You changed a detail that came from ABHA — ABDM records will carry the details you save here.</div>
+            </div>
+          </section>
 
+          <section class="rx-sec" aria-labelledby="rx-s3">
+            <h2 class="rx-sech" id="rx-s3"><span class="rx-num" aria-hidden="true">3</span>Visit <small>— new / follow-up decided as today</small></h2>
+            <div id="appt-when-row" class="rx-grid" style="display:none;margin-bottom:14px">
+              <div class="rx-field"><label class="rx-lbl" for="appt-date">Appointment date <span class="req">*</span></label><input type="date" id="appt-date"/></div>
+              <div class="rx-field"><label class="rx-lbl" for="appt-time">Appointment time <span class="req">*</span></label><input type="time" id="appt-time"/></div>
+            </div>
+            <div class="rx-grid">
+              <div class="rx-field">
+                <label class="rx-lbl" for="visit-category">Visit category</label>
+                <select id="visit-category">
+                  <option value="opd">OPD</option>
+                  <option value="followup">Follow-up</option>
+                  <option value="panchakarma">Panchakarma</option>
+                  <option value="emergency">Emergency</option>
+                  <option value="teleconsultation">Teleconsultation</option>
+                  <option value="camp">Camp Consultation</option>
+                </select>
+              </div>
+              <div class="rx-field">
+                <label class="rx-lbl" for="opd">OPD / department</label>
+                <select id="opd"><option value="">— General —</option></select>
+              </div>
+              <div class="rx-field rx-span2">
+                <label class="rx-lbl" for="doctor">Doctor <span style="font-weight:400">(from today's OPD duty list)</span></label>
+                <select id="doctor"><option value="">— No preference —</option></select>
+              </div>
+              <div class="rx-field rx-span4"><div id="opd-routing-hint" style="display:none;font-size:12px;font-weight:500"></div></div>
+              <div class="rx-field rx-span2">
+                <label class="rx-lbl" for="complaint">Chief complaint <span class="req">*</span></label>
+                <input id="complaint" type="text" maxlength="300" placeholder="Reason for today's visit"/>
+              </div>
+              <div class="rx-field rx-span2">
+                <span class="rx-lbl">Special request</span>
+                <div class="check-wrap" id="on-request-wrap">
+                  <input type="checkbox" id="on-request" aria-label="On request by doctor (surcharge applies)"/>
+                  <span class="check-label">On Request by Doctor</span>
+                  <span class="check-hint">Surcharge applies</span>
+                </div>
+              </div>
+              <div class="rx-field rx-span4">
+        <!-- ABHA Address for THIS visit — a patient can hold several addresses under
+             one ABHA Number, chosen per visit (Session 170), not a fixed patient
+             attribute. Shown once a returning patient with an on-file ABHA is
+             selected; hidden if the patient has no known address at all yet. -->
+        <div class="abha-addr-row" id="abha-addr-row" style="display:none">
+          <label for="abha-addr-select" class="abha-addr-label">ABHA Address for this visit</label>
+          <select id="abha-addr-select" class="abha-addr-select"></select>
+          <div class="abha-addr-hint" id="abha-addr-hint"></div>
+        </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="rx-sec" aria-labelledby="rx-s4" id="rx-pay-sec">
+            <h2 class="rx-sech" id="rx-s4"><span class="rx-num" aria-hidden="true">4</span>Payment</h2>
+            <div class="rx-fees" id="rx-fee-lines" aria-live="polite"><div class="rx-hint">The fees appear once the patient and the OPD are known.</div></div>
+            <div class="rx-override" id="rx-override" hidden>
+              <label class="rx-lbl" for="rx-override-fee">Use this consultation fee instead</label>
+              <select id="rx-override-fee"></select>
+              <label class="rx-lbl" for="rx-override-reason">Reason for changing the fee <span class="req">*</span> <span style="font-weight:400">(at least 5 characters — recorded in the audit)</span></label>
+              <input id="rx-override-reason" type="text" maxlength="300"/>
+              <div style="display:flex;gap:8px;flex-wrap:wrap">
+                <button type="button" class="rx-btn" id="rx-override-apply">Use this fee</button>
+                <button type="button" class="rx-btn" id="rx-override-cancel">Keep the server's fee</button>
+              </div>
+            </div>
+            <div style="display:none">
+              <input id="reg-fee" type="number" readonly aria-hidden="true" tabindex="-1"/>
+              <input id="fee" type="number" readonly aria-hidden="true" tabindex="-1"/>
+              <div id="surcharge-row"><input id="surcharge" type="number" readonly aria-hidden="true" tabindex="-1"/></div>
+              <select id="payment-mode" aria-hidden="true" tabindex="-1">
+                <option value="cash">Cash</option><option value="upi">UPI</option><option value="card">Card</option>
+                <option value="credit">Credit / Due</option><option value="package">Package</option>
+              </select>
+              <input type="radio" name="payment" id="pay-paid" value="paid" checked tabindex="-1"/>
+              <input type="radio" name="payment" id="pay-pending" value="pending" tabindex="-1"/>
+            </div>
+            <div class="rx-pay-grid">
+              <div>
+                <span class="rx-lbl" id="rx-payer-lbl">Who is paying</span>
+                <div class="rx-chips" role="radiogroup" aria-labelledby="rx-payer-lbl">
+                  <label class="rx-chip"><input type="radio" name="payer_type" value="self_pay" checked data-onchange="onPayerTypeChange"/><span>Self</span></label>
+                  <label class="rx-chip"><input type="radio" name="payer_type" value="insurance" data-onchange="onPayerTypeChange"/><span>Insurance / TPA</span></label>
+                  <label class="rx-chip"><input type="radio" name="payer_type" value="pmjay" data-onchange="onPayerTypeChange"/><span>PMJAY</span></label>
+                  <label class="rx-chip"><input type="radio" name="payer_type" value="cghs" data-onchange="onPayerTypeChange"/><span>CGHS / ECHS</span></label>
+                </div>
+                <div id="ins-note" style="display:none;font-size:13px;color:#7a5200;margin-top:8px;padding:8px 12px;background:#fffdf0;border-radius:6px;border:1px solid #f0c060;line-height:1.5">
+                  🏥 Insurance patient — TPA / policy details will be filled by the accounts department. The payment is marked <strong>Pay later</strong>.
+                </div>
+              </div>
+              <div>
+                <span class="rx-lbl" id="rx-paymode-lbl">Payment</span>
+                <div class="rx-chips" role="radiogroup" aria-labelledby="rx-paymode-lbl">
+                  <label class="rx-chip"><input type="radio" name="rx-pay" value="cash" checked/><span>Cash</span></label>
+                  <label class="rx-chip"><input type="radio" name="rx-pay" value="upi"/><span>UPI</span></label>
+                  <label class="rx-chip"><input type="radio" name="rx-pay" value="card"/><span>Card</span></label>
+                  <label class="rx-chip"><input type="radio" name="rx-pay" value="later"/><span>Pay later</span></label>
+                </div>
+                <input id="payment-ref" type="text" maxlength="60" placeholder="UPI / card transaction reference" aria-label="UPI / card transaction reference" style="display:none;margin-top:8px"/>
+              </div>
+            </div>
+          </section>
+
+          <div class="rx-bar" id="rx-bar">
+            <div><div class="rx-bar-l" id="rx-bar-total-l">Total payable</div><div class="rx-bar-v fs-amount" id="fee-total">₹0</div></div>
+            <div class="rx-bar-msg" id="rx-bar-msg" role="status" aria-live="polite"></div>
+            <button class="btn-submit" id="btn-submit" type="button">
+              <span class="btn-text">Register &amp; Create Visit</span>
+              <span class="btn-spinner"><span class="spinner"></span></span>
+            </button>
+          </div>
 
       <!-- Receipt -->
       <div class="receipt-card" id="receipt-card">
@@ -1556,46 +1598,50 @@ body.lab-bills-only .page{grid-template-columns:1fr!important}
           <button class="btn-rcpt btn-rcpt-sms" disabled title="SMS not configured">✉ Send SMS</button>
         </div>
       </div>
+        </div>
+      </div>
+    </main>
 
-    </div>
-  </div>
-
-  <!-- ── Today's Queue / Appointments ─────────────── -->
-  <div class="panel" style="display:flex;flex-direction:column">
-
-    <!-- Stale Visits Banner — inside queue panel so it doesn't break the grid -->
+    <!-- ══ Today's work (blue) ══ -->
+    <aside class="rx-pane" id="rx-work-pane" aria-labelledby="rx-work-title">
+      <div class="rx-pane-h">
+        <h2 id="rx-work-title">Today's work · <span id="queue-date"></span></h2>
+        <button type="button" class="rx-pull" id="rx-work-pull">⤢ Pull out</button>
+      </div>
+      <div class="rx-work-body">
+        <div class="rx-counters" aria-label="Today's counts">
+          <div class="rx-counter"><div class="rx-counter-l">Waiting in queue</div><div class="rx-counter-v" id="queue-count">0</div></div>
+          <div class="rx-counter"><div class="rx-counter-l">Lab bills to collect</div><div class="rx-counter-v" id="rx-cnt-bills">0</div></div>
+          <div class="rx-counter"><div class="rx-counter-l">Admission requests</div><div class="rx-counter-v" id="rx-cnt-adm">0</div></div>
+        </div>
     <div id="stale-banner">
       <strong id="stale-banner-text">⚠ Visits from previous day(s) are still active.</strong>
       <button id="btn-eod" type="button">Close Day ▸</button>
     </div>
 
-    <div class="queue-hdr">
-      <div>
-        <div class="panel-title">Today</div>
-        <div class="panel-sub" id="queue-date"></div>
-      </div>
-      <div class="queue-badge" id="queue-count">0</div>
-    </div>
-    <div class="queue-tabs">
-      <button class="q-tab active" id="tab-queue" type="button">🕐 Queue</button>
-      <button class="q-tab" id="tab-appts" type="button">📅 Appointments <span id="appt-count"></span></button>
-      <button class="q-tab" id="tab-labbills" type="button">💰 Lab Bills <span id="labbills-count"></span></button>
-      <button class="q-tab" id="tab-regqueue" type="button" style="display:none">📋 Reg. Queue <span id="regqueue-count"></span></button>
-      <!-- Session 205 (cont.) -- Admission Advice -> Reception-Executed Admission redesign.
-           Real hospital process: a doctor advises admission (doctor.html's new Admission
-           Advice tab), reception sees it here, collects the advance, and admits
-           (ipd.html?advice_id=..., create_ipd_admission RPC). See plan bright-popping-stallman. -->
-      <button class="q-tab" id="tab-admreq" type="button">🛏️ Admission Requests <span id="admreq-count"></span></button>
-      <!-- Session 209 -- Panchakarma Care Plan Day Care/OPD hand-off (Admission-setting
-           plans reuse the Admission Requests queue above unchanged). See
-           sql/session209_pk_care_plan_activation.sql. -->
-      <button class="q-tab" id="tab-pkplans" type="button">🌸 PK Care Plans <span id="pkplans-count"></span></button>
-      <!-- Session 358 (TODO §265-D / §274): visits waiting for reports ("Back with reports" -- no new visit, token or fee) and casualty
-           registrations reception completes (address, phone, date of birth, blood group) -->
-      <button class="q-tab" id="tab-pending" type="button">🔬 Reports &amp; Registrations <span id="pending-count"></span></button>
-      <button class="q-tab" id="tab-vbsearch" type="button" style="display:none">🔎 Visits &amp; Bills</button>
-      <a class="q-tab" id="tab-shiftclose" href="shift-close.html" style="text-decoration:none;display:inline-flex;align-items:center">🤝 Close my shift</a>
-    </div>
+        <div class="rx-wtabs-card">
+          <div class="rx-wtabs" id="rx-wtabs" role="group" aria-label="Today's work sections">
+            <span id="rx-wtab-bar" style="display:contents"></span>
+            <button type="button" class="rx-wtab" id="rx-more-btn" aria-haspopup="true" aria-expanded="false" aria-controls="rx-more-menu">More ▾ <span class="rx-cnt" id="rx-more-cnt"></span></button>
+            <button type="button" class="rx-gear" id="rx-arrange-btn" aria-label="Arrange the tabs" title="Arrange the tabs">⚙</button>
+            <div class="rx-more-menu" id="rx-more-menu" role="menu" hidden></div>
+          </div>
+          <div class="rx-subs" id="rx-subs" role="group" aria-label="Show">
+            <button class="rx-sub q-tab active" id="tab-queue" type="button" data-group="patients">🕐 Queue</button>
+            <button class="rx-sub q-tab" id="tab-appts" type="button" data-group="patients">📅 Appointments <span id="appt-count"></span></button>
+            <!-- owner 31 Oct 2026 (rehearsal): casualty registrations to complete sit with the patients, not under Reports -->
+            <button class="rx-sub q-tab" id="tab-incomplete" type="button" data-group="patients">⚠ Incomplete registrations <span id="incomplete-count"></span></button>
+            <!-- owner 31 Oct 2026: Billing = Visits & Bills · Lab bills · Admission billing · Discharge billing -->
+            <button class="rx-sub q-tab" id="tab-vbsearch" type="button" data-group="billing" style="display:none">🔎 Visits &amp; Bills</button>
+            <button class="rx-sub q-tab" id="tab-labbills" type="button" data-group="billing">💰 Lab Bills <span id="labbills-count"></span></button>
+            <button class="rx-sub q-tab" id="tab-admbill" type="button" data-group="billing">🛏️ Admission billing</button>
+            <button class="rx-sub q-tab" id="tab-disbill" type="button" data-group="billing">🧾 Discharge billing</button>
+            <button class="rx-sub q-tab" id="tab-admreq" type="button" data-group="admissions">🛏️ Admission Requests <span id="admreq-count"></span></button>
+            <button class="rx-sub q-tab" id="tab-pending" type="button" data-group="reports">🔬 Waiting for reports <span id="pending-count"></span></button>
+            <!-- owner 1 Nov 2026: "Reg. Queue" is named "ABHA Req. Queue" (the Scan & Share requests) -->
+            <button class="rx-sub q-tab" id="tab-regqueue" type="button" data-group="regqueue" style="display:none">📋 ABHA Req. Queue <span id="regqueue-count"></span></button>
+            <button class="rx-sub q-tab" id="tab-pkplans" type="button" data-group="pkplans">🌸 PK Care Plans <span id="pkplans-count"></span></button>
+          </div>
     <div class="queue-body" id="queue-list">
       <div class="q-empty"><div class="q-empty-icon">⏳</div><div class="q-empty-text">Loading…</div></div>
     </div>
@@ -1610,6 +1656,7 @@ body.lab-bills-only .page{grid-template-columns:1fr!important}
         <span id="lab-bills-search-count" role="status" style="font-size:12px;color:var(--text-mid)"></span>
         <!-- Session 363 (TODO §259): a walk-in patient who comes only for tests -->
         <button type="button" class="q-edit-btn" id="wk-open" data-onclick="openWalkinLab" style="width:auto;min-height:44px;padding:0 12px;background:var(--green-mid);color:#fff">🧪 Lab only (walk-in)</button>
+        <button type="button" class="q-edit-btn" id="wk-outside" data-onclick="openOutsideLab" style="width:auto;min-height:44px;padding:0 12px;background:#fff;color:var(--green-deep);border:1.5px solid var(--green-deep)">🧾 Outside / non-hospital patient</button>
       </div>
       <div id="wk-slot" style="padding:0 12px"></div>
       <div id="lab-bills-items"><div class="q-empty"><div class="q-empty-icon">💰</div><div class="q-empty-text">Loading…</div></div></div>
@@ -1621,22 +1668,26 @@ body.lab-bills-only .page{grid-template-columns:1fr!important}
     <div class="queue-body" id="pk-plans-list" style="display:none">
       <div class="q-empty"><div class="q-empty-icon">🌸</div><div class="q-empty-text">Loading…</div></div>
     </div>
+    <div class="queue-body" id="incomplete-list" style="display:none">
+      <div class="q-empty"><div class="q-empty-icon">⚠</div><div class="q-empty-text">Loading…</div></div>
+    </div>
+    <!-- Admission / Discharge billing: for now they open the existing IPD screens (their redesign = the discharge-chain stage) -->
+    <div class="queue-body" id="adm-bill-panel" style="display:none">
+      <div class="rx-billlink">
+        <div class="rx-billlink-t">🛏️ Admission billing — deposits and advances</div>
+        <p>A doctor's admission advice is admitted from <b>Admissions → 🛏️ Admission Requests → 🛏️ Collect deposit &amp; admit →</b>. For a patient already admitted, deposits, part-payments and receipts are taken on the IPD page: on the patient's row press <b>💳</b> (Account — deposits, payments, receipts).</p>
+        <a class="rx-billlink-a" href="ipd.html">Open IPD admissions →</a>
+      </div>
+    </div>
+    <div class="queue-body" id="dis-bill-panel" style="display:none">
+      <div class="rx-billlink">
+        <div class="rx-billlink-t">🧾 Discharge billing — the final bill</div>
+        <p>At discharge the final bill is made on the IPD page: on the patient's row press <b>💰</b> (Generate IPD Bill), then <b>💳</b> (Account) to collect the balance or refund the advance, and <b>🧾 Final Bill</b> in the Account to print. The deposit already paid is set against the bill.</p>
+        <a class="rx-billlink-a" href="ipd.html">Open IPD admissions →</a>
+      </div>
+    </div>
     <div class="queue-body" id="pending-list" style="display:none">
       <div class="q-empty"><div class="q-empty-icon">🔬</div><div class="q-empty-text">Loading…</div></div>
-    </div>
-    <!-- Session 173: lightweight Registration-duty toggle for any plain receptionist
-         (no NCISM registration_clerk/billing_clerk designation needed) -- mirrors
-         screening.html's toggleScreeningDuty() pattern exactly. Only shown for a viewer
-         who ISN'T already forced through duty-select.html's mandatory flow (_dutyGated);
-         those clerks manage their duty there instead, to avoid two separate duty-session
-         mechanisms fighting each other for the same person. -->
-    <div id="reg-duty-row" style="display:none;align-items:center;justify-content:space-between;gap:8px;padding:8px 12px;background:#f0faf5;border-bottom:1px solid var(--border);font-size:12px">
-      <span id="reg-duty-status" style="color:var(--green-deep);font-weight:600">Off duty — showing every unclaimed scan</span>
-      <button id="btn-reg-duty-toggle" type="button" data-onclick="toggleRegistrationDuty"
-              style="height:28px;padding:0 12px;font-size:11px;font-weight:600;border-radius:6px;
-                     border:1.5px solid var(--border);background:#fff;color:var(--green-deep);cursor:pointer;white-space:nowrap">
-        🟢 Go On Registration Duty
-      </button>
     </div>
     <!-- Session 181: Reg Queue converted from stacked cards to a column-header styled
          list (Dr. Venkatesh's explicit request) — Reg Queue only, the other 3 tabs
@@ -1664,8 +1715,16 @@ body.lab-bills-only .page{grid-template-columns:1fr!important}
       <div class="live-dot"></div>
       Live · auto-refreshes every 30 s
     </div>
-  </div>
+        </div>
+      </div>
+    </aside>
 
+    <button type="button" class="rx-rail" id="rx-work-rail" aria-label="Bring back today's work (push in)">
+      <span style="font-size:12px">‹ push in</span>
+      <span class="rx-rail-t">Today's work</span>
+      <span class="rx-rail-n"><span><b id="rx-rail-q">0</b>queue</span><span><b id="rx-rail-b">0</b>bills</span><span><b id="rx-rail-a">0</b>admit</span></span>
+    </button>
+  </div>
 </div>
 
 <!-- ── Queue Edit Modal ── -->

@@ -3,6 +3,7 @@ import { initNavbar } from '../components/navbar.js';
 import { supabase } from '../core/db/supabaseClient.js';
 import { logAudit } from '../core/auditLogger.js';
 import { escapeHtml as _esc } from '../utils/validators.js';
+import { genderLabel } from '../utils/gender.js';   // Session 371B
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
 import { isNCISMType } from '../config/ncism.js';
@@ -696,7 +697,7 @@ async function loadQueue() {
     // Session 347 (TODO §198): own visits + the SHARED queue of every OPD this doctor is on duty in today -- a visit registered
     // with "No preference" (no doctor) is visible to all of them (never the Screening OPD's triage visits); opening one claims it
     const { data: duty } = await supabase.from('opd_doctors').select('opd_id')
-      .eq('tenant_id', tenantId).eq('doctor_id', userId).eq('is_active_today', true);
+      .eq('tenant_id', tenantId).eq('doctor_id', userId).eq('active_on', todayISTStr());   // 371B (B7): ticked for TODAY
     // Session 358 (TODO §290): the RMO / CMO / EMO also see the organisation's marked Emergency OPD (its visits have no doctor)
     const emOpd = _isCasualtyStaff && _opdWf?.emergency_opd_active ? _opdWf.emergency_opd_id : null;
     const shared = [...new Set([...(duty || []).map(d => d.opd_id), emOpd].filter(id => id && id !== screeningOpdId(_opdWf)))];
@@ -1414,7 +1415,7 @@ async function loadDoctorOpds() {
     .select('opd_id')
     .eq('doctor_id', userId)
     .eq('tenant_id', tenantId)
-    .eq('is_active_today', true);
+    .eq('active_on', todayISTStr());   // 371B (B7)
   _doctorOpdIds = data ? data.map(r => r.opd_id) : [];
   loadIncomingReferrals();
 }
@@ -1677,7 +1678,7 @@ window.startConsultation = async function(visitId) {
   // collapsed by default; the rest (UHID/phone/ABHA/prakriti/last-visit-diagnosis)
   // slides open on demand via togglePatientDetail() below.
   const ptAge = _activePatient?.age ?? _ageFromDob(_activePatient?.date_of_birth);
-  const ptGenderLabel = { M: 'Male', F: 'Female', other: 'Other' }[_activePatient?.gender] || _activePatient?.gender || '';
+  const ptGenderLabel = genderLabel(_activePatient?.gender, '');   // Session 371B (D1a 4): 'male' and 'M' both read
   const ageGenderParts = [];
   if (ptAge) ageGenderParts.push(`${ptAge} yrs`);
   if (ptGenderLabel) ageGenderParts.push(ptGenderLabel);
@@ -6147,7 +6148,7 @@ async function completeConsultation() {
         if (newRef) {
           refSaved = true;
           const { data: tgtDoctors } = await supabase.from('opd_doctors')
-            .select('doctor_id').eq('opd_id', refTargetOpd).eq('tenant_id', tenantId).eq('is_active_today', true);
+            .select('doctor_id').eq('opd_id', refTargetOpd).eq('tenant_id', tenantId).eq('active_on', todayISTStr());   // 371B (B7)
           if (tgtDoctors?.length) {
             const tgtName = _opdList.find(o => o.id === refTargetOpd)?.name || 'OPD';
             await supabase.from('doctor_alerts').insert(
@@ -8484,7 +8485,7 @@ window.escalateToEmergency = async function() {
     // Alert all on-duty Emergency doctors
     const { data: emergDoctors } = await supabase
       .from('opd_doctors').select('doctor_id')
-      .eq('opd_id', emergOpd.id).eq('tenant_id', tenantId).eq('is_active_today', true);
+      .eq('opd_id', emergOpd.id).eq('tenant_id', tenantId).eq('active_on', todayISTStr());   // 371B (B7)
 
     if (emergDoctors?.length) {
       await supabase.from('doctor_alerts').insert(
@@ -8553,11 +8554,12 @@ async function _loadOpdAttendanceBanner() {
   const target = t.opd_daily_target || ((t.ug_intake || 0) * 2);
   if (!target) return;
 
-  const today = todayLocalStr();
-  const { count } = await supabase.from('visits').select('id', { count: 'exact', head: true })
-    .eq('tenant_id', tenantId)
-    .gte('created_at', today + 'T00:00:00+05:30')
-    .lte('created_at', today + 'T23:59:59.999+05:30');
+  // Session 371B (plan session 370 B1): the SERVER's one NCISM count -- each patient once per day, Screening + specialty = one, no
+  // lab-only / tele / deleted / no-show (the old count took every visit row, e.g. 11 rows for 6 patients on SDM 24 Oct)
+  const today = todayISTStr();
+  const { data: ncRows, error: ncErr } = await supabase.rpc('ncism_opd_daily', { p_from: today, p_to: today });
+  if (ncErr) return;
+  const count = Number(ncRows?.[0]?.total || 0);
 
   const pct = Math.min(Math.round(((count || 0) / target) * 100), 100);
   if (pct >= 80) return; // no banner if on track
