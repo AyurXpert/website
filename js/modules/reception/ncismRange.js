@@ -164,7 +164,7 @@ export function openNcismRange({ supabase, today, settings, errorText, tenantNam
     cards.append(
       card('OPD days', n(m.opdDays), excluded),
       card('Target for period', n(m.targetPeriod), `${n(m.target)} × ${n(m.opdDays)} OPD days`),
-      card('Registered', n(m.registered), `New ${n(m.newPatients)} · Follow-up ${n(m.followup)}`),
+      card('Seen (NCISM)', n(m.registered), `New ${n(m.newPatients)} · Follow-up ${n(m.followup)}`),
       card('Average per OPD day (NCISM)', n(m.avg), `${m.achievedPct}% of ${n(m.target)}`),
       card(`Days at or above ${m.alertPct}%`, `${n(m.daysAtLine)} of ${n(m.opdDays)}`,
         m.daysBelow ? `${n(m.daysBelow)} below — shortfall ${n(m.shortfall)} to the ${m.alertPct}% line` : 'none below', m.daysBelow > 0));
@@ -319,7 +319,7 @@ export function openNcismRange({ supabase, today, settings, errorText, tenantNam
     if (!model) { msg.textContent = 'Press Show first.'; return; }
     const m = model;
     const summary = [['NCISM OPD compliance', `${from} to ${to}`], ['OPD days', m.opdDays], ['Target per OPD day', m.target], ['Target for period', m.targetPeriod],
-      ['Registered', m.registered], ['New', m.newPatients], ['Follow-up', m.followup], ['Average per OPD day (NCISM)', m.avg], ['Achieved %', m.achievedPct],
+      ['Seen (NCISM)', m.registered], ['New', m.newPatients], ['Follow-up', m.followup], ['Average per OPD day (NCISM)', m.avg], ['Achieved %', m.achievedPct],
       [`Days at or above ${m.alertPct}% (hospital line, not NCISM)`, m.daysAtLine], ['Days below', m.daysBelow], ['Shortfall to the line', m.shortfall]];
     const daily = [['Day', 'OPD day', 'Note', 'New', 'Follow-up', 'Total', 'Target']].concat(rows.map(r =>
       [r.day, r.is_opd_day === false ? 'No' : 'Yes', r.day_note || '', Number(r.new_patients || 0), Number(r.followup_patients || 0), Number(r.total || 0), Number(r.target || m.target)]));

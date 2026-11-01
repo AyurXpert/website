@@ -284,3 +284,13 @@ a.rx-slim-btn{display:inline-flex;align-items:center;text-decoration:none}
 .appt-bar-btn[aria-pressed="true"]{background:var(--blue);color:#fff}
 .appt-bar-btn:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
 .appt-day-h{padding:10px 12px 4px;font-size:13px;font-weight:700;color:var(--blue)}
+/* Session 371 §394 (owner, 1 Nov 2026): ABHA tab "✕ Clear / New patient"; the Aadhaar box counter, masked number and show / hide eye */
+.rx-abha-head{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin:0 0 14px}
+.rx-abha-head .rx-sech{margin:0}
+.rx-abha-clear{min-height:44px;padding:0 14px;border:1.5px solid var(--border);border-radius:8px;background:#fff;color:var(--text-dark);font:inherit;font-size:14px;font-weight:600;cursor:pointer}
+.rx-abha-clear:hover{border-color:var(--green-deep);color:var(--green-deep)}
+.rx-abha-clear:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
+.aad-count{margin-top:4px;font-size:12px;color:var(--text-mid)}
+.aad-masked{margin:0 0 8px;font-size:14px;font-weight:600;color:var(--text-dark);letter-spacing:.04em}
+.aad-eye{position:absolute;right:0;top:50%;transform:translateY(-50%);width:44px;height:44px;background:none;border:none;cursor:pointer;font-size:15px;color:var(--text-muted);padding:0;line-height:1}
+.aad-eye:focus-visible{outline:3px solid var(--gold);outline-offset:-3px}

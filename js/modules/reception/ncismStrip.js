@@ -4,8 +4,24 @@
 //   (b) the running yearly average = patients of the last 12 months / 300 days (Reg. 42 Table-7 note). When the organisation's
 //       first visit is less than 12 months ago, the strip says "since <date>" and divides by the OPD days so far.
 // Shown only for an NCISM organisation type (ncism_settings().ncism_type).
+// Session 371 §394 (owner, 1 Nov 2026): the server counts a patient only once they reached the screening desk or a doctor (owner Q3), so
+// the figure is "Seen today (NCISM)"; a separate information line "Registered today, still waiting: N" = today's patients whose only
+// visits are still waiting (NOT part of the NCISM figure); averages with one decimal (0.3 / day, never rounded to 0).
 
 const DAY = 86400000;
+const oneDec = x => Math.round(x * 10) / 10;
+
+// today's visit rows (patient_id, status, visit_category, is_teleconsultation) -> patients registered today who are still waiting:
+// a patient with any visit the server counts (in progress / completed / awaiting reports) is already seen; lab-only / tele never count
+export function waitingPatients(rows) {
+  const seen = new Set(), waiting = new Set();
+  for (const r of rows || []) {
+    if (!r?.patient_id || r.visit_category === 'lab_only' || r.is_teleconsultation) continue;
+    if (['in_progress', 'completed', 'awaiting_reports'].includes(r.status)) seen.add(r.patient_id);
+    else if (r.status === 'waiting') waiting.add(r.patient_id);
+  }
+  return [...waiting].filter(p => !seen.has(p)).length;
+}
 export const addDays = (iso, n) => new Date(Date.parse(iso + 'T00:00:00Z') + n * DAY).toISOString().slice(0, 10);
 const fmtDay = iso => new Date(iso + 'T00:00:00Z').toLocaleDateString('en-IN', { timeZone: 'UTC', day: 'numeric', month: 'short', year: 'numeric' });
 
@@ -21,7 +37,7 @@ export function stripModel({ settings, today, todayRow, yearRows, firstVisit }) 
   const line = alertLine(target, pctLine);
   const m = {
     target, alertPct: pctLine, line, total, newPatients: nw, followup: fu,
-    stillToRegister: Math.max(target - total, 0),
+    stillNeeded: Math.max(target - total, 0),
     pct: target > 0 ? Math.round(total * 100 / target) : 0,
     moreToLine: Math.max(line - total, 0),
     isOpdDay: todayRow ? todayRow.is_opd_day !== false : true,
@@ -34,13 +50,14 @@ export function stripModel({ settings, today, todayRow, yearRows, firstVisit }) 
   if (firstVisit && firstVisit > from) {
     const since = rows.filter(r => r.day >= firstVisit);
     const opd = since.filter(r => r.is_opd_day !== false).length;
-    m.avg = opd > 0 ? Math.round(since.reduce((s, r) => s + Number(r.total || 0), 0) / opd) : null;
+    m.avg = opd > 0 ? oneDec(since.reduce((s, r) => s + Number(r.total || 0), 0) / opd) : null;
     m.avgSince = firstVisit;
     m.avgLabel = `Average per OPD day since ${fmtDay(firstVisit)}`;
   } else if (firstVisit) {
-    m.avg = Math.round(sum / 300);
+    m.avg = oneDec(sum / 300);
     m.avgLabel = '12-month average (patients ÷ 300 days)';
   }
+  m.avgPct = m.avg !== null && target > 0 ? oneDec(m.avg * 100 / target) : 0;
   return m;
 }
 
@@ -62,10 +79,12 @@ export async function mountNcismStrip({ supabase, tenantId, root, today, onOpenR
   if (!root) return null;
   const { data: settings, error: sErr } = await supabase.rpc('ncism_settings');
   if (sErr || !settings || !settings.ncism_type) { root.hidden = true; return null; }
-  const [d, y, f] = await Promise.all([
+  const [d, y, f, w] = await Promise.all([
     supabase.rpc('ncism_opd_daily', { p_from: today, p_to: today }),
     supabase.rpc('ncism_opd_daily', { p_from: addDays(today, -364), p_to: today }),
     supabase.from('visits').select('created_at').eq('tenant_id', tenantId).eq('is_deleted', false).order('created_at', { ascending: true }).limit(1),
+    supabase.from('visits').select('patient_id,status,visit_category,is_teleconsultation').eq('tenant_id', tenantId).eq('is_deleted', false)
+      .gte('created_at', today + 'T00:00:00+05:30').lt('created_at', addDays(today, 1) + 'T00:00:00+05:30'),
   ]);
   root.hidden = false;
   root.replaceChildren();
@@ -82,7 +101,10 @@ export async function mountNcismStrip({ supabase, tenantId, root, today, onOpenR
   head.append(el('div', 'nc-chip', `NCISM OPD · TODAY ${new Date(today + 'T00:00:00Z').toLocaleDateString('en-IN', { timeZone: 'UTC', day: 'numeric', month: 'short' }).toUpperCase()}`),
     el('div', 'nc-sub', m.isOpdDay ? 'Target = UG intake × 2 per OPD day' : `Not an OPD day${m.dayNote ? ' — ' + m.dayNote : ''} (patients seen still count)`));
   const stats = el('div', 'nc-stats');
-  stats.append(stat('Target', m.target), stat('Registered', m.total, `New ${m.newPatients} · Follow-up ${m.followup}`), stat('Still to register', m.stillToRegister));
+  // the waiting line is information only (a failed read shows nothing rather than a wrong 0)
+  m.waiting = w.error ? null : waitingPatients(w.data);
+  stats.append(stat('Target', m.target), stat('Seen today (NCISM)', m.total, `New ${m.newPatients} · Follow-up ${m.followup}`), stat('Still needed today', m.stillNeeded));
+  if (m.waiting !== null) stats.append(stat('Registered today, still waiting', m.waiting));
 
   const meter = el('div', 'nc-meter');
   const top = el('div', 'nc-meter-top');
@@ -108,7 +130,7 @@ export async function mountNcismStrip({ supabase, tenantId, root, today, onOpenR
   const year = el('div', 'nc-year');
   if (m.avg !== null) {
     year.append(el('div', 'nc-stat-l', m.avgLabel), el('div', 'nc-stat-v', `${m.avg} / day`),
-      el('div', 'nc-stat-s', `${m.target > 0 ? Math.round(m.avg * 100 / m.target) : 0}% of ${m.target}`));
+      el('div', 'nc-stat-s', `${m.avgPct}% of ${m.target}`));
   } else {
     year.append(el('div', 'nc-stat-l', 'Yearly average'), el('div', 'nc-stat-s', 'No counted visits yet'));
   }

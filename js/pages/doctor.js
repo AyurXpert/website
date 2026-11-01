@@ -8571,9 +8571,11 @@ async function _loadOpdAttendanceBanner() {
   el.style.background = isRed ? '#fdecea' : '#fff8e1';
   el.style.color      = isRed ? '#c0392b' : '#7a5c00';
   el.style.borderBottom = `2px solid ${isRed ? '#f5c6c6' : '#e0c060'}`;
+  // §394 (owner, 1 Nov 2026): the server counts a patient once they reached Screening or a doctor -> "seen"; 1 patient / N patients
+  const pts = `${count || 0} patient${count === 1 ? '' : 's'} seen today`;
   el.textContent = isRed
-    ? `NCISM OPD Alert — Only ${count||0} patients today (target: ${target}). ${target-(count||0)} more needed.`
-    : `NCISM OPD — ${count||0} / ${target} patients today (${pct}%). Keep going to meet daily target.`;
+    ? `NCISM OPD Alert — Only ${pts} (target: ${target}). ${target-(count||0)} more needed.`
+    : `NCISM OPD — ${count||0} / ${target} patients seen today (${pct}%). Keep going to meet daily target.`;
 }
 // ── §18bc Pharmacovigilance ADR Reporting ────────────────────────
 function openAdrModal() {

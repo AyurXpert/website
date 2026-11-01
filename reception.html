@@ -873,7 +873,10 @@ body.lab-bills-only #rx-work-pane{flex:1 1 600px!important;display:block!importa
         <!-- (A) ABHA / ABDM -- the same buttons, modals and calls as before (plan E1: nothing in ABDM's own path changes) -->
         <div class="rx-tabbody" id="rx-tab-abha" role="tabpanel" aria-labelledby="rx-ltab-abha" hidden>
           <section class="rx-sec" aria-labelledby="rx-abha-h">
-            <h2 class="rx-sech" id="rx-abha-h">Verify or enrol ABHA</h2>
+            <div class="rx-abha-head">
+              <h2 class="rx-sech" id="rx-abha-h">Verify or enrol ABHA</h2>
+              <button type="button" class="rx-abha-clear" id="rx-abha-clear">✕ Clear / New patient</button>
+            </div>
       <!-- ABHA -->
       <div class="field">
         <div class="abha-row">
@@ -899,14 +902,15 @@ body.lab-bills-only #rx-work-pane{flex:1 1 600px!important;display:block!importa
             <div class="field" style="margin-bottom:8px">
               <label>Aadhaar Number</label>
               <div style="position:relative;display:flex;align-items:center">
-                <input id="enroll-aadhaar" type="password" inputmode="numeric"
-                       placeholder="12-digit Aadhaar" maxlength="12" autocomplete="off"
+                <input id="enroll-aadhaar" type="password" inputmode="numeric" pattern="[0-9 ]*"
+                       placeholder="1234 5678 9012" maxlength="14" autocomplete="off" aria-describedby="enroll-aadhaar-count"
                        style="padding-right:38px;flex:1"/>
                 <button type="button" id="btn-toggle-aadhaar"
                         style="position:absolute;right:8px;background:none;border:none;cursor:pointer;
                                font-size:15px;color:var(--text-muted);padding:0;line-height:1"
                         title="Show / hide Aadhaar">👁</button>
               </div>
+              <div class="aad-count" id="enroll-aadhaar-count" aria-live="polite">0 of 12 digits</div>
             </div>
             <div style="font-size:11px;color:var(--text-muted);margin-bottom:10px">
               Ensure your mobile number is linked with Aadhaar — OTP will be sent to that number.
@@ -916,6 +920,7 @@ body.lab-bills-only #rx-work-pane{flex:1 1 600px!important;display:block!importa
 
           <!-- Step 2: 6-box OTP + Communication Mobile -->
           <div id="enroll-step-2" style="display:none;margin-top:10px">
+            <div class="aad-masked" id="enroll-aadhaar-masked" hidden></div>
             <div class="field" style="margin-bottom:10px">
               <label id="enroll-otp-label" style="margin-bottom:6px;display:block">OTP sent to Aadhaar-linked mobile</label>
               <div class="otp-boxes" id="enroll-otp-boxes">
@@ -1052,12 +1057,18 @@ body.lab-bills-only #rx-work-pane{flex:1 1 600px!important;display:block!importa
             <div id="aad-step-1">
               <div class="field" style="margin-bottom:8px">
                 <label>Aadhaar Number (12 digits)</label>
-                <input id="verify-aadhaar-input" type="password" inputmode="numeric"
-                       placeholder="12-digit Aadhaar" maxlength="12" autocomplete="off"/>
+                <div style="position:relative;display:flex;align-items:center">
+                  <input id="verify-aadhaar-input" type="password" inputmode="numeric" pattern="[0-9 ]*"
+                         placeholder="1234 5678 9012" maxlength="14" autocomplete="off" aria-describedby="verify-aadhaar-count"
+                         style="padding-right:38px;flex:1"/>
+                  <button type="button" id="btn-toggle-verify-aadhaar" class="aad-eye" title="Show / hide Aadhaar" aria-label="Show or hide the Aadhaar number">👁</button>
+                </div>
+                <div class="aad-count" id="verify-aadhaar-count" aria-live="polite">0 of 12 digits</div>
               </div>
               <button class="btn-otp btn-otp-send" id="btn-aad-send-otp" type="button">Send OTP</button>
             </div>
             <div id="aad-step-2" style="display:none;margin-top:10px">
+              <div class="aad-masked" id="aad-aadhaar-masked" hidden></div>
               <div class="field" style="margin-bottom:8px">
                 <label>OTP received on Aadhaar-linked mobile</label>
                 <div class="otp-boxes" id="aad-otp-boxes">

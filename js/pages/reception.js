@@ -29,6 +29,7 @@ import { openWalkinPanel, canBookWalkin, walkinBadgeText } from '../modules/lab/
 import { stageChip, awaitingRows, buildCounterPanel, canWaiveDeposit, SCHEMES } from '../modules/ipd/admissionCounter.js';
 // Session 371B (plan session 370): the new layout, the NCISM strip / date range, the form checks, gender M / F / O
 import { genderCode, genderLabel } from '../utils/gender.js';
+import { wireAadhaarBox, aadhaarDigits, aadhaarLengthError, maskAadhaar } from '../utils/aadhaar.js';
 import { NO_MOBILE_REASONS, NO_MOBILE_EMERGENCY, normaliseMobile, searchKind, validateRegistration, showFieldErrors, clearFieldError, addressParts } from '../modules/reception/patientForm.js';
 import { mountNcismStrip } from '../modules/reception/ncismStrip.js';
 import { openNcismRange } from '../modules/reception/ncismRange.js';
@@ -1078,10 +1079,12 @@ _findEl.addEventListener('input', function() {
 // Owner (31 Oct 2026, rehearsal): ✕ clears the search AND resets the whole registration form (patient, visit, payment) to a fresh
 // state -- the found patient's details must never stay behind for the next person
 // Owner 1 Nov 2026: ✕ also clears the "✓ Visit Registered" card (receipt / feedback link) of the previous patient
+// §394 (owner, 1 Nov 2026): and every ABHA flow back to its first step (the same reset as the ABHA tab's "✕ Clear / New patient")
 document.getElementById('rx-find-clear').addEventListener('click', () => {
   clearTimeout(_phoneTimer);
   _resetForm();
   _clearReceiptCard();
+  _resetAbhaFlows();
   _findEl.focus();
 });
 _useMobileBtn.addEventListener('click', () => {
@@ -3472,7 +3475,7 @@ btnEnroll.addEventListener('click', () => {
     enrollPanel.style.display = '';
     btnEnroll.textContent = '✕ Cancel';
     btnEnroll.classList.add('open');
-    document.getElementById('enroll-aadhaar').value = '';
+    _clearAadhaarBox('enroll-aadhaar');
     document.getElementById('enroll-aadhaar').type = 'password';
     document.getElementById('btn-toggle-aadhaar').textContent = '👁';
     _clearOtpBoxes('enroll-otp-boxes');
@@ -3490,7 +3493,7 @@ function _switchToEnroll() {
   enrollPanel.style.display = '';
   btnEnroll.textContent = '✕ Cancel';
   btnEnroll.classList.add('open');
-  document.getElementById('enroll-aadhaar').value = '';
+  _clearAadhaarBox('enroll-aadhaar');
   document.getElementById('enroll-aadhaar').type = 'password';
   document.getElementById('btn-toggle-aadhaar').textContent = '👁';
   _clearOtpBoxes('enroll-otp-boxes');
@@ -3585,6 +3588,33 @@ document.getElementById('btn-toggle-aadhaar').addEventListener('click', () => {
   if (inp.type === 'password') { inp.type = 'text';     btn.textContent = '🙈'; }
   else                         { inp.type = 'password'; btn.textContent = '👁'; }
 });
+// §394 (owner, 1 Nov 2026): both Aadhaar boxes group "1234 5678 9012", digits only, "N of 12 digits"; the verify box gets the same eye
+const _AADHAAR_COUNTER = { 'enroll-aadhaar': 'enroll-aadhaar-count', 'verify-aadhaar-input': 'verify-aadhaar-count' };
+Object.entries(_AADHAAR_COUNTER).forEach(([id, cnt]) => wireAadhaarBox(document.getElementById(id), document.getElementById(cnt)));
+document.getElementById('btn-toggle-verify-aadhaar').addEventListener('click', () => {
+  const inp = document.getElementById('verify-aadhaar-input');
+  const btn = document.getElementById('btn-toggle-verify-aadhaar');
+  if (inp.type === 'password') { inp.type = 'text';     btn.textContent = '🙈'; }
+  else                         { inp.type = 'password'; btn.textContent = '👁'; }
+});
+// empties an Aadhaar box (the number never stays in the page) and resets its counter + eye
+function _clearAadhaarBox(id) {
+  const inp = document.getElementById(id);
+  inp.value = '';
+  inp.type = 'password';
+  const cnt = document.getElementById(_AADHAAR_COUNTER[id]);
+  if (cnt) cnt.textContent = '0 of 12 digits';
+  const eye = document.getElementById(id === 'enroll-aadhaar' ? 'btn-toggle-aadhaar' : 'btn-toggle-verify-aadhaar');
+  if (eye) eye.textContent = '👁';
+}
+// "XXXX XXXX 9012" on the OTP step (only the last 4 digits ever reach the page after the number is accepted)
+function _showMaskedAadhaar(id, digits) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const m = digits ? maskAadhaar(digits) : '';
+  el.textContent = m ? `Aadhaar: ${m}` : '';
+  el.hidden = !m;
+}
 
 // ── ABHA Account Exists modal ─────────────────────
 // Per ABDM demo feedback (Vipul Singh, Session 170): when Aadhaar-based
@@ -3680,7 +3710,7 @@ async function _fetchExistingAbhaProfile() {
   try {
     const res = await requestAadhaarLoginOtp(aadhaar);
     _existingAadhaarTxnId = res.txnId;
-    document.getElementById('enroll-aadhaar').value = '';
+    _clearAadhaarBox('enroll-aadhaar');
     document.getElementById('enroll-step-1').style.display    = 'none';
     document.getElementById('enroll-step-existing').style.display = '';
     _setEnrollMsg('info', 'OTP sent. Enter it below to view the ABHA profile.');
@@ -3732,8 +3762,9 @@ document.getElementById('btn-existing-verify-otp').addEventListener('click', asy
 });
 
 document.getElementById('btn-send-otp').addEventListener('click', async () => {
-  const aadhaar = document.getElementById('enroll-aadhaar').value.trim();
-  if (!/^\d{12}$/.test(aadhaar)) return _setEnrollMsg('error', 'Aadhaar must be 12 digits.');
+  const aadhaar = aadhaarDigits(document.getElementById('enroll-aadhaar').value);   // the box keeps digits only (grouped)
+  const lenErr = aadhaarLengthError(aadhaar);
+  if (lenErr) return _setEnrollMsg('error', lenErr);
   if (!_verhoeff(aadhaar))       return _setEnrollMsg('error', 'Invalid Aadhaar number (checksum failed). Please re-enter.');
 
   try { await _showConsentModal(); } catch { return; }
@@ -3746,7 +3777,8 @@ document.getElementById('btn-send-otp').addEventListener('click', async () => {
     const res = await requestABHAOtp(aadhaar);
     _enrollTxnId         = res.txnId;
     _existingAbhaAadhaar = aadhaar;
-    document.getElementById('enroll-aadhaar').value = ''; // clear Aadhaar from DOM
+    _clearAadhaarBox('enroll-aadhaar'); // clear Aadhaar from DOM
+    _showMaskedAadhaar('enroll-aadhaar-masked', aadhaar);
     document.getElementById('enroll-aadhaar').type  = 'password';
     document.getElementById('btn-toggle-aadhaar').textContent = '👁';
 
@@ -3767,7 +3799,7 @@ document.getElementById('btn-send-otp').addEventListener('click', async () => {
   } catch (err) {
     const alreadyExists = err.message?.includes('ABHA already exists');
     if (alreadyExists) {
-      _existingAbhaAadhaar = document.getElementById('enroll-aadhaar').value.trim();
+      _existingAbhaAadhaar = aadhaar;
       _showAbhaExistsModal(null, _fetchExistingAbhaProfile);
     } else {
       _setEnrollMsg('error', safeErrorMessage(err, 'Failed to send OTP. Please try again.'));
@@ -3787,6 +3819,7 @@ document.getElementById('btn-resend-otp').addEventListener('click', () => {
   document.getElementById('enroll-comm-mobile').value = '';
   _setEnrollMsg('', '');
   _enrollTxnId = null;
+  _showMaskedAadhaar('enroll-aadhaar-masked', null);
 });
 
 // Shared helper: handle ABHAProfile from finalize step (used in both CRT_ABHA_108 and 109)
@@ -4413,8 +4446,9 @@ document.querySelectorAll('.verify-tab').forEach(tab => {
 // ── Verify: Aadhaar Number flow ───────────────────
 let _aadTxnId = null;
 document.getElementById('btn-aad-send-otp').addEventListener('click', async () => {
-  const aadhaar = document.getElementById('verify-aadhaar-input').value.trim();
-  if (!/^\d{12}$/.test(aadhaar))  return _setVerifyMsg('error', 'Aadhaar must be 12 digits.');
+  const aadhaar = aadhaarDigits(document.getElementById('verify-aadhaar-input').value);   // the box keeps digits only (grouped)
+  const lenErr = aadhaarLengthError(aadhaar);
+  if (lenErr) return _setVerifyMsg('error', lenErr);
   if (!_verhoeff(aadhaar))        return _setVerifyMsg('error', 'Invalid Aadhaar number (checksum failed).');
 
   // Session 181 correction (Vipul Singh, live ABDM demo): consent belongs HERE,
@@ -4434,7 +4468,8 @@ document.getElementById('btn-aad-send-otp').addEventListener('click', async () =
   try {
     const res = await requestAadhaarLoginOtp(aadhaar);
     _aadTxnId = res.txnId;
-    document.getElementById('verify-aadhaar-input').value = ''; // clear Aadhaar
+    _clearAadhaarBox('verify-aadhaar-input'); // clear Aadhaar
+    _showMaskedAadhaar('aad-aadhaar-masked', aadhaar);
     document.getElementById('aad-step-1').style.display = 'none';
     document.getElementById('aad-step-2').style.display = '';
     document.getElementById('aad-no-abha-hint').style.display = 'none';
@@ -4450,6 +4485,7 @@ document.getElementById('btn-aad-resend').addEventListener('click', () => {
   document.getElementById('aad-step-2').style.display = 'none';
   document.getElementById('aad-step-1').style.display = '';
   _setVerifyMsg('', ''); _aadTxnId = null;
+  _showMaskedAadhaar('aad-aadhaar-masked', null);
 });
 document.getElementById('btn-aad-verify-otp').addEventListener('click', async () => {
   const otp = _getOtpValue('aad-otp-boxes');
@@ -4633,6 +4669,37 @@ document.getElementById('btn-addr-resend').addEventListener('click', () => {
   document.getElementById('addr-step-2').style.display = 'none';
   document.getElementById('addr-step-1').style.display = '';
   _setVerifyMsg('', ''); _addrTxnId = null;
+});
+
+// §394 (owner, 1 Nov 2026): every ABHA flow back to its first step -- boxes emptied, OTP transactions forgotten, the masked Aadhaar
+// hidden. The same state the Resend buttons reset, WITHOUT counting a resend (the rate limiters are reset by _closeAllAbhaPanels).
+function _resetAbhaFlows() {
+  _closeAllAbhaPanels();
+  _clearAadhaarBox('enroll-aadhaar'); _clearAadhaarBox('verify-aadhaar-input');
+  _showMaskedAadhaar('enroll-aadhaar-masked', null); _showMaskedAadhaar('aad-aadhaar-masked', null);
+  ['verify-abha-input', 'verify-mobile-input', 'verify-addr-input', 'find-mobile-input', 'enroll-comm-mobile'].forEach(id => {
+    const e = document.getElementById(id); if (e) e.value = '';
+  });
+  ['enroll-otp-boxes', 'enroll-mob-otp-boxes', 'enroll-existing-otp-boxes', 'verify-otp-boxes', 'aad-otp-boxes', 'mob-otp-boxes',
+   'addr-otp-boxes', 'find-otp-boxes'].forEach(_clearOtpBoxes);
+  const steps = { 'enroll-step-1': '', 'enroll-step-2': 'none', 'enroll-step-2b': 'none', 'enroll-step-existing': 'none', 'enroll-step-3': 'none',
+    'verify-step-1': '', 'verify-step-2': 'none', 'aad-step-1': '', 'aad-step-2': 'none', 'mob-step-1': '', 'mob-step-2': 'none', 'mob-step-3': 'none',
+    'addr-step-1': '', 'addr-step-2': 'none', 'find-step-1': '', 'find-step-2': 'none', 'find-step-3': 'none',
+    'aad-no-abha-hint': 'none', 'mob-no-abha-hint': 'none', 'find-no-abha-hint': 'none' };
+  Object.entries(steps).forEach(([id, d]) => { const e = document.getElementById(id); if (e) e.style.display = d; });
+  _enrollTxnId = null; _existingAbhaAadhaar = null; _existingAadhaarTxnId = null; _abhaExistsNewAddrTxnId = null;
+  _verifyTxnId = null; _aadTxnId = null; _addrTxnId = null; _addrAccToken = null;
+  _mobOtpTxn = null; _mobAccounts = []; _mobVerifyTToken = null; _mobVerifyTxnId = null;
+  _findMobileTxnId = null; _findTToken = null; _findVerifyTxnId = null; _findSelectedAbha = null; _findAccounts = [];
+  _setVerifyMsg('', ''); _setEnrollMsg('', ''); _setFindMsg('', '');
+}
+// "✕ Clear / New patient" on the ABHA tab = the ✕ of Find patient (registration form + the last receipt card) + every ABHA flow
+document.getElementById('rx-abha-clear').addEventListener('click', () => {
+  clearTimeout(_phoneTimer);
+  _resetForm();
+  _clearReceiptCard();
+  _resetAbhaFlows();
+  btnVerifyAbha.focus();
 });
 document.getElementById('btn-addr-verify-otp').addEventListener('click', async () => {
   const otp = _getOtpValue('addr-otp-boxes');
