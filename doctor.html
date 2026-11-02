@@ -31,8 +31,9 @@
 body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-dark);overflow:hidden;margin:0;padding:0}
 
 /* ── Two-column full-height layout ──────────────── */
+/* V9 (owner 2 Nov 2026): --ax-rail-w = the admin icon rail's width (navbar.js; 0 without it) -- the fixed layout starts right of it */
 .page{
-  position:fixed;top:var(--nav-h);left:0;right:0;bottom:0;
+  position:fixed;top:var(--nav-h);left:var(--ax-rail-w, 0px);right:0;bottom:0;
   display:grid;
   grid-template-columns:320px 1fr;
   grid-template-rows:auto auto 1fr;
@@ -85,15 +86,15 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
   .c-panel{height:0!important;overflow:hidden;min-height:0}
   /* full-screen overlay when consultation open */
   .c-active.mobile-full{
-    position:fixed;top:var(--nav-h);left:0;right:0;bottom:0;
+    position:fixed;top:var(--nav-h);left:var(--ax-rail-w, 0px);right:0;bottom:0;
     z-index:200;background:var(--cream);
     display:flex!important;flex-direction:column;overflow:hidden
   }
   .c-active.mobile-full .tab-body{
     overflow-y:auto;flex:1;min-height:0;padding-bottom:80px
   }
-  .action-bar{left:0!important}
-  .action-bar-panel{left:0!important}
+  .action-bar{left:var(--ax-rail-w, 0px)!important}
+  .action-bar-panel{left:var(--ax-rail-w, 0px)!important}
   /* back button — !important needed: base display:none comes later in file */
   .btn-mobile-back{
     display:flex!important;align-items:center;gap:8px;flex-shrink:0;
@@ -211,6 +212,20 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
 .badge-onreq{background:#fff3de;color:var(--gold)}
 .badge-emerg{background:var(--red-light);color:var(--red)}
 .badge-active{background:var(--gold-light);color:var(--gold)}
+/* Session 374B: triage (always with its word), PAID / PENDING, the Screening findings box */
+.badge-tri-emergency{background:var(--red-light);color:var(--red);border:1px solid #f5c6c6}
+.badge-tri-urgent{background:#fff3cd;color:#6b4f00;border:1px solid #e0c060}
+.badge-tri-semi_urgent{background:#e3f0ff;color:#1a4080;border:1px solid #90b8e8}
+.badge-tri-routine{background:var(--green-light);color:var(--green-deep);border:1px solid var(--border)}
+.badge-paid{background:var(--green-light);color:var(--green-deep);border:1px solid var(--green-mid)}
+.badge-pending{background:#fff3cd;color:#6b4f00;border:1px solid #e0c060}
+.scr-findings{margin:0;padding:10px 20px;background:#f4f8f5;border-bottom:2px solid var(--green-mid);font-size:13px}
+.scr-findings-h{font-family:'DM Sans',sans-serif;font-size:13px;font-weight:700;color:var(--green-deep);margin:0 0 6px}
+.scr-findings-ro{font-weight:400;color:var(--text-muted);font-size:12px}
+.scr-findings-list{display:grid;grid-template-columns:max-content 1fr;gap:3px 12px;margin:0}
+.scr-findings-list dt{font-weight:600;color:var(--text-mid)}.scr-findings-list dd{margin:0;color:var(--text-dark);white-space:pre-wrap}
+.scr-findings-note{font-size:12px;color:var(--text-muted);margin-top:4px}
+.scr-findings-note:empty{display:none}
 
 .q-foot{padding:8px 20px;border-top:1px solid var(--border);display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text-muted);flex-shrink:0}
 .live-dot{width:6px;height:6px;border-radius:50%;background:var(--green-mid);animation:pulse 2s ease-in-out infinite;flex-shrink:0}
@@ -548,11 +563,11 @@ body.vh-split .vh-panel{width:480px;box-shadow:none}
 .cs-chip.al{background:#fde8e8;color:#c0392b;border-color:#fbbaba}
 
 /* Session 358: the final-step banner and the progress reminder sit just above the fixed action bar (never under it) */
-.action-bar-panel{position:fixed;left:320px;right:0;bottom:71px;z-index:101;box-shadow:0 -2px 6px rgba(0,0,0,.06)}
+.action-bar-panel{position:fixed;left:calc(320px + var(--ax-rail-w, 0px));right:0;bottom:71px;z-index:101;box-shadow:0 -2px 6px rgba(0,0,0,.06)}
 body.final-mode .tab-body{padding-bottom:130px}   /* the banner's height on top of the action bar */
 /* Action bar — fixed at viewport bottom, inside right panel */
 .action-bar{
-  position:fixed;bottom:0;left:320px;right:0;
+  position:fixed;bottom:0;left:calc(320px + var(--ax-rail-w, 0px));right:0;
   padding:12px 24px;background:var(--white);border-top:1px solid var(--border);
   display:flex;gap:10px;z-index:100
 }
@@ -1519,6 +1534,14 @@ body.final-mode .tab-body{padding-bottom:130px}   /* the banner's height on top 
         <span id="allergy-banner-text" style="color:#7a4a00"></span>
         <span style="margin-left:auto;font-size:11px;color:#a07000;text-decoration:underline">Manage →</span>
       </div>
+
+      <!-- Session 374B (plan B1 / B2 / B10): what the Screening desk recorded -- read-only (the doctor's own vitals are saved with the
+           consultation; the Screening row never changes). Filled by js/pages/doctor.js _loadScreeningFindings(). -->
+      <section id="scr-findings" class="scr-findings" hidden aria-labelledby="scr-findings-h">
+        <h2 id="scr-findings-h" class="scr-findings-h">🩺 Screening findings <span class="scr-findings-ro">(read-only, from the Screening desk)</span></h2>
+        <dl id="scr-findings-list" class="scr-findings-list"></dl>
+        <div id="scr-findings-note" class="scr-findings-note"></div>
+      </section>
 
       <!-- §18y — High-Risk Pregnancy alert (shown whenever patient has a high-risk ANC visit) -->
       <div id="anc-risk-banner" style="display:none" class="anc-risk-banner">

@@ -1,7 +1,10 @@
 // Logout with an open shift (owner, 31 Oct 2026 rehearsal, item 22).
 // Before signing out, a person who can collect money at a counter is asked the SERVER for their shift (shift_preview -- the same
 // call as shift-close.html → 💵 My shift). Receipts not yet handed over → an in-page panel:
-//   "You haven't closed your shift — ₹X collected today."   [Close shift now]  [Log out anyway]
+//   "You haven't closed your shift — ₹X cash to hand over (₹Y received − ₹Z refunded) — not yet handed over."   [Close shift now]  [Log out anyway]
+//   (owner, 1 Nov 2026: the NET cash, the same figure as the handover's system cash; the refund part only when there is one)
+//   + a second line only when UPI / card / … were received: "UPI ₹X · Card ₹Y received — close the shift to reconcile them."
+//   (owner, 2 Nov 2026; only the non-zero modes, net of refunds, as the server's non_cash)
 // Never blocks the sign-out: no receipts, a refusal, an error or a slow answer (> 2.5 s) → sign out as before (logout() also ends the
 // duty). No native confirm(). DOM nodes + textContent only.
 import { supabase } from '../core/db/supabaseClient.js';
@@ -13,11 +16,30 @@ const SHIFT_ROLES = ['receptionist', 'nurse', 'cashier', 'accountant', 'finance_
 
 const inr = v => '₹' + Number(v || 0).toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
 
-// what the person collected in the open shift (cash received + the non-cash modes; voided receipts are already left out)
-export function collectedOf(p) {
+// the cash to hand over in the open shift = cash received − cash refunded (the server's system_cash, as on the handover;
+// voided receipts are already left out)
+export function cashToHandOver(p) {
   if (!p) return 0;
-  const nonCash = Object.values(p.non_cash || {}).reduce((s, v) => s + Number(v || 0), 0);
-  return Math.round((Number(p.cash_received || 0) + nonCash) * 100) / 100;
+  const v = p.system_cash != null ? Number(p.system_cash) : Number(p.cash_received || 0) - Number(p.cash_refunded || 0);
+  return Math.round(v * 100) / 100;
+}
+
+// the same mode names as the shift handover (js/modules/billing/shiftHandover.js MODE_LABEL)
+const MODE_LABEL = { upi: 'UPI', card: 'Card', cheque: 'Cheque', neft: 'NEFT' };
+
+// the non-cash line ('' when none) -- exported for the checks
+export function shiftLogoutNonCashText(p) {
+  const modes = Object.entries(p?.non_cash || {}).filter(([, v]) => Math.round(Number(v || 0) * 100) !== 0);
+  if (!modes.length) return '';
+  return modes.map(([k, v]) => `${MODE_LABEL[k] || k} ${inr(v)}`).join(' · ') + ' received — close the shift to reconcile them.';
+}
+
+// the dialog sentence (exported for the checks)
+export function shiftLogoutText(p) {
+  const refunded = Number(p?.cash_refunded || 0);
+  const parts = refunded > 0 ? ` (${inr(p.cash_received)} received − ${inr(refunded)} refunded)` : '';
+  const earlier = p?.from_earlier_days ? ' This includes earlier days since your last handover.' : '';
+  return `${inr(cashToHandOver(p))} cash to hand over${parts} — not yet handed over.${earlier}`;
 }
 
 function _myRoles() {
@@ -56,7 +78,15 @@ function _showDialog(p) {
   const d = document.createElement('p');
   d.id = 'ax-sl-d';
   d.style.cssText = 'margin:0 0 16px;font-size:15px;line-height:1.5';
-  d.textContent = `${inr(collectedOf(p))} collected ${p.from_earlier_days ? 'since your last handover (including earlier days)' : 'today'} — not yet handed over.`;
+  d.textContent = shiftLogoutText(p);
+  const ncText = shiftLogoutNonCashText(p);
+  const nc = ncText ? document.createElement('p') : null;
+  if (nc) {
+    nc.id = 'ax-sl-nc';
+    nc.style.cssText = 'margin:-8px 0 16px;font-size:15px;line-height:1.5';
+    nc.textContent = ncText;
+    box.setAttribute('aria-describedby', 'ax-sl-d ax-sl-nc');
+  }
   const row = document.createElement('div');
   row.style.cssText = 'display:flex;flex-wrap:wrap;gap:10px;justify-content:flex-end';
   const btn = (txt, primary, fn) => {
@@ -73,7 +103,7 @@ function _showDialog(p) {
   const goClose = btn('Close shift now', true, () => { window.location.href = 'shift-close.html'; });
   const anyway = btn('Log out anyway', false, async () => { anyway.disabled = true; await logout(); });
   row.append(anyway, goClose);
-  box.append(t, d, row);
+  box.append(t, d, ...(nc ? [nc] : []), row);
   ov.append(box);
   ov.addEventListener('click', e => { if (e.target === ov) close(); });
   document.addEventListener('keydown', onKey);

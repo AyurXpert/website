@@ -539,6 +539,32 @@ export function safeErrorMessage(error, fallback = 'Something went wrong. Please
   if (['P0001','42501','22023','P0002','23514'].includes(error?.code) && S371_MSGS.some(m => error?.message?.startsWith(m))) {
     return error.message;
   }
+  // Session 374B (contract docs/handoff/session373_plan.md §10): the Screening OPD refusals -- shown as written. Some start with a name
+  // or a field label (the counter, the doctor, "Pulse" ...), so those are matched by their fixed part.
+  const S374_MSGS = ['Only nurses, doctors and interns can screen patients', 'An intern routes a patient only with a supervising doctor',
+    'The supervising doctor must be an active doctor', 'Give the counter a name of 1 to 30 characters', 'The counter is set only through Start Triaging',
+    'This patient is with ', 'Already routed by ', 'This visit is no longer waiting at the Screening OPD', "This visit is not in today's Screening queue",
+    'Only the person who opened this patient', "Give the reason for releasing another counter's patient", 'Open the patient first',
+    'Unknown screening field', 'Choose the triage level', 'Enter both BP numbers', 'Choose the OPD to send the patient to',
+    'Choose a specialty OPD, not the Screening OPD', 'Give the reason for changing the requested doctor',
+    'A Screening visit is completed only by routing it', 'Give a share for every clinical department', 'The shares add up to',
+    'Each share must be 0 to 100', 'Only an active Super Admin sets the OPD department targets', 'Give the reason for the change',
+    'Only the Super Admin, Medical Superintendent, Deputy MS, RMO or Medical Director can see the screener log',
+    // owner 2 Nov 2026: the duty list, Start Triaging first, routing to yourself, the teleconsultation fee / payment
+    'You are not on Screening duty today', 'Click 🟢 Start Triaging to start your Screening duty', 'Give the reason for routing the patient to yourself',
+    'Only the Super Admin, Medical Superintendent, Deputy MS or RMO keeps the Screening duty list', 'A Screening duty list can be made for today',
+    'Only active nurses, doctors and interns can be put on Screening duty', 'This person was already taken off Screening duty',
+    "A past day's Screening duty list cannot be changed", 'Give the reason for taking this person off Screening duty',
+    'Only the Super Admin, Medical Superintendent, Deputy MS, RMO or Medical Director can see the Screening duty list',
+    'The Screening duty list is never deleted', 'A Screening duty entry is changed only by removing it once',
+    "A teleconsultation is billed only with the hospital's Teleconsultation fee", 'A teleconsultation is paid online only'];
+  const S374_LABELS = '(Pulse|BP systolic|BP diastolic|Temperature \\(°F\\)|SpO₂|Height \\(cm\\)|Weight \\(kg\\)|Chief complaint|Naadi|Observations|Suggested investigations|Instructions)';
+  const S374_RE = [new RegExp(`^${S374_LABELS}(: please check the number — this value is not possible| must be between | must be a number| is too long)`), / is not on duty today in .+\. Choose a doctor on duty/,
+    / not found in your organisation\.$/, / is already in use by .+ — choose another\.$/, / is already on Screening duty for \d{2}-\d{2}-\d{4}\.$/];
+  if (['P0001','42501','22023','P0002','23514','23505'].includes(error?.code)
+      && (S374_MSGS.some(m => error?.message?.startsWith(m)) || S374_RE.some(r => r.test(error?.message || '')))) {
+    return error.message;
+  }
   if (error?.code === '42501' && error?.message === 'Not authorized') {   // 359: an inactive / relieved account, or no right at all
     return 'Your account is not allowed to do this (it may not be active). Ask the Super Admin.';
   }

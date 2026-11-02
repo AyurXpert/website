@@ -1,4 +1,5 @@
 import { supabase } from '../core/db/supabaseClient.js';
+import { getOpdWorkflow, screeningOpdId } from '../modules/opd/screeningOpd.js';   // Session 374B (B7)
 import { requireAuth, hasModule, getCurrentProfile, getCurrentTenantId } from '../core/auth.js';
 import { initNavbar } from '../components/navbar.js';
 import { escapeHtml as _esc } from '../utils/validators.js';
@@ -38,6 +39,10 @@ window.switchTab = function(id) {
 // ── KPIs ──────────────────────────────────────────────────
 async function loadKPIs() {
   const thisMonth = istMonthStr();
+  // Session 374B (plan B7): Screening OPD visits are not OPD visits (Screening + the specialty visit = one patient, counted once)
+  const scrOpd = screeningOpdId(await getOpdWorkflow(supabase));
+  let visQ = supabase.from('visits').select('id',{count:'exact',head:true}).eq('tenant_id',tenantId);
+  if (scrOpd) visQ = visQ.neq('opd_id', scrOpd);
   const [
     { count: patCount },
     { count: visCount },
@@ -46,14 +51,14 @@ async function loadKPIs() {
     { count: codedCount },
   ] = await Promise.all([
     supabase.from('patients').select('id',{count:'exact',head:true}).eq('tenant_id',tenantId),
-    supabase.from('visits').select('id',{count:'exact',head:true}).eq('tenant_id',tenantId),
+    visQ,
     supabase.from('patients').select('id',{count:'exact',head:true}).eq('tenant_id',tenantId).gte('created_at',thisMonth+'-01'),
     supabase.from('ipd_admissions').select('id',{count:'exact',head:true}).eq('tenant_id',tenantId),
     supabase.from('consultation_notes').select('id',{count:'exact',head:true}).eq('tenant_id',tenantId).not('diagnosis_namc_code','is',null),
   ]);
   document.getElementById('k-patients').textContent = patCount || 0;
   document.getElementById('k-visits').textContent   = visCount || 0;
-  document.getElementById('k-visits-sub').textContent = 'all time';
+  document.getElementById('k-visits-sub').textContent = scrOpd ? 'all time · Screening visits not counted' : 'all time';
   document.getElementById('k-new').textContent      = newCount || 0;
   document.getElementById('k-ipd').textContent      = ipdCount || 0;
   document.getElementById('k-coded').textContent    = codedCount || 0;
@@ -245,14 +250,20 @@ window.loadStats = async function() {
   const { from } = _periodDates(period);
 
   const [
-    { data: visitRows },
+    { data: allVisitRows },
     { data: patRows },
+    wf,
   ] = await Promise.all([
-    supabase.from('visits').select('id,created_at,opds(name),is_new_patient')
+    supabase.from('visits').select('id,created_at,opd_id,opds(name),is_new_patient')
       .eq('tenant_id',tenantId).gte('created_at', from+'T00:00:00+05:30'),
     supabase.from('patients').select('id,age,gender,created_at')
       .eq('tenant_id',tenantId).gte('created_at', from+'T00:00:00+05:30'),
+    getOpdWorkflow(supabase),
   ]);
+  // Session 374B (plan B7): Screening OPD visits are left out of the OPD figures and shown on their own line
+  const scrOpd = screeningOpdId(wf);
+  const visitRows = (allVisitRows || []).filter(v => !scrOpd || v.opd_id !== scrOpd);
+  const screenedN = (allVisitRows || []).length - visitRows.length;
 
   // OPD breakdown
   const opdCounts = {};
@@ -268,6 +279,13 @@ window.loadStats = async function() {
       <div class="bar-track"><div class="bar-fill" style="width:${Math.round(cnt/maxOpd*100)}%"></div></div>
       <div class="bar-count">${cnt}</div>
     </div>`).join('') || '<div class="empty">No data</div>';
+  if (screenedN) {   // DOM nodes, no HTML string
+    const row = document.createElement('div'); row.className = 'bar-row'; row.style.color = 'var(--text-muted)';
+    const l = document.createElement('div'); l.className = 'bar-label'; l.textContent = 'Screened';
+    const t = document.createElement('div'); t.className = 'bar-track'; t.style.cssText = 'background:none;font-size:11px'; t.textContent = 'at the Screening OPD — not counted as OPD visits';
+    const c = document.createElement('div'); c.className = 'bar-count'; c.textContent = String(screenedN);
+    row.append(l, t, c); document.getElementById('stat-opd-chart').append(row);
+  }
 
   // New vs return
   const newV  = (visitRows||[]).filter(v=>v.is_new_patient).length;

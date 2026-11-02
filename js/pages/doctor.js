@@ -29,6 +29,7 @@ import { loadLabCatalogue, namesBySection } from '../modules/lab/catalogue.js';
 import { loadMyPkSessions, resetMyPkSessions } from '../modules/panchakarma/myPkSessions.js';
 import { initAlertBell } from '../components/alertBell.js';
 import { loadAwaitingDeposit, loadDepositWaivers } from '../modules/ipd/admissionCounter.js';
+import { findingsLines, vitalsPrefill, queueOrder, payState, triageLabel } from '../modules/screening/findings.js';   // Session 374B
 
 // Auth + navbar first — page must always be visible and navigable even if proforma module is absent
 await requireAuth(['doctor', 'trainee_doctor', 'super_admin', 'dept_admin']);
@@ -669,13 +670,55 @@ async function _openAbdmRequestRow(consentId, status, patientId) {
 }
 window._openAbdmRequestRow = _openAbdmRequestRow;
 
+// Session 374B: one read each for the queue's triage + bills (never per card). Failures only drop the badges, never the queue.
+async function _queueExtras(visits) {
+  const ids = visits.map(v => v.id);
+  if (!ids.length) return { findings: {}, bills: {} };
+  const billIds = [...new Set([...ids, ...visits.map(v => v.screening_visit_id).filter(Boolean)])];
+  const [f, b] = await Promise.all([
+    supabase.from('screening_findings').select('specialty_visit_id,triage,emergency').in('specialty_visit_id', ids),
+    supabase.from('bills').select('visit_id,status,created_at').eq('tenant_id', tenantId).in('visit_id', billIds).order('created_at', { ascending: true }),
+  ]);
+  const findings = {}, bills = {};
+  (f.data || []).forEach(r => { findings[r.specialty_visit_id] = r; });
+  (b.data || []).forEach(r => { if (r.status !== 'cancelled') bills[r.visit_id] = r; });   // the latest non-cancelled bill of the visit
+  return { findings, bills };
+}
+
+// Session 374B (plan B1 / B2 / B10): the read-only "Screening findings" box + the vitals pre-fill. The doctor's Vitals boxes are filled
+// only while EMPTY (a restored draft or the doctor's own entry wins); what the doctor saves goes to the consultation, as before.
+async function _loadScreeningFindings(visit) {
+  const box = document.getElementById('scr-findings');
+  box.hidden = true;
+  if (!visit?.screening_visit_id) return;
+  const { data: f, error } = await supabase.from('screening_findings').select('*').eq('specialty_visit_id', visit.id).maybeSingle();
+  if (_activeVisitId !== visit.id) return;
+  const list = document.getElementById('scr-findings-list'), note = document.getElementById('scr-findings-note');
+  if (error || !f) {
+    list.replaceChildren();
+    note.textContent = error ? 'The Screening findings could not be loaded — reload the page to try again.' : 'Routed from the Screening desk; no findings were recorded.';
+    box.hidden = false;
+    return;
+  }
+  // V1 (owner 2 Nov 2026): the clinical flags (Bradycardia, High BP, Fever ...) in amber, with the words
+  list.replaceChildren(...findingsLines(f).flatMap(l => { const dt = document.createElement('dt'), dd = document.createElement('dd'); dt.textContent = l.label; dd.textContent = l.value;
+    if (l.flag) { dd.style.color = l.flag === 'red' ? '#a5281b' : '#7a4a00'; dd.style.fontWeight = l.flag === 'red' ? '700' : '600'; } return [dt, dd]; }));
+  const filled = [];
+  for (const [id, val] of Object.entries(vitalsPrefill(f))) {
+    const el = document.getElementById(id);
+    if (el && !String(el.value || '').trim()) { el.value = val; filled.push(id); }
+  }
+  note.textContent = filled.length ? 'Vitals boxes pre-filled from Screening — check and change them if needed; your values are saved with the consultation.' : '';
+  box.hidden = false;
+}
+
 async function loadQueue() {
   const list  = document.getElementById('q-list');
   const start = new Date(istDayStartUTC(todayISTStr()));   // IST midnight, any device clock (TODO §59)
 
   let query = supabase
     .from('visits')
-    .select('id, token_number, status, chief_complaint, created_at, is_on_request, visit_category, is_teleconsultation, meeting_url, doctor_id, patients(id, uhid, name, phone, abha_number, abha_address)')
+    .select('id, token_number, status, chief_complaint, created_at, is_on_request, visit_category, is_teleconsultation, meeting_url, doctor_id, screening_visit_id, patients(id, uhid, name, phone, abha_number, abha_address)')
     .eq('tenant_id', tenantId)
     .in('status', ['waiting', 'in_progress'])
     .gte('created_at', start.toISOString())
@@ -732,6 +775,11 @@ async function loadQueue() {
     if (excludeIds.size) all = all.filter(v => !excludeIds.has(v.id));
   }
 
+  // Session 374B (plan B4 / B5): the Screening triage (badge + order: Emergency → Urgent → Semi-urgent → Routine, then token) and
+  // PAID / PENDING read from the visit's own bill or, for a patient routed from Screening, the Screening visit's bill (bills untouched)
+  const { findings: qFindings, bills: qBills } = await _queueExtras(all);
+  all = queueOrder(all, qFindings);
+
   const opdQ  = all.filter(v => !v.is_teleconsultation);
   const teleQ = all.filter(v =>  v.is_teleconsultation);
 
@@ -752,8 +800,10 @@ async function loadQueue() {
   list.innerHTML = shown.map(v => {
     const isActive    = v.id === _activeVisitId;
     const inProgress  = v.status === 'in_progress';
-    const isEmergency = v.visit_category === 'emergency';
+    const qf          = qFindings[v.id];
+    const isEmergency = v.visit_category === 'emergency' || !!qf?.emergency;
     const isTele      = v.is_teleconsultation;
+    const pay         = payState(v, qBills);
     const tokenClass  = isEmergency ? 'red' : inProgress ? 'gold' : isTele ? 'blue' : '';
     const cardClass   = isActive ? 'q-card active' : inProgress ? 'q-card in-progress' : 'q-card';
     const cat         = catLabel[v.visit_category] || 'OPD';
@@ -769,6 +819,8 @@ async function loadQueue() {
         ${v.is_on_request ? '<span class="badge badge-onreq">ON REQ</span>' : ''}
         ${inProgress ? '<span class="badge badge-active">IN PROGRESS</span>' : ''}
         ${isEmergency ? '<span class="badge badge-emerg">EMERGENCY</span>' : ''}
+        ${qf && !isEmergency ? `<span class="badge badge-tri-${_esc(qf.triage)}">${_esc(triageLabel(qf.triage).toUpperCase())}</span>` : ''}
+        ${pay ? `<span class="badge badge-${pay}">${pay === 'paid' ? 'PAID' : 'PENDING'}</span>` : ''}
         ${isTele ? '<span class="badge" style="background:#dbeafe;color:#1d4ed8">🎥 TELE</span>' : ''}
       </div>
       <div class="q-complaint">${_esc(v.chief_complaint || '—')}</div>
@@ -1578,6 +1630,7 @@ window.startConsultation = async function(visitId) {
   _clearForm();
 
   _activeVisitId = visitId;
+  document.getElementById('scr-findings').hidden = true;   // Session 374B -- never the previous patient's findings
 
   // Session 127 -- reset review-draft linkage on every fresh open; openReviewDraft()
   // re-sets these itself right after calling this function when opening via the
@@ -1854,6 +1907,8 @@ window.startConsultation = async function(visitId) {
       document.getElementById('ref-banner').style.display = '';
     }
   }
+
+  await _loadScreeningFindings(visit);   // Session 374B -- before the provisional / draft fills, which win over it
 
   _switchTab('hist');
   loadQueue();
@@ -6190,6 +6245,9 @@ async function completeConsultation() {
     else _toast(`${_activePatient?.name} — consultation complete, ${dispMsg}${pkMsg}`, 'info');
     await _clearConsultationDraft(_activeVisitId);  // Session 185 — real note saved, autosave copy no longer needed
     const _wasUnidentified = !!_activePatient?.is_unidentified;   // Session 358 (read before _closeConsult clears it)
+    // Session 374A (item 0.1): keep the visit + patient for the ABDM call below -- _closeConsult() empties both, so the call read
+    // null.id and never reached abdm-hip (reproduced: scripts/check-374-doctor-abdm.mjs)
+    const _ccVisitId = _activeVisitId, _ccPatient = _activePatient;
     _closeConsult();
     loadQueue();
 
@@ -6208,7 +6266,7 @@ async function completeConsultation() {
     // abha_address=null). Removed the gate -- always fire this now, matching
     // reception.js's Scenario 2 (no ABHA) design intent.
     // Session 358 (§274, Q12): no ABDM care context for an unidentified patient (page-level; the server block comes with ABDM)
-    if (!_wasUnidentified) _abdmCreateCareContext(_activeVisitId, _activePatient, notes, disposition, rx.length > 0);
+    if (!_wasUnidentified) _abdmCreateCareContext(_ccVisitId, _ccPatient, notes, disposition, rx.length > 0);
     loadAwaitingReports();
 
   } catch (err) {
@@ -8788,8 +8846,11 @@ let LAB_CATALOG = {
 // charged ₹0 or silently dropped.
 async function _billLabOrder(labSelected, labOrderId) {
   try {
-    const { data: bill } = await supabase.from('bills').select('id')
-      .eq('visit_id', _activeVisitId).eq('tenant_id', tenantId).order('created_at', { ascending: false }).limit(1).maybeSingle();
+    // Session 374B (plan B5): a patient routed from Screening was billed on the Screening visit -- that bill is this visit's bill
+    const billVisits = [_activeVisitId, _activeVisit?.screening_visit_id].filter(Boolean);
+    const { data: billRows } = await supabase.from('bills').select('id,visit_id')
+      .in('visit_id', billVisits).eq('tenant_id', tenantId).order('created_at', { ascending: false });
+    const bill = (billRows || []).find(b => b.visit_id === _activeVisitId) || (billRows || [])[0] || null;
     if (!bill) return { billed: [], unmatched: [], noBill: true };
 
     const { data: feeRows } = await supabase.from('fee_structures')

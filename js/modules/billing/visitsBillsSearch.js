@@ -323,6 +323,15 @@ export function mountVisitsBillsSearch(root, { supabase, onReturn = null, onCred
     // prescriptions of the visits shown (a separate read: a refusal for a non-clinical role simply shows none)
     const vids = rows.filter(r => r.visit).map(r => r.visit.id)
     if (!vids.length) return
+    // Session 374B (plan B5): a Screening visit's bill is the routed patient's bill -- say where the patient went (bills untouched)
+    supabase.from('visits').select('screening_visit_id, token_number, opds(name)').in('screening_visit_id', vids).then(({ data: routed }) => {
+      if (mine !== seq) return
+      for (const r of routed || []) {
+        const card = [...results.children].find(c => c.dataset.visitId === r.screening_visit_id)
+        if (card && card.children[1]) card.children[1].after(el('div', { style: 'font-size:12px;color:var(--green-deep);font-weight:600;margin-bottom:4px', 'data-routed-to': '1' },
+          `→ routed to ${r.opds?.name || 'the specialty OPD'} (Token ${r.token_number ?? '—'})`))
+      }
+    }, () => { /* a screen: without the line the bill still shows */ })
     const rx = await supabase.rpc('list_visit_prescriptions', { p_visit_ids: vids })
     if (mine !== seq || rx.error || !Array.isArray(rx.data)) return
     for (const p of rx.data) {

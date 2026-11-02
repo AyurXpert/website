@@ -58,7 +58,9 @@ function _buildGroups(role, type, secondaryRole, hasMonitoringAccess, isDeptScop
         // (allowed on the destination) had no discoverable nav link to it either.
         { href:'doctor.html',        label:'Doctor Queue',  roles:ADMIN_ROLES.concat(['doctor','trainee_doctor']),types:null, module:'opd' },
         { href:'dept-admin.html',    label:'My Department', roles:[],                            types:null, module:'opd', deptScoped:true },
-        { href:'screening.html',     label:'Screening OPD', roles:CLINICAL,                      types:HOSP, module:'opd'        },
+        // G4 (owner 2 Nov 2026): an intern (role trainee_doctor or doctor, designation intern) screens when on the duty list -- the link by
+        // designation, so a PG scholar (also trainee_doctor) does not get it; screening.js's own requireAuth already lets trainee_doctor in
+        { href:'screening.html',     label:'Screening OPD', roles:CLINICAL,                      types:HOSP, module:'opd', designations:['intern'] },
         { href:'opd-admin.html',     label:'OPD Setup',     roles:ADMIN_ROLES,                   types:null, module:'opd'        },
         { href:'dept-hub.html',      label:'Departments',   roles:CLINICAL.concat(ADMIN_ROLES),  types:HOSP, module:'opd'        },
         // Session 205 (cont.) -- this is a PG/faculty academic register (NCISM Sec.18k/21l), not
@@ -446,8 +448,10 @@ function _injectAdminSidebarOverlay(tenant, profile, role) {
     </div>
     <nav class="axsb-nav-inner">${navHTML}</nav>`;
   document.body.appendChild(rail);
-  // Push page content right so the fixed 52px rail never covers it
+  // Push page content right so the fixed 52px rail never covers it; V9 (owner 2 Nov 2026): pages with a FIXED left-pinned layout
+  // (doctor.html) read --ax-rail-w instead (body padding does not move position:fixed elements)
   document.body.style.paddingLeft = '52px';
+  document.documentElement.style.setProperty('--ax-rail-w', '52px');
 }
 
 // ── Watermark ─────────────────────────────────────────────────────────────────

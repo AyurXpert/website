@@ -33,6 +33,7 @@ import { wireAadhaarBox, aadhaarDigits, aadhaarLengthError, maskAadhaar } from '
 import { NO_MOBILE_REASONS, NO_MOBILE_EMERGENCY, normaliseMobile, searchKind, validateRegistration, showFieldErrors, clearFieldError, addressParts } from '../modules/reception/patientForm.js';
 import { mountNcismStrip } from '../modules/reception/ncismStrip.js';
 import { openNcismRange } from '../modules/reception/ncismRange.js';
+import { triageLabel } from '../modules/screening/findings.js';   // Session 374B (B4)
 import { TAB_LABEL, effectiveTabs, splitTabs, normalisePane, loadPrefs, saveOwnPrefs, openArrangeDialog } from '../modules/reception/layoutPrefs.js';
 import {
   requestABHAOtp, enrollABHA,
@@ -371,7 +372,16 @@ async function _linkAbha(prof, fmt, visitId = null, skipGate = false) {
     const { data: filled, error: fillErr } = await supabase.from('patients').update(upd).eq('id', _patient.id).select('id');
     if (fillErr || !filled?.length) _alert('warning', safeErrorMessage(fillErr, 'The ABHA is linked, but the gender / date of birth from ABHA were not saved on this record.'));
   }
-  if (visitId) _abdmLinkTokenAfterVerify(_patient.id, { abhaNumber: fmt }, visitId).catch(() => {});
+  // Session 374B (plan E4): no VISIT record (or link token) for a visit still at the Screening OPD
+  if (visitId) _visitOpdId(visitId).then(opd => { if (!_isScreeningVisitOpd(opd)) return _abdmLinkTokenAfterVerify(_patient.id, { abhaNumber: fmt }, visitId); }).catch(() => {});
+}
+
+// Session 374B (B6): is this OPD the organisation's Screening OPD (Screening ON)? An unknown OPD (a failed read) counts as NOT Screening,
+// so the old behaviour (a VISIT record) is kept rather than silently dropping a patient's record.
+function _isScreeningVisitOpd(opdId) { return !!(_screeningOn && _screeningOpdId && opdId && opdId === _screeningOpdId); }
+async function _visitOpdId(visitId) {
+  const { data } = await supabase.from('visits').select('opd_id').eq('id', visitId).eq('tenant_id', tenantId).maybeSingle();
+  return data?.opd_id || null;
 }
 
 // Session 371B (D1a 5, plan E4): one ABHA per patient per organisation (unique index). When the write is refused because another record
@@ -627,6 +637,8 @@ let _feeAnswer = null;      // the server's last answer
 let _feeOverride = null;    // { fee: {id,label,amount}, reason } chosen by reception
 let _newIssue = false;      // "Different issue this time" (full fee)
 let _referralId = null;     // a doctor's internal referral to this OPD (the server checks it)
+// Session 374 (owner rehearsal 2 Nov 2026, G7 / G9): a teleconsultation is priced ONLY with the Teleconsultation fee and paid online only
+const _isTeleCat = () => document.getElementById('visit-category').value === 'teleconsultation';
 async function loadFees(opdId) {
   const seq = ++_feeSeq;
   document.getElementById('reg-fee').value = '';
@@ -634,6 +646,11 @@ async function loadFees(opdId) {
   _surchargeDefault = 0;
   _feeByType = {};
   _feeAnswer = null;
+  // G7: a fee changed by reception never crosses between a teleconsultation and an in-person visit (the server refuses both ways)
+  if (_feeOverride && (_isTeleCat() !== (_feeOverride.fee.type === 'teleconsultation'))) {
+    _feeOverride = null;
+    document.getElementById('rx-override').hidden = true;
+  }
   if (!opdId) { _renderFeeLines(); _updateTotal(); return; }
   _referralId = null;
   if (_patient?.id) {
@@ -686,7 +703,11 @@ function _renderFeeLines(errText) {
   if (!box) return;
   box.replaceChildren();
   if (errText) { const e = document.createElement('div'); e.className = 'rx-err'; e.textContent = errText; box.append(e); return; }
-  if (!_feeAnswer) { const h = document.createElement('div'); h.className = 'rx-hint'; h.textContent = 'The fees appear once the OPD is known.'; box.append(h); return; }
+  if (!_feeAnswer) {
+    const h = document.createElement('div'); h.className = 'rx-hint';
+    h.textContent = _isTeleCat() ? 'Teleconsultation: choose the OPD — the Teleconsultation fee appears then.' : 'The fees appear once the OPD is known.';
+    box.append(h); return;
+  }
   const reg = _feeByType.registration;
   box.append(_feeLine('Registration fee', reg ? (reg.reason || reg.label || '') : (_patient ? 'Already registered here' : 'No registration fee'), reg ? reg.amount : 0));
   const cons = _feeByType.consultation;
@@ -705,7 +726,9 @@ function _renderFeeLines(errText) {
     }
   } else {
     const e = document.createElement('div'); e.className = 'rx-err';
-    e.textContent = 'No consultation fee is set up for this OPD in Fee Management — ask the administrator. A bill cannot be made without it.';
+    e.textContent = _isTeleCat()
+      ? 'No Teleconsultation fee is set up in Fee Management — ask the administrator. A bill cannot be made without it (an in-person fee is never used for a teleconsultation).'
+      : 'No consultation fee is set up for this OPD in Fee Management — ask the administrator. A bill cannot be made without it.';
     box.append(e);
   }
   if (onRequestChk.checked) {
@@ -723,7 +746,10 @@ async function _openFeeOverride() {
     .eq('tenant_id', tenantId).eq('category', 'opd').eq('approval_status', 'active').eq('is_active', true)
     .in('fee_type', ['consultation', 'followup_consultation', 'teleconsultation']);
   if (error) { _alert('error', safeErrorMessage(error, 'The fee list could not be loaded.')); return; }
-  const list = (data || []).filter(f => (!f.opd_id || f.opd_id === opdId) && f.id !== _feeByType.consultation?.id);
+  // G7: a teleconsultation may be changed only to another Teleconsultation fee -- never an in-person consultation / follow-up fee
+  const tele = _isTeleCat();
+  const list = (data || []).filter(f => (!f.opd_id || f.opd_id === opdId) && f.id !== _feeByType.consultation?.id
+    && (!tele || f.fee_type === 'teleconsultation'));
   if (!list.length) { _alert('info', 'There is no other active consultation fee to choose.'); return; }
   list.forEach(f => sel.append(new Option(`${f.label} — ${_inr(getEffectivePrice(f))}${f.opd_id ? '' : ' (hospital-wide)'}`, f.id)));
   sel._rows = list;
@@ -752,7 +778,7 @@ document.getElementById('rx-override-apply').addEventListener('click', () => {
     return;
   }
   clearFieldError(reasonEl);
-  _feeOverride = { fee: { id: f.id, label: f.label, amount: getEffectivePrice(f) }, reason };
+  _feeOverride = { fee: { id: f.id, label: f.label, amount: getEffectivePrice(f), type: f.fee_type }, reason };
   document.getElementById('fee').value = _feeOverride.fee.amount;
   document.getElementById('rx-override').hidden = true;
   _renderFeeLines(); _updateTotal();
@@ -825,6 +851,12 @@ function _pickPrevDoctor(docSel) {
   return onDuty;
 }
 
+// Session 374B (B8): the organisation's Panchakarma OPD -- ncism_code PK, else the OPD named Panchakarma; null when there is none
+function _pkOpdId() {
+  const list = (_opdListFull || []).filter(o => o.id !== _screeningOpdId && o.id !== _emergencyOpdId);
+  return (list.find(o => String(o.ncism_code || '').toUpperCase() === 'PK') || list.find(o => /panchakarma/i.test(o.name || '')))?.id || null;
+}
+
 function _applyOpdRule() {
   const sel    = document.getElementById('opd');
   const docSel = document.getElementById('doctor');
@@ -868,6 +900,33 @@ function _applyOpdRule() {
         : (cat === 'followup' && _prevOpdName) ? `↩ Follow-up · ${_prevOpdName}${_prevDoctorName ? ' · ' + _prevDoctorName : ''} (can be changed)`
         : 'Choose the OPD / department and the doctor for this visit.';
       hint.style.cssText = 'display:block;color:var(--text-muted);font-size:11px;margin-top:4px;font-weight:500';
+    }
+    return;
+  }
+
+  // Session 374B (plan B8, contract §10.3 -- no server change): a Teleconsultation and a walk-in Panchakarma visit do NOT go through
+  // Screening. Tele: reception chooses the OPD and a doctor on duty today (the tele fee, the tele register, never counted for NCISM --
+  // 371 rules). Panchakarma: straight to the organisation's Panchakarma OPD, a doctor on duty there or the OPD's shared queue. No
+  // Panchakarma OPD set up -> Screening as before (the screener can still route the patient).
+  const pkOpd = cat === 'panchakarma' ? _pkOpdId() : null;
+  if (!_scanDeptOpdId && (cat === 'teleconsultation' || pkOpd)) {
+    const keep = sel.value && sel.value !== _screeningOpdId && sel.value !== _emergencyOpdId ? sel.value : '';
+    const target = pkOpd || keep || (_prevOpdId && _prevOpdId !== _screeningOpdId ? _prevOpdId : '');
+    sel.disabled = !!pkOpd;
+    docSel.disabled = false;
+    if (target) {
+      if (sel.value !== target || _doctorListOpd !== target) { sel.value = target; loadDoctors(target); }
+      loadFees(target);
+    } else {
+      sel.value = '';
+      ++_doctorLoadSeq; _doctorListOpd = null;
+      docSel.innerHTML = '<option value="">— choose the OPD first —</option>';
+      loadFees(null);   // G7: no fee of an earlier category stays on show -- "choose the OPD" until the server prices this one
+    }
+    if (hint) {
+      hint.textContent = pkOpd ? `🌸 Panchakarma → ${_opdMap[pkOpd] || 'Panchakarma OPD'} — Screening skipped; choose a doctor on duty or leave it to the OPD queue`
+        : '🎥 Teleconsultation — Screening skipped: choose the OPD and a doctor on duty today';
+      hint.style.cssText = 'display:block;color:var(--green-mid);font-size:11px;margin-top:4px;font-weight:600';
     }
     return;
   }
@@ -956,7 +1015,14 @@ function _applyOpdRule() {
 }
 
 // ── Visit category change ─────────────────────────
-document.getElementById('visit-category').addEventListener('change', _applyOpdRule);
+// Session 374 (G7): the fee depends on the category (the server's opd_fee_for_visit reads it) -- every change asks the server again
+// for the OPD now shown, when the routing rule itself did not; G9: the Payment chips follow (no Cash for a teleconsultation)
+document.getElementById('visit-category').addEventListener('change', () => {
+  const seq = _feeSeq;
+  _applyOpdRule();
+  if (_feeSeq === seq) loadFees(document.getElementById('opd').value || null);
+  _syncPayChips();
+});
 
 // ── OPD change ────────────────────────────────────
 document.getElementById('opd').addEventListener('change', async function() {
@@ -1006,12 +1072,28 @@ window.onPayerTypeChange = function() {
 };
 
 // Session 371B: the Payment chips (Cash / UPI / Card / Pay later) drive the two fields the save code reads (#payment-mode, Paid / Pending)
+// Session 374 (G9, owner 2 Nov 2026): a teleconsultation is paid online only -- no Cash chip (the server refuses a cash receipt for
+// it anyway); a Cash choice already made is dropped (nothing selected: reception must pick UPI / Card / Pay later). Back to an
+// in-person category: Cash returns (and is the default again when nothing was picked).
 function _syncPayChips() {
-  const mode = document.getElementById('payment-mode').value;
+  const modeEl = document.getElementById('payment-mode');
+  const tele = _isTeleCat();
+  const cashR = document.querySelector('input[name="rx-pay"][value="cash"]');
+  if (cashR) {
+    cashR.disabled = tele;
+    const c = cashR.closest('.rx-chip');
+    if (c) c.style.display = tele ? 'none' : '';
+  }
+  const teleNote = document.getElementById('rx-tele-pay-note');
+  if (teleNote) teleNote.hidden = !tele;
+  if (tele && modeEl.value === 'cash') modeEl.value = '';
+  else if (!tele && !modeEl.value) modeEl.value = 'cash';
+  const mode = modeEl.value;
   const pending = document.getElementById('pay-pending').checked;
   const key = pending || ['credit', 'package'].includes(mode) ? 'later' : mode;
   const r = document.querySelector(`input[name="rx-pay"][value="${key}"]`);
   if (r) r.checked = true;
+  else document.querySelectorAll('input[name="rx-pay"]').forEach(x => { x.checked = false; });
   const ref = document.getElementById('payment-ref');
   ref.style.display = !pending && ['upi', 'card'].includes(mode) ? '' : 'none';
   if (ref.style.display === 'none') ref.value = '';
@@ -1278,6 +1360,9 @@ async function _selectPatient(patient, chosenCombo) {
     const opdSel = document.getElementById('opd');
     const catSel = document.getElementById('visit-category');
     const hint   = document.getElementById('opd-routing-hint');
+    // Session 374 (owner rehearsal 2 Nov 2026, G7): a Teleconsultation chosen BEFORE the patient is kept -- the Follow-up / OPD
+    // auto-choice below applies only to an in-person visit (a tele visit is priced with the Teleconsultation fee, paid online only)
+    const keepTele = catSel.value === 'teleconsultation';
 
     _prevOpdId      = null;
     _prevDoctorId   = null;
@@ -1306,7 +1391,7 @@ async function _selectPatient(patient, chosenCombo) {
       _prevDoctorName = chosenCombo.substitute_name
         ? `${chosenCombo.substitute_name} (covering for ${chosenCombo.doctor_name}, on leave)`
         : (chosenCombo.on_leave ? `${chosenCombo.doctor_name} (on leave — no substitute)` : chosenCombo.doctor_name);
-      catSel.value = 'followup';
+      if (!keepTele) catSel.value = 'followup';
       await loadDoctors(chosenCombo.opd_id);
       await loadFees(chosenCombo.opd_id);
       _applyOpdRule(); // locks OPD + doctor to the chosen combo's values
@@ -1326,7 +1411,7 @@ async function _selectPatient(patient, chosenCombo) {
           _setPendingAbhaAddress(chosenCombo.abha_address);
         }
       }
-      if (hint) {
+      if (hint && !keepTele) {
         hint.textContent = `↩ Follow-up · ${_prevOpdName}${_prevDoctorName ? ' · ' + _prevDoctorName : ''}`;
         hint.style.cssText = 'display:block;color:var(--green-mid);font-size:11px;margin-top:4px;font-weight:500';
       }
@@ -1335,17 +1420,17 @@ async function _selectPatient(patient, chosenCombo) {
       // list — a genuinely new complaint, confirmed with the patient. Force
       // Screening regardless of visit history (unlike the count-based
       // fallback below, this never silently guesses a specialty).
-      catSel.value = 'opd';
+      if (!keepTele) catSel.value = 'opd';
       _applyOpdRule();
-      if (hint) {
+      if (hint && !keepTele) {
         hint.textContent = '🔵 New complaint — routed to Screening OPD';
         hint.style.cssText = 'display:block;color:#1a6080;font-size:11px;margin-top:4px;font-weight:500';
       }
     } else if (count === 0) {
       // New patient → Screening OPD (locked)
-      catSel.value = 'opd';
+      if (!keepTele) catSel.value = 'opd';
       _applyOpdRule();
-      if (hint) {
+      if (hint && !keepTele) {
         hint.textContent = '🔵 New patient — routed to Screening OPD';
         hint.style.cssText = 'display:block;color:#1a6080;font-size:11px;margin-top:4px;font-weight:500';
       }
@@ -1366,7 +1451,7 @@ async function _selectPatient(patient, chosenCombo) {
         _prevOpdId      = prev.opd_id;
         _prevDoctorId   = prev.doctor_id || null;
         _prevOpdAddress = prev.abha_address || null; // which ABHA Address this specialty was actually last consulted under — lets the address dropdown detect a mismatch and re-trigger triage
-        catSel.value  = 'followup';
+        if (!keepTele) catSel.value = 'followup';
         await loadDoctors(prev.opd_id);
         await loadFees(prev.opd_id);
         _applyOpdRule(); // locks OPD + doctor to previous values
@@ -1379,15 +1464,15 @@ async function _selectPatient(patient, chosenCombo) {
         // category toggles, only which branch of _applyOpdRule() is showing right now.
         _prevOpdName    = opdName;
         _prevDoctorName = docText;
-        if (hint) {
+        if (hint && !keepTele) {
           hint.textContent = `↩ Follow-up · ${opdName}${docText ? ' · ' + docText : _prevDoctorId ? ' — the previous doctor is not on duty today: choose a doctor or leave it to the OPD queue' : ''}`;
           hint.style.cssText = 'display:block;color:var(--green-mid);font-size:11px;margin-top:4px;font-weight:500';
         }
       } else {
         // All previous visits were Screening OPD → re-route to screening
-        catSel.value = 'opd';
+        if (!keepTele) catSel.value = 'opd';
         _applyOpdRule();
-        if (hint) {
+        if (hint && !keepTele) {
           hint.textContent = '🔵 Returning patient — routed to Screening OPD';
           hint.style.cssText = 'display:block;color:#1a6080;font-size:11px;margin-top:4px;font-weight:500';
         }
@@ -2308,6 +2393,11 @@ async function handleSubmit() {
   if (!_opdFeeIds().length) return _alert('error', 'No registration / consultation fee is set up for this OPD in Fee Management, so no bill can be made — ask the administrator. Nothing was saved.');
   // Session 327: every rupee received at registration gets a receipt -- say how it was paid
   const payRef = document.getElementById('payment-ref').value.trim();
+  // Session 374 (G9): a teleconsultation is paid online only -- the server's own words for cash; nothing picked = pick one
+  if (visitCat === 'teleconsultation' && payStatus === 'paid') {
+    if (payMode === 'cash') return _alert('error', 'A teleconsultation is paid online only — UPI, Card or Pay later, not cash.');
+    if (!payMode) return _alert('error', 'Teleconsultation: online payment only — choose UPI, Card or Pay later. Nothing was saved.');
+  }
   if (payStatus === 'paid' && total > 0) {
     if (!['cash', 'upi', 'card'].includes(payMode)) return _alert('error', 'Choose Cash, UPI or Card for the amount received (Credit / Package mean nothing is collected now) — or mark the payment Pending.');
     if (payMode !== 'cash' && !payRef) return _alert('error', 'Enter the UPI / card transaction reference.');
@@ -2680,10 +2770,13 @@ async function handleSubmit() {
     // the whole point of Vipul's (NHA) demo test #2 is that a SECOND care context
     // for the same patient should push proactively, no re-pull needed.
     const _abhaAddrForCC = patient.abha_address || null;
-    if (_abhaForCC || _abhaAddrForCC) {
+    // Session 374B (plan B6 / E1 / E2): a visit at the Screening OPD gets NO VISIT-<id> care context -- the consultation's record is
+    // made on the specialty visit when the doctor completes it. The SMS notice (no ABHA) and the BILL-<id> Invoice record stay.
+    const _atScreening = _isScreeningVisitOpd(visit.opd_id || opdId);
+    if ((_abhaForCC || _abhaAddrForCC) && !_atScreening) {
       _abdmLinkTokenAfterVerify(patient.id, { abhaNumber: _abhaForCC, abhaAddress: _abhaAddrForCC }, visit.id).catch(() => {});
-    } else if (patient.phone) {
-      _abdmSmsNotifyNoAbha(patient.id, patient.phone, patient.name, visit.id).catch(() => {});
+    } else if (!_abhaForCC && !_abhaAddrForCC && patient.phone) {
+      _abdmSmsNotifyNoAbha(patient.id, patient.phone, patient.name, visit.id, { skipVisitRecord: _atScreening }).catch(() => {});
     }
     // Session 183: separate Invoice care context, own ref (BILL-<id>), so it doesn't
     // collide with this visit's OPConsultation/Prescription-tagged VISIT-<id> context.
@@ -2924,7 +3017,7 @@ async function loadQueue() {
   // "#3" from Kayachikitsa isn't confused with "#3" from Shalya Tantra.
   const { data: visits } = await supabase
     .from('visits')
-    .select('id, token_number, status, chief_complaint, created_at, is_on_request, visit_category, doctor_id, opd_id, patients(name)')
+    .select('id, token_number, status, chief_complaint, created_at, is_on_request, visit_category, is_teleconsultation, doctor_id, opd_id, screening_visit_id, patients(name)')
     .eq('tenant_id', tenantId)
     .in('status', ['waiting', 'in_progress'])
     .gte('created_at', start.toISOString())
@@ -2932,11 +3025,16 @@ async function loadQueue() {
 
   // Fetch payment status for these visits
   const visitIds = (visits || []).map(v => v.id);
-  let billMap = {}, billsByVisit = {}, payByBill = {};
+  let billMap = {}, billsByVisit = {}, payByBill = {}, triageMap = {};
   if (visitIds.length > 0) {
-    const { data: bills } = await supabase
-      .from('bills').select('id, visit_id, status, payment_mode, bill_type, payer_type, final_amount, document_status, created_at')
-      .in('visit_id', visitIds);
+    // Session 374B (plan B5): a patient routed from Screening was billed on the Screening visit -- read that bill as theirs (bills untouched)
+    const scrIds = (visits || []).map(v => v.screening_visit_id).filter(Boolean);
+    const [{ data: bills }, { data: tri }] = await Promise.all([
+      supabase.from('bills').select('id, visit_id, status, payment_mode, bill_type, payer_type, final_amount, document_status, created_at')
+        .in('visit_id', [...visitIds, ...scrIds]),
+      supabase.from('screening_findings').select('specialty_visit_id, triage, emergency').in('specialty_visit_id', visitIds),   // B4 badge
+    ]);
+    (tri || []).forEach(f => { triageMap[f.specialty_visit_id] = f; });
     (bills || []).forEach(b => {
       // the visit's own (consultation) bill drives the badge; a later lab bill must not replace it
       if (!billMap[b.visit_id] || billCategory(b.bill_type) === 'opd') billMap[b.visit_id] = b;
@@ -2961,8 +3059,9 @@ async function loadQueue() {
 
   list.innerHTML = visits.map(v => {
     const isActive    = v.status === 'in_progress';
-    const isEmergency = v.visit_category === 'emergency';
-    const bill        = billMap[v.id];
+    const tri         = triageMap[v.id];
+    const isEmergency = v.visit_category === 'emergency' || !!tri?.emergency;
+    const bill        = billMap[v.id] || (v.screening_visit_id ? billMap[v.screening_visit_id] : undefined);
 
     const tokenClass  = isEmergency ? 'emergency' : isActive ? 'active' : 'waiting';
     const itemClass   = isEmergency ? 'q-item emergency' : 'q-item';
@@ -2982,7 +3081,8 @@ async function loadQueue() {
       : `<span class="badge badge-pending">PENDING</span>`;
 
     const onReqBadge = v.is_on_request ? `<span class="badge badge-onreq">ON REQ</span>` : '';
-    const emergBadge = isEmergency ? `<span class="badge badge-emerg">EMERGENCY</span>` : '';
+    const emergBadge = isEmergency ? `<span class="badge badge-emerg">EMERGENCY</span>`
+      : tri && tri.triage !== 'routine' ? `<span class="badge badge-tri-${_esc(tri.triage)}">${_esc(triageLabel(tri.triage).toUpperCase())}</span>` : '';
 
     const statusDot = isActive ? 'var(--green-mid)' : isEmergency ? 'var(--red)' : 'var(--gold)';
     const statusLabel = isActive ? 'With doctor' : 'Waiting';
@@ -3014,6 +3114,17 @@ async function loadQueue() {
       </div>
     </div>`;
   }).join('');
+
+  // Session 374 (G9): a teleconsultation's pending bill is collected online only -- its mode list offers UPI / Card, never Cash
+  // (the server refuses a cash receipt for it; opdPayments.js builds the same controls for every bill, so the option is taken out here)
+  visits.forEach(v => {
+    if (v.visit_category !== 'teleconsultation' && !v.is_teleconsultation) return;
+    const bill = billMap[v.id] || (v.screening_visit_id ? billMap[v.screening_visit_id] : undefined);
+    const pm = bill ? document.getElementById('opdpm-' + bill.id) : null;
+    if (!pm) return;
+    pm.querySelector('option[value="cash"]')?.remove();
+    pm.title = 'Teleconsultation: online payment only (UPI / Card)';
+  });
 
   // Attach edit button listeners
   list.querySelectorAll('.q-edit-btn').forEach(btn => {
@@ -4775,7 +4886,7 @@ async function _abdmLinkTokenAfterVerify(patientId, { abhaNumber, abhaAddress } 
 // Scenario 2: no ABHA — send SMS deep-link for patient-initiated discovery.
 // V3 spec: sms/notify2 only needs { notification: { hip, phoneNo } }.
 // ABDM sends SMS; PHR app guides patient to create ABHA + discover records.
-async function _abdmSmsNotifyNoAbha(patientId, phone, patientName, visitId) {
+async function _abdmSmsNotifyNoAbha(patientId, phone, patientName, visitId, { skipVisitRecord = false } = {}) {
   if (!visitId || !phone) return;
   try {
     const { data: { session } } = await supabase.auth.getSession();
@@ -4785,7 +4896,8 @@ async function _abdmSmsNotifyNoAbha(patientId, phone, patientName, visitId) {
     const ccRef   = `VISIT-${visitId}`;
 
     // Step 1: store care context in DB so it's ready when patient discovers via PHR app
-    await fetch(ABDM_HIP_FN, {
+    // (Session 374B: not for a Screening OPD visit -- its record is the specialty visit's, made at the doctor's Complete)
+    if (!skipVisitRecord) await fetch(ABDM_HIP_FN, {
       method: 'POST', headers: h,
       body: JSON.stringify({
         action: 'create_care_context', patient_id: patientId, visit_id: visitId,

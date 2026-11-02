@@ -7,6 +7,7 @@ import { localDateStr, todayLocalStr } from '../utils/dateUtils.js';
 import { uhidOf } from '../utils/uhid.js';
 import { notify } from '../components/notify.js';
 import { printDocument } from '../utils/printDocument.js';
+import { getOpdWorkflow, screeningOpdId } from '../modules/opd/screeningOpd.js';   // Session 374B (B7)
 
 await requireAuth(['super_admin','dept_admin','doctor','receptionist','nurse']);
 initNavbar();
@@ -71,6 +72,7 @@ window.applyPreset = function(preset) {
 };
 
 // ── Load register ──────────────────────────────────────
+let _screenedCount = 0;   // Session 374B
 window.loadRegister = async function() {
   const from    = document.getElementById('f-from').value;
   const to      = document.getElementById('f-to').value;
@@ -113,7 +115,13 @@ window.loadRegister = async function() {
     return;
   }
 
-  _rows = data || [];
+  // Session 374B (plan B7): a Screening OPD visit is not an OPD visit -- the patient is counted at the specialty OPD (the same patient
+  // was counted twice before: Screening + specialty). Shown on its own as "Screened". Choosing the Screening OPD in the filter still
+  // lists its visits.
+  const scrOpd = screeningOpdId(await getOpdWorkflow(supabase));
+  const all = data || [];
+  _screenedCount = scrOpd && opdId !== scrOpd ? all.filter(v => v.opds?.id === scrOpd).length : 0;
+  _rows = scrOpd && opdId !== scrOpd ? all.filter(v => v.opds?.id !== scrOpd) : all;
   _renderTable();
   _updateSummary(from, to);
 
@@ -182,6 +190,8 @@ function _updateSummary(from, to) {
   document.getElementById('s-diag').textContent    = diagCount;
   document.getElementById('s-doctors').textContent = doctorSet.size;
   document.getElementById('s-opds').textContent    = opdSet.size;
+  document.getElementById('s-screened').textContent = _screenedCount;
+  document.getElementById('s-screened-box').hidden = !_screenedCount;
 
   const label = from === to ? `Register — ${_fmtDate(from)}` : `Register — ${_fmtDate(from)} to ${_fmtDate(to)}`;
   document.getElementById('tbl-title').textContent = label;

@@ -1,0 +1,129 @@
+/* Session 374B (plan docs/handoff/session373_plan.md B1–B10): the Screening page's new parts. NCISM = --purple (as reception),
+   alerts / triage only red / orange / green, each with a word (never colour alone). The date-range dialog reuses css/reception.css .ncr-*. */
+:root{--orange:#d35400;--orange-light:#fdf1e8;--purple:#8b1a6b;--purple-light:#f6ebf3}
+
+/* ── purple strip ── */
+#scr-ncism-strip{background:var(--purple-light);border-bottom:3px solid var(--purple)}
+#scr-ncism-strip[hidden]{display:none}
+.sd-inner{padding:8px 24px;display:flex;flex-direction:column;gap:6px}
+.sd-top{display:flex;flex-wrap:wrap;align-items:center;gap:8px 18px}
+.sd-topline{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 14px;font-size:13px}
+.sd-big{font-size:17px;color:#3b0f2f}
+.sd-extra{font-size:13px;color:#4a2c43}
+#scr-ncism-strip .nc-range-btn{margin-left:auto}
+.sd-depts{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px 18px}
+@media(max-width:1100px){.sd-depts{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.sd-dept-head{display:flex;justify-content:space-between;gap:6px;font-size:12px;color:#3b0f2f}
+.sd-dept-name{font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sd-dept-num{white-space:nowrap}
+.sd-dept-bar{height:8px;border-radius:4px;background:#e8d3e2;overflow:hidden}
+.sd-dept-fill{height:100%;background:var(--purple)}
+.sd-note{font-size:12px;color:#4a2c43}
+
+/* ── tabs ── */
+.scr-tabs{display:flex;gap:4px;padding:6px 24px 0;background:#fff;border-bottom:1.5px solid var(--border)}
+.scr-tabs[hidden]{display:none}
+.scr-tabs [role=tab]{min-height:44px;padding:0 16px;border:1.5px solid transparent;border-bottom:none;border-radius:8px 8px 0 0;background:none;font:inherit;font-size:14px;font-weight:600;color:var(--text-mid);cursor:pointer}
+.scr-tabs [role=tab][aria-selected=true]{border-color:var(--border);background:var(--cream);color:var(--green-deep)}
+/* G6 (owner 2 Nov 2026): each tab its own colour (always with its icon + word): Screening = green, Screening duty = gold, Screener log =
+   blue; the active tab FILLED with white text and a 4 px bottom bar, the others a light tint with the colour as text */
+.scr-tabs [role=tab][hidden]{display:none}
+.scr-tabs .scr-tab-screen{--tab:var(--green-deep);--tab-light:var(--green-light)}
+.scr-tabs .scr-tab-duty{--tab:#7a5208;--tab-light:var(--gold-light,#fdf6e3)}
+.scr-tabs .scr-tab-log{--tab:#1a4080;--tab-light:#e7eef9}
+.scr-tabs [role=tab][class^=scr-tab-]{background:var(--tab-light);color:var(--tab);border-color:var(--tab-light);margin-bottom:-1.5px}
+.scr-tabs [role=tab][class^=scr-tab-][aria-selected=true]{background:var(--tab);color:#fff;border-color:var(--tab);box-shadow:inset 0 -4px 0 rgba(255,255,255,.55)}
+/* F1 / F2: a department bar is a button (opens the department chart); the colour dot always sits next to the name */
+button.sd-dept{display:block;width:100%;text-align:left;background:none;border:1px solid transparent;border-radius:6px;padding:4px 6px;font:inherit;cursor:pointer;min-height:44px}
+button.sd-dept:hover{background:#fff;border-color:#d9b8cf}
+button.sd-dept:focus-visible{outline:3px solid var(--gold);outline-offset:1px}
+button.sd-dept:disabled{cursor:default}
+.dept-label{display:inline-flex;align-items:center;gap:6px}
+.dept-dot{display:inline-block;width:10px;height:10px;border-radius:50%;flex-shrink:0;border:1px solid rgba(0,0,0,.25)}
+.sdc-svg{display:block;max-width:100%;height:auto;background:#fff;border:1px solid var(--border);border-radius:8px;margin:8px 0}
+/* the duty list + the routing flags */
+.duty-removed td{text-decoration:line-through;color:var(--text-muted)}
+.duty-removed td.duty-reason{text-decoration:none}
+.duty-rm-btn{min-height:44px;padding:0 12px;border:1.5px solid var(--red);border-radius:8px;background:#fff;color:var(--red);font:inherit;font-weight:600;cursor:pointer}
+.scr-notice{margin:12px;padding:14px 16px;border-radius:8px;background:var(--gold-light,#fdf6e3);border:1.5px solid var(--gold);color:#5a3d06;font-size:14px;line-height:1.5}
+.qi.readonly .qi-open{cursor:default}
+/* V8 (owner 2 Nov 2026): the visit's bill is not paid -- a highlighted badge with the word */
+.scr-badge-unpaid{display:inline-block;padding:1px 8px;border-radius:6px;background:#fff3cd;border:1.5px solid #b07000;color:#6b4300;font-size:11px;font-weight:700;letter-spacing:.03em}
+.scr-tabs [role=tab]:focus-visible{outline:3px solid var(--gold);outline-offset:-3px}
+
+/* ── duty / counter ── */
+.scr-duty[hidden]{display:none}
+.scr-duty{display:flex;flex-wrap:wrap;align-items:flex-end;gap:6px 8px;padding:8px 12px;background:#f4f0fb;border-bottom:1px solid #bbb0e0;font-size:12px}
+.scr-duty-fld{display:flex;flex-direction:column;gap:2px;flex:1 1 120px}
+.scr-duty-fld label{font-weight:600;color:#3f2d70}
+.scr-duty-fld input{min-height:44px;border:1.5px solid #8f80c4;border-radius:6px;padding:0 8px;font:inherit;font-size:13px}
+.scr-duty-btn{min-height:44px;padding:0 12px;font:inherit;font-size:12px;font-weight:700;border-radius:6px;border:1.5px solid #8f80c4;background:#fff;color:#3f2d70;cursor:pointer;white-space:nowrap}
+.scr-duty-btn:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
+.scr-duty-status{flex:1 1 100%;color:#3f2d70;font-weight:600}
+
+.scr-bypass{padding:6px 12px;background:#f0f8f3;border-bottom:1px solid #bcdfc9;font-size:12px}
+.scr-bypass-head{width:100%;min-height:44px;display:flex;align-items:center;justify-content:space-between;background:none;border:0;font:inherit;font-size:12px;color:var(--green-deep);font-weight:600;cursor:pointer;text-align:left}
+
+/* ── queue cards ── */
+.qi{margin-bottom:6px;border-radius:var(--radius);border:1.5px solid var(--border);background:var(--white)}
+.qi.active{border-color:var(--green-deep);background:var(--green-light)}
+.qi.held{background:#f3f3f3;border-style:dashed}
+.qi-open{display:block;width:100%;min-height:44px;padding:10px 12px;background:none;border:0;font:inherit;text-align:left;cursor:pointer;color:var(--text-dark);border-radius:var(--radius)}
+.qi-open:hover:not(:disabled){background:var(--green-light)}
+.qi-open:disabled{cursor:not-allowed}
+.qi-open:focus-visible{outline:3px solid var(--gold);outline-offset:-3px}
+.qi-top{display:flex;align-items:center;gap:8px;margin-bottom:4px}
+.qi-token{background:var(--green-deep);color:#fff;font-size:12px;font-weight:700;padding:2px 8px;border-radius:5px;flex-shrink:0}
+.qi-name{font-weight:600;font-size:13px;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.qi-meta{font-size:12px;color:var(--text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.qi-cc{font-size:12px;color:var(--text-mid);margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.qi-tags{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}
+.qi-tag{font-size:11px;font-weight:700;padding:2px 7px;border-radius:8px;border:1px solid var(--border);background:#fff;color:var(--text-mid)}
+.qi-held{font-size:12px;font-weight:700;color:#5a3b00;background:var(--urgent-bg);border:1px solid var(--urgent-border);border-radius:6px;padding:3px 8px;margin-top:6px;display:inline-block}
+.qi-mine{font-size:12px;font-weight:700;color:var(--green-deep);margin-top:6px;display:inline-block}
+.qi-release{margin:0 12px 10px;min-height:44px;padding:0 12px;border:1.5px solid var(--red);border-radius:6px;background:#fff;color:var(--red);font:inherit;font-size:12px;font-weight:700;cursor:pointer}
+
+/* ── admin release panel ── */
+.scr-rel{padding:10px 12px;background:var(--red-light);border-bottom:1px solid var(--red-border);font-size:12px;display:flex;flex-direction:column;gap:6px}
+.scr-rel[hidden]{display:none}
+.scr-rel-title{font-weight:700;color:var(--red)}
+.scr-rel textarea{border:1.5px solid #c98a83;border-radius:6px;padding:6px 8px;font:inherit;font-size:13px}
+.scr-rel-msg{color:var(--red);font-weight:600;min-height:1em}
+.scr-rel-btns{display:flex;gap:8px}
+
+/* ── form extras ── */
+.scr-form-alert{padding:10px 14px;border-radius:var(--radius);font-size:13px;margin-bottom:12px;background:var(--red-light);color:var(--red);border:1px solid var(--red-border);font-weight:600}
+.scr-form-alert[hidden]{display:none}
+.scr-claim-note{font-size:12px;color:var(--green-deep);margin:-8px 0 14px}
+.scr-pt-tags{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}
+.scr-req{font-weight:400;color:var(--text-muted);text-transform:none;letter-spacing:0}
+.scr-err{font-size:12px;color:var(--red);font-weight:600;margin-top:3px}
+.scr-err:empty{display:none}
+[aria-invalid=true]{border-color:var(--red)!important}
+.scr-bmi{display:flex;align-items:center;height:44px;padding:0 12px;border:1.5px dashed var(--border);border-radius:var(--radius);background:#f9fafb;font-size:13px;color:var(--text-mid)}
+.scr-hint{font-size:12px;color:#7a4f12;margin-top:4px}
+.scr-hint[hidden]{display:none}
+.scr-emerg-note{padding:10px 14px;border-radius:var(--radius);font-size:13px;margin-bottom:12px;background:var(--emergency-bg);color:var(--red);border:1px solid var(--emergency-border);font-weight:600}
+.scr-emerg-note[hidden]{display:none}
+
+/* ── badges (doctor / reception queues share the class names through screening/findings.js labels) ── */
+.scr-badge{display:inline-block;font-size:11px;font-weight:700;padding:2px 7px;border-radius:8px;border:1px solid}
+.scr-badge-emergency{background:var(--emergency-bg);color:var(--red);border-color:var(--emergency-border)}
+.scr-badge-urgent{background:var(--urgent-bg);color:#6b4f00;border-color:var(--urgent-border)}
+.scr-badge-semi_urgent{background:#e3f0ff;color:#1a4080;border-color:#90b8e8}
+.scr-badge-routine{background:var(--green-light);color:var(--green-deep);border-color:var(--border)}
+
+/* ── screener log ── */
+.scr-log{padding:16px 24px 40px;display:flex;flex-direction:column;gap:12px}
+.scr-log-title{font-family:'Cormorant Garamond',serif;font-size:24px;color:var(--green-deep)}
+.scr-log-sub{font-size:13px;color:var(--text-mid)}
+#pane-log[hidden],#pane-screen[hidden]{display:none}
+/* V1 (owner 2 Nov 2026): a clinical flag under a vitals box -- amber, with the word (never colour alone), never blocks */
+.scr-err.scr-warn{color:#7a4a00;font-weight:600}
+.scr-err.scr-warn.scr-alert{color:#a5281b;font-weight:700}
+.scr-flags{margin:6px 0 0;padding:8px 10px;border-radius:8px;background:#fff3cd;border:1.5px solid #e0c060;color:#5c3a00;font-size:13px;font-weight:600}
+.scr-flags[hidden]{display:none}
+/* V7 (owner 2 Nov 2026): the department chart -- a day (bar or table day) opens its patients */
+.ncr-day-btn{min-height:44px;padding:2px 8px;border:1px solid var(--border);border-radius:6px;background:#fff;color:var(--green-deep);font:inherit;font-weight:600;cursor:pointer;text-decoration:underline}
+.ncr-day-btn:focus-visible,.sdc-bar:focus-visible{outline:3px solid var(--gold);outline-offset:1px}
+.sdc-day{margin:8px 0;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;background:#fff}

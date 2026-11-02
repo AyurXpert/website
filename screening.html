@@ -15,7 +15,7 @@
   --gold:#c9902a;--gold-light:#fdf6e3;
   --red:#c0392b;--red-light:#fdecea;--red-border:#f5c6c6;
   --cream:#faf8f3;--white:#fff;--border:#d8e4dd;--radius:8px;
-  --text-dark:#1a2e22;--text-mid:#3d5a47;--text-muted:#7a9485;
+  --text-dark:#1a2e22;--text-mid:#3d5a47;--text-muted:#5f7a6a;
   --urgent-bg:#fff3cd;--urgent-border:#e0c060;
   --emergency-bg:#fdecea;--emergency-border:#f5c6c6;
 }
@@ -24,7 +24,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
 #navbar-placeholder{position:sticky;top:0;z-index:100}
 
 /* ── Layout ── */
-.main-wrap{display:grid;grid-template-columns:360px 1fr;height:calc(100vh - 56px)}
+.main-wrap{display:grid;grid-template-columns:360px 1fr;height:max(560px,calc(100vh - 110px))}
 .queue-col{
   background:var(--white);border-right:1.5px solid var(--border);
   display:flex;flex-direction:column;overflow:hidden;
@@ -40,33 +40,14 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
   display:flex;align-items:center;justify-content:space-between;flex-shrink:0;
 }
 .queue-title{font-family:'Cormorant Garamond',serif;font-size:18px;font-weight:700;color:var(--green-deep)}
-.queue-subtitle{font-size:11px;color:var(--text-muted);margin-top:2px}
+.queue-subtitle{font-size:12px;color:var(--text-muted);margin-top:2px}
 .queue-count{
-  background:var(--green-deep);color:#fff;font-size:11px;font-weight:700;
+  background:var(--green-deep);color:#fff;font-size:12px;font-weight:700;
   padding:3px 9px;border-radius:10px;
 }
 
 /* ── Queue list ── */
 .queue-list{flex:1;overflow-y:auto;padding:8px}
-.queue-item{
-  padding:12px 12px 10px;border-radius:var(--radius);border:1.5px solid var(--border);
-  margin-bottom:6px;cursor:pointer;transition:border-color .15s,background .15s;background:var(--white);
-}
-.queue-item:hover{border-color:var(--green-mid);background:var(--green-light)}
-.queue-item.active{border-color:var(--green-deep);background:var(--green-light)}
-.qi-top{display:flex;align-items:center;gap:8px;margin-bottom:4px}
-.qi-token{
-  background:var(--green-deep);color:#fff;font-size:11px;font-weight:700;
-  padding:2px 8px;border-radius:5px;flex-shrink:0;
-}
-.qi-name{font-weight:600;font-size:13px;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.qi-triage{font-size:10px;font-weight:700;padding:2px 7px;border-radius:8px;flex-shrink:0}
-.qi-triage.emergency{background:var(--emergency-bg);color:var(--red);border:1px solid var(--emergency-border)}
-.qi-triage.urgent{background:var(--urgent-bg);color:#7a5a00;border:1px solid var(--urgent-border)}
-.qi-triage.routine{background:var(--green-light);color:var(--green-deep);border:1px solid var(--border)}
-.qi-meta{font-size:11px;color:var(--text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.qi-cc{font-size:12px;color:var(--text-mid);margin-top:4px;line-height:1.4;
-  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .queue-empty{
   padding:40px 16px;text-align:center;
   font-size:13px;color:var(--text-muted);line-height:1.8;
@@ -74,8 +55,8 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
 
 /* ── Refresh btn ── */
 .btn-refresh{
-  height:30px;padding:0 10px;border-radius:var(--radius);border:1.5px solid var(--border);
-  background:var(--white);color:var(--text-mid);font-size:11px;font-weight:600;cursor:pointer;
+  min-height:44px;padding:0 12px;border-radius:var(--radius);border:1.5px solid var(--border);
+  background:var(--white);color:var(--text-mid);font-size:12px;font-weight:600;cursor:pointer;
   display:inline-flex;align-items:center;gap:4px;
 }
 .btn-refresh:hover{background:var(--green-light)}
@@ -90,10 +71,10 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
 .form-empty-sub{font-size:13px;line-height:1.6}
 
 /* ── Screening form ── */
-.form-wrap{padding:20px 24px 40px;max-width:720px}
+.form-wrap{padding:20px 24px 40px;max-width:760px}
 .pt-banner{
   background:var(--white);border:1.5px solid var(--border);border-radius:var(--radius);
-  padding:12px 16px;margin-bottom:20px;display:flex;align-items:center;gap:14px;
+  padding:12px 16px;margin-bottom:16px;display:flex;align-items:center;gap:14px;
 }
 .pt-avatar{
   width:40px;height:40px;border-radius:50%;background:var(--green-deep);
@@ -105,62 +86,59 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
 
 .section{margin-bottom:20px}
 .section-title{
-  font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;
+  font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;
   color:var(--text-mid);margin-bottom:12px;padding-bottom:6px;border-bottom:1px solid var(--border);
 }
 .field{margin-bottom:14px}
 .field label{display:block;font-size:12px;font-weight:600;color:var(--text-mid);margin-bottom:5px}
 .field input,.field textarea,.field select{height:44px;
-  width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:var(--radius);
+  width:100%;padding:9px 12px;border:1.5px solid #8aa596;border-radius:var(--radius);
   font-family:'DM Sans',sans-serif;font-size:13px;background:var(--white);outline:none;
 }
-.field input:focus,.field textarea:focus,.field select:focus{border-color:var(--green-mid)}
+.field input:focus,.field textarea:focus,.field select:focus{border-color:var(--green-mid);box-shadow:0 0 0 2px var(--green-light)}
 .field textarea{min-height:72px;resize:vertical}
 .field-row{display:grid;gap:14px}
 .field-row.col2{grid-template-columns:1fr 1fr}
+.field-row.col3{grid-template-columns:1fr 1fr 1fr}
 
 /* ── Triage chips ── */
 .triage-options{display:flex;gap:8px;flex-wrap:wrap}
 .triage-opt{
-  padding:8px 16px;border-radius:var(--radius);border:1.5px solid var(--border);
-  font-size:12px;font-weight:600;cursor:pointer;transition:all .15s;background:var(--white);
+  min-height:44px;padding:0 16px;border-radius:var(--radius);border:1.5px solid #8aa596;
+  font-family:'DM Sans',sans-serif;font-size:13px;font-weight:600;cursor:pointer;transition:all .15s;background:var(--white);color:var(--text-dark);
 }
-.triage-opt.active-emergency{background:var(--emergency-bg);border-color:#e57373;color:var(--red)}
-.triage-opt.active-urgent{background:var(--urgent-bg);border-color:var(--urgent-border);color:#7a5a00}
-.triage-opt.active-semi{background:#e3f0ff;border-color:#90b8e8;color:#1a4080}
-.triage-opt.active-routine{background:var(--green-light);border-color:var(--green-mid);color:var(--green-deep)}
-.triage-opt:not([class*="active"]):hover{background:var(--green-light)}
+.triage-opt[aria-checked="true"][data-triage="emergency"]{background:var(--emergency-bg);border-color:#e57373;color:var(--red)}
+.triage-opt[aria-checked="true"][data-triage="urgent"]{background:var(--urgent-bg);border-color:var(--urgent-border);color:#6b4f00}
+.triage-opt[aria-checked="true"][data-triage="semi_urgent"]{background:#e3f0ff;border-color:#90b8e8;color:#1a4080}
+.triage-opt[aria-checked="true"][data-triage="routine"]{background:var(--green-light);border-color:var(--green-mid);color:var(--green-deep)}
+.triage-opt[aria-checked="true"]::before{content:'✓ '}
+.triage-opt:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
 
 /* ── Action bar ── */
 .action-bar{
   position:sticky;bottom:0;padding:12px 24px;
   background:var(--white);border-top:1.5px solid var(--border);
-  display:flex;align-items:center;gap:10px;
+  display:flex;align-items:center;gap:10px;flex-wrap:wrap;
 }
 .btn-route{
-  height:40px;padding:0 24px;background:var(--green-deep);color:#fff;
+  min-height:44px;padding:0 24px;background:var(--green-deep);color:#fff;
   border:none;border-radius:var(--radius);font-family:'DM Sans',sans-serif;
   font-size:14px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:7px;
 }
-.btn-route:hover{background:#1f5c37}
+.btn-route.emergency{background:var(--red)}
+.btn-route:hover{filter:brightness(1.1)}
 .btn-route:disabled{opacity:.5;cursor:not-allowed}
 .btn-cancel{
-  height:40px;padding:0 16px;background:none;color:var(--text-mid);
-  border:1.5px solid var(--border);border-radius:var(--radius);
+  min-height:44px;padding:0 16px;background:none;color:var(--text-mid);
+  border:1.5px solid #8aa596;border-radius:var(--radius);
   font-family:'DM Sans',sans-serif;font-size:13px;cursor:pointer;
 }
 .btn-cancel:hover{background:var(--cream)}
 
-/* ── Alert ── */
-.alert{padding:10px 14px;border-radius:var(--radius);font-size:13px;margin-bottom:16px;display:none}
-.alert.show{display:block}
-.alert.success{background:var(--green-light);color:var(--green-deep);border:1px solid var(--border)}
-.alert.error{background:var(--red-light);color:var(--red);border:1px solid var(--red-border)}
-
 /* ── Stats strip ── */
 .stats-strip{
   background:var(--white);border-bottom:1.5px solid var(--border);
-  padding:10px 24px;display:flex;gap:20px;align-items:center;flex-wrap:wrap;flex-shrink:0;
+  padding:10px 24px;display:flex;gap:18px;align-items:center;flex-wrap:wrap;flex-shrink:0;
 }
 .strip-stat{font-size:12px;color:var(--text-muted)}
 .strip-stat strong{color:var(--text-dark);margin-right:4px}
@@ -175,51 +153,73 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
 }
 </style>
 <link rel="stylesheet" href="css/notify.css"/>
+<!-- G2 (owner 2 Nov 2026): the date-range / department-chart PDF prints only its own document (printDocument + css/print.css), like
+     reception's NCISM PDF -- never the whole screen -->
+<link rel="stylesheet" href="css/print.css"/>
+<link rel="stylesheet" href="css/reception.css"/>
+<link rel="stylesheet" href="css/screening.css"/>
 </head>
 <body>
 <div id="navbar-placeholder"></div>
 
+<!-- Session 374B (plan B9): the purple NCISM strip -- the hospital's daily figure + one bar per clinical department (hospital targets,
+     not an NCISM rule). Shown only for NCISM organisation types. -->
+<section id="scr-ncism-strip" aria-label="NCISM OPD figures" hidden></section>
+
+<!-- Session 374B (plan B10): the Screener log tab is shown only to the Super Admin / MS / Deputy MS / RMO / Medical Director.
+     Owner 2 Nov 2026: + the "Screening duty" tab (the duty list: kept by the Super Admin / MS / Deputy MS / RMO, read by the MD);
+     G6: each tab its own colour (always with its icon + word), the active one filled -->
+<div class="scr-tabs" role="tablist" aria-label="Screening views" id="scr-tabs" hidden>
+  <button type="button" role="tab" id="tab-screen" class="scr-tab-screen" aria-selected="true" aria-controls="pane-screen" data-onclick="showScrTab" data-onclick-a0="screen">🩺 Screening</button>
+  <button type="button" role="tab" id="tab-duty" class="scr-tab-duty" aria-selected="false" aria-controls="pane-duty" data-onclick="showScrTab" data-onclick-a0="duty" hidden>🗓 Screening duty</button>
+  <button type="button" role="tab" id="tab-log" class="scr-tab-log" aria-selected="false" aria-controls="pane-log" data-onclick="showScrTab" data-onclick-a0="log" hidden>📋 Screener log</button>
+</div>
+
+<div id="pane-screen" role="tabpanel" aria-labelledby="tab-screen">
 <div class="main-wrap">
 
   <!-- ── Left: Screening Queue ── -->
   <div class="queue-col">
     <div class="queue-header">
       <div>
-        <div class="queue-title">Screening OPD</div>
+        <h1 class="queue-title">Screening OPD</h1>
         <div class="queue-subtitle" id="q-date">Today</div>
       </div>
       <div style="display:flex;gap:6px;align-items:center">
-        <span class="queue-count" id="q-count">0</span>
-        <button class="btn-refresh" data-onclick="loadQueue">&#8635; Refresh</button>
+        <span class="queue-count" id="q-count" aria-label="Patients in the queue">0</span>
+        <button class="btn-refresh" type="button" data-onclick="refreshAll">&#8635; Refresh</button>
       </div>
     </div>
-    <!-- Multi-counter Screening (queue redesign piece 3, 17 Aug 2026) — same fair-queue
-         pattern as the Registration Queue on reception.html: several staff can triage
-         at once, patients are fair-assigned to whichever is least busy, each sees only
-         their own share (plus anything nobody had claimed yet — see screening.js). A
-         single-triage-nurse tenant that never touches this stays on the old shared
-         undifferentiated queue, unchanged. -->
-    <div class="screening-duty-row" id="screening-duty-row" style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 12px;background:#f4f0fb;border-bottom:1px solid #bbb0e0;font-size:12px">
-      <span id="screening-duty-status" style="color:#4a3580;font-weight:600">Showing the full Screening queue</span>
-      <button id="btn-screening-duty-toggle" type="button" data-onclick="toggleScreeningDuty"
-              style="height:28px;padding:0 12px;font-size:11px;font-weight:600;border-radius:6px;
-                     border:1.5px solid #bbb0e0;background:#fff;color:#4a3580;cursor:pointer;white-space:nowrap">
-        🟢 Start Triaging (fair queue)
+    <!-- Counters (plan B3): Start Triaging names this screener's counter (server: screening_set_counter); every claim shows it to the
+         other counters as "With Counter 2 — <name>". Several staff can triage at once; reception fair-assigns new patients. -->
+    <div class="scr-duty" id="screening-duty-row">
+      <div class="scr-duty-fld">
+        <label for="scr-counter">Counter</label>
+        <input id="scr-counter" type="text" maxlength="30" placeholder="e.g. Counter 1" autocomplete="off" aria-describedby="scr-counter-msg"/>
+        <div id="scr-counter-msg" class="scr-err" role="status"></div>
+      </div>
+      <button id="btn-screening-duty-toggle" type="button" class="scr-duty-btn" data-onclick="toggleScreeningDuty">🟢 Start Triaging</button>
+      <div id="screening-duty-status" class="scr-duty-status" role="status">Not on Screening duty — showing the full queue</div>
+    </div>
+    <div id="scan-bypass-row" class="scr-bypass" style="display:none">
+      <button type="button" class="scr-bypass-head" data-onclick="toggleScanBypassList" aria-expanded="false" id="scan-bypass-btn">
+        <span>🔍 <span id="scan-bypass-count">0</span> registered directly via ABHA Scan &amp; Share today</span>
+        <span id="scan-bypass-toggle-icon" aria-hidden="true">▾</span>
       </button>
-    </div>
-    <!-- Session 181 correction 5: passive awareness log — a patient who registered
-         directly via a department-tagged ABHA Scan & Share QR bypasses Screening
-         entirely (their visit's own opd_id is the specialty department, not this
-         one), so they never appear in the queue above. This is purely informational
-         for the triage desk, not a queue — no action taken from here. -->
-    <div id="scan-bypass-row" style="display:none;padding:8px 12px;background:#f0f8f3;border-bottom:1px solid #bcdfc9;font-size:12px">
-      <div style="display:flex;align-items:center;justify-content:space-between;cursor:pointer" data-onclick="toggleScanBypassList">
-        <span style="color:var(--green-deep,#1a4a2e);font-weight:600">🔍 <span id="scan-bypass-count">0</span> registered directly via ABHA Scan &amp; Share today</span>
-        <span id="scan-bypass-toggle-icon">▾</span>
-      </div>
       <div id="scan-bypass-list" style="display:none;margin-top:8px"></div>
     </div>
-    <div class="queue-list" id="queue-list">
+    <!-- the Super Admin / MS / DMS / RMO / MD can free another counter's patient, with a reason (audited) -->
+    <div id="rel-panel" class="scr-rel" hidden>
+      <div class="scr-rel-title" id="rel-title">Release this patient</div>
+      <label for="rel-reason">Reason (5 to 300 characters)</label>
+      <textarea id="rel-reason" maxlength="300" rows="2"></textarea>
+      <div class="scr-rel-msg" id="rel-msg" role="alert"></div>
+      <div class="scr-rel-btns">
+        <button type="button" class="btn-route" data-onclick="confirmAdminRelease">Release</button>
+        <button type="button" class="btn-cancel" data-onclick="closeAdminRelease">Cancel</button>
+      </div>
+    </div>
+    <div class="queue-list" id="queue-list" aria-live="polite">
       <div class="queue-empty">Loading queue…</div>
     </div>
   </div>
@@ -227,106 +227,78 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
   <!-- ── Right: Screening Form ── -->
   <div class="form-col">
 
-    <!-- Stats strip (always visible) -->
     <div class="stats-strip" id="stats-strip">
-      <div class="strip-stat"><strong id="ss-waiting">0</strong>Waiting</div>
-      <div class="strip-stat"><strong id="ss-screened">0</strong>Screened today</div>
-      <div class="strip-stat"><strong id="ss-emergency">0</strong>Emergency</div>
+      <div class="strip-stat"><strong id="ss-waiting">—</strong>Waiting</div>
+      <div class="strip-stat"><strong id="ss-with">—</strong>With a counter</div>
+      <div class="strip-stat"><strong id="ss-screened">—</strong>Screened today</div>
+      <div class="strip-stat"><strong id="ss-mine">—</strong>Screened by me today</div>
+      <div class="strip-stat"><strong id="ss-emergency">—</strong>Emergency today</div>
       <div class="strip-date" id="ss-date"></div>
     </div>
 
-    <!-- Empty state -->
     <div class="form-empty" id="form-empty">
       <div class="form-empty-icon">&#128203;</div>
-      <div class="form-empty-title">Select a patient to screen</div>
-      <div class="form-empty-sub">
+      <div class="form-empty-title" id="form-empty-title">Select a patient to screen</div>
+      <div class="form-empty-sub" id="form-empty-sub">
         Patients arrive through Reception.<br>
-        Select one from the queue on the left to begin screening.<br><br>
-        <span style="font-size:11px;background:var(--green-light);padding:4px 10px;border-radius:6px;color:var(--green-deep)">
+        Open one from the queue on the left — the other counters then see it as taken.<br><br>
+        <span style="font-size:12px;background:var(--green-light);padding:4px 10px;border-radius:6px;color:var(--green-deep)">
           NCISM Flow: Reception → <strong>Screening OPD</strong> → Specialty OPD
         </span>
       </div>
     </div>
 
-    <!-- Screening form (hidden until patient selected) -->
     <div id="screening-form" style="display:none;flex:1;flex-direction:column">
       <div class="form-wrap">
-        <div class="alert" id="alert"></div>
+        <div class="scr-form-alert" id="form-alert" role="alert" hidden></div>
 
-        <!-- Patient banner -->
         <div class="pt-banner">
-          <div class="pt-avatar" id="pt-avatar">?</div>
+          <div class="pt-avatar" id="pt-avatar" aria-hidden="true">?</div>
           <div class="pt-details">
             <div class="pt-name-lg" id="pt-name">—</div>
             <div class="pt-meta-lg" id="pt-meta">—</div>
+            <div class="scr-pt-tags" id="pt-tags"></div>
           </div>
           <div style="text-align:right">
-            <div style="font-size:11px;color:var(--text-muted)">Token</div>
+            <div style="font-size:12px;color:var(--text-muted)">Token</div>
             <div style="font-size:20px;font-weight:700;color:var(--green-deep)" id="pt-token">—</div>
           </div>
         </div>
+        <div class="scr-claim-note" id="claim-note" role="status"></div>
 
-        <!-- Triage -->
         <div class="section">
-          <div class="section-title">1. Triage Level</div>
-          <div class="triage-options">
-            <div class="triage-opt" data-triage="Routine" data-onclick="selectTriage" data-onclick-a0="@this">Routine</div>
-            <div class="triage-opt" data-triage="Semi-urgent" data-onclick="selectTriage" data-onclick-a0="@this">Semi-urgent</div>
-            <div class="triage-opt" data-triage="Urgent" data-onclick="selectTriage" data-onclick-a0="@this">Urgent</div>
-            <div class="triage-opt" data-triage="Emergency" data-onclick="selectTriage" data-onclick-a0="@this">&#9940; Emergency</div>
+          <div class="section-title" id="triage-title">1. Triage level <span class="scr-req">(required)</span></div>
+          <div class="triage-options" role="radiogroup" aria-labelledby="triage-title" id="scr-triage">
+            <button type="button" class="triage-opt" role="radio" aria-checked="false" data-triage="routine" data-onclick="selectTriage" data-onclick-a0="routine">Routine</button>
+            <button type="button" class="triage-opt" role="radio" aria-checked="false" data-triage="semi_urgent" data-onclick="selectTriage" data-onclick-a0="semi_urgent">Semi-urgent</button>
+            <button type="button" class="triage-opt" role="radio" aria-checked="false" data-triage="urgent" data-onclick="selectTriage" data-onclick-a0="urgent">Urgent</button>
+            <button type="button" class="triage-opt" role="radio" aria-checked="false" data-triage="emergency" data-onclick="selectTriage" data-onclick-a0="emergency">&#9940; Emergency</button>
           </div>
+          <div class="scr-err" id="scr-triage-err"></div>
         </div>
 
-        <!-- Chief Complaint -->
         <div class="section">
-          <div class="section-title">2. Chief Complaint</div>
+          <div class="section-title">2. Chief complaint</div>
           <div class="field">
-            <textarea id="scr-cc" placeholder="Chief complaint as stated by patient…" style="min-height:56px"></textarea>
+            <label for="scr-cc">Chief complaint as stated by the patient</label>
+            <textarea id="scr-cc" maxlength="1000" style="min-height:56px"></textarea>
+            <div class="scr-err" id="scr-cc-err"></div>
           </div>
         </div>
 
-        <!-- Preliminary Findings -->
         <div class="section">
-          <div class="section-title">3. Preliminary Findings</div>
-          <div class="field-row col2">
-            <div class="field">
-              <label>Pulse / Naadi (rate/min)</label>
-              <input id="scr-pulse" type="text" placeholder="e.g. 82 / min"/>
-            </div>
-            <div class="field">
-              <label>Blood Pressure</label>
-              <input id="scr-bp" type="text" placeholder="e.g. 130/84 mmHg"/>
-            </div>
+          <div class="section-title">3. Preliminary findings</div>
+          <div class="field-row col3">
+            <div class="field"><label for="scr-pulse">Pulse (per min)</label><input id="scr-pulse" type="number" inputmode="numeric" min="20" max="250" step="1"/><div class="scr-err" id="scr-pulse-err"></div></div>
+            <div class="field"><label for="scr-bp-s">BP systolic (mmHg)</label><input id="scr-bp-s" type="number" inputmode="numeric" min="50" max="300" step="1"/><div class="scr-err" id="scr-bp-s-err"></div></div>
+            <div class="field"><label for="scr-bp-d">BP diastolic (mmHg)</label><input id="scr-bp-d" type="number" inputmode="numeric" min="20" max="200" step="1"/><div class="scr-err" id="scr-bp-d-err"></div></div>
           </div>
-          <div class="field-row col2">
-            <div class="field">
-              <label>Temperature</label>
-              <input id="scr-temp" type="text" placeholder="e.g. 98.6 °F"/>
-            </div>
-            <div class="field">
-              <label>SpO₂</label>
-              <input id="scr-spo2" type="text" placeholder="e.g. 98 %"/>
-            </div>
-          </div>
-          <div class="field-row col2">
-            <div class="field">
-              <label>Height (cm)</label>
-              <input id="scr-height" type="number" placeholder="e.g. 165" min="50" max="250" data-oninput="calcBMI"/>
-            </div>
-            <div class="field">
-              <label>Weight (kg)</label>
-              <input id="scr-weight" type="number" placeholder="e.g. 68" min="1" max="300" data-oninput="calcBMI"/>
-            </div>
-          </div>
-          <div class="field-row col2">
-            <div class="field">
-              <label>BMI (auto-calculated)</label>
-              <input id="scr-bmi" type="text" placeholder="—" readonly style="background:#f9fafb;color:var(--text-mid)"/>
-            </div>
-            <div class="field">
-              <label>Naadi (Pulse character)</label>
+          <div class="field-row col3">
+            <div class="field"><label for="scr-temp">Temperature (°F)</label><input id="scr-temp" type="number" inputmode="decimal" min="85" max="113" step="0.1"/><div class="scr-err" id="scr-temp-err"></div></div>
+            <div class="field"><label for="scr-spo2">SpO₂ (%)</label><input id="scr-spo2" type="number" inputmode="numeric" min="50" max="100" step="1"/><div class="scr-err" id="scr-spo2-err"></div></div>
+            <div class="field"><label for="scr-naadi">Naadi (pulse character)</label>
               <select id="scr-naadi">
-                <option value="">— Select —</option>
+                <option value="">— Not recorded —</option>
                 <option value="Vata">Vata (irregular, thin)</option>
                 <option value="Pitta">Pitta (sharp, strong)</option>
                 <option value="Kapha">Kapha (slow, heavy)</option>
@@ -337,51 +309,110 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
               </select>
             </div>
           </div>
+          <div class="field-row col3">
+            <div class="field"><label for="scr-height">Height (cm)</label><input id="scr-height" type="number" inputmode="decimal" min="30" max="250" data-oninput="calcBMI"/><div class="scr-err" id="scr-height-err"></div></div>
+            <div class="field"><label for="scr-weight">Weight (kg)</label><input id="scr-weight" type="number" inputmode="decimal" min="1" max="300" step="0.1" data-oninput="calcBMI"/><div class="scr-err" id="scr-weight-err"></div></div>
+            <div class="field"><label for="scr-bmi">BMI (calculated)</label><output id="scr-bmi" class="scr-bmi" for="scr-height scr-weight">—</output></div>
+          </div>
           <div class="field">
-            <label>Screening Observations</label>
-            <textarea id="scr-notes" placeholder="General appearance, visible signs, relevant history noted at screening…" style="min-height:72px"></textarea>
+            <label for="scr-notes">Screening observations</label>
+            <textarea id="scr-notes" maxlength="2000" placeholder="General appearance, visible signs, relevant history noted at screening…"></textarea>
+            <div class="scr-err" id="scr-notes-err"></div>
+          </div>
+          <div class="field">
+            <label for="scr-inv">Suggested investigations (for the specialist — nothing is ordered or billed here)</label>
+            <textarea id="scr-inv" maxlength="1000" style="min-height:56px" placeholder="e.g. RBS, CBC"></textarea>
+            <div class="scr-err" id="scr-inv-err"></div>
           </div>
         </div>
 
-        <!-- Referral Department -->
         <div class="section">
-          <div class="section-title">4. Route to Specialty OPD</div>
-          <div class="field">
-            <label>Target Department / OPD <span style="color:var(--red)">*</span></label>
-            <select id="scr-dept" data-onchange="onDeptChange">
-              <option value="">— Select department —</option>
-            </select>
-            <div id="scr-dept-suggest-hint" style="display:none;font-size:11px;color:#a07030;margin-top:4px"></div>
+          <div class="section-title">4. Route to a specialty OPD</div>
+          <div class="scr-emerg-note" id="scr-emerg-note" role="status" hidden></div>
+          <div id="scr-route-fields">
+            <div class="field">
+              <label for="scr-opd">OPD <span class="scr-req">(required)</span></label>
+              <select id="scr-opd" data-onchange="onOpdChange"><option value="">— Choose the OPD —</option></select>
+              <div id="scr-dept-suggest-hint" class="scr-hint" hidden></div>
+              <div class="scr-err" id="scr-opd-err"></div>
+            </div>
+            <div class="field">
+              <label for="scr-doctor">Doctor (on duty today in this OPD)</label>
+              <select id="scr-doctor" data-onchange="onDoctorChange"><option value="">— Choose the OPD first —</option></select>
+            </div>
+          </div>
+          <div class="field" id="scr-reason-wrap" hidden>
+            <label for="scr-reason"><span id="scr-reason-label">Reason for changing the requested doctor</span> <span class="scr-req">(required, 5 to 300 characters)</span></label>
+            <textarea id="scr-reason" maxlength="300" style="min-height:44px"></textarea>
+            <div class="scr-err" id="scr-reason-err"></div>
+          </div>
+          <div class="field" id="scr-supervisor-wrap" hidden>
+            <label for="scr-supervisor">Supervising doctor <span class="scr-req" id="scr-supervisor-req">(required for an intern)</span></label>
+            <select id="scr-supervisor"><option value="">— Choose the supervising doctor —</option></select>
+            <div class="scr-err" id="scr-supervisor-err"></div>
           </div>
           <div class="field">
-            <label>Assign Doctor</label>
-            <select id="scr-doctor">
-              <option value="">— Select department first —</option>
-            </select>
-          </div>
-          <div class="field">
-            <label>Instructions for Specialty OPD Doctor</label>
-            <textarea id="scr-instructions" placeholder="Specific concerns to address, preliminary impression, tests to order…" style="min-height:56px"></textarea>
+            <label for="scr-instructions">Instructions for the specialty OPD doctor</label>
+            <textarea id="scr-instructions" maxlength="1000" style="min-height:56px" placeholder="Specific concerns to address, preliminary impression…"></textarea>
+            <div class="scr-err" id="scr-instructions-err"></div>
           </div>
         </div>
 
       </div><!-- /form-wrap -->
 
-      <!-- Action bar -->
       <div class="action-bar">
-        <button class="btn-route" id="btn-route" data-onclick="routePatient" disabled>
-          &#8599; Route to OPD
-        </button>
-        <button class="btn-cancel" data-onclick="clearSelection">Cancel</button>
+        <button class="btn-route" type="button" id="btn-route" data-onclick="routePatient">&#8599; Route to OPD</button>
+        <button class="btn-cancel" type="button" data-onclick="clearSelection">Release &amp; close</button>
         <div style="flex:1"></div>
-        <div style="font-size:11px;color:var(--text-muted)">
-          Screening visit will be marked complete. A new visit will open in the selected OPD queue.
+        <div style="font-size:12px;color:var(--text-muted);max-width:330px">
+          One step: the Screening visit is completed and the patient joins the chosen OPD's queue with a token.
         </div>
       </div>
     </div><!-- /screening-form -->
 
   </div><!-- /form-col -->
 </div><!-- /main-wrap -->
+</div><!-- /pane-screen -->
+
+<!-- owner 2 Nov 2026: the Screening duty list (today and up to 7 days ahead; a removal needs a reason; never deleted) -->
+<div id="pane-duty" role="tabpanel" aria-labelledby="tab-duty" hidden>
+  <div class="scr-log">
+    <h2 class="scr-log-title">Screening duty</h2>
+    <p class="scr-log-sub" id="duty-sub">Only the staff on a day's list can start a counter, see the queue, open and route patients that day.</p>
+    <div class="ncr-ctl">
+      <div class="ncr-fld"><label for="duty-date">Date</label><select id="duty-date" data-onchange="loadDutyList"></select></div>
+      <div class="ncr-fld" id="duty-add-wrap" hidden><label for="duty-add-who">Add to the list</label><select id="duty-add-who"></select></div>
+      <button type="button" class="ncr-btn ncr-btn-main" id="duty-add-btn" data-onclick="addToDuty" hidden>＋ Add</button>
+    </div>
+    <div class="ncr-msg" id="duty-msg" role="status"></div>
+    <div id="duty-rm" class="scr-rel" hidden>
+      <div class="scr-rel-title" id="duty-rm-title">Take off Screening duty</div>
+      <label for="duty-rm-reason">Reason <span class="scr-req">(required, 5 to 300 characters)</span></label>
+      <textarea id="duty-rm-reason" maxlength="300" rows="2"></textarea>
+      <div class="scr-rel-msg" id="duty-rm-msg" role="alert"></div>
+      <div class="scr-rel-btns">
+        <button type="button" class="ncr-btn" data-onclick="closeDutyRemove">Cancel</button>
+        <button type="button" class="ncr-btn ncr-btn-main" data-onclick="confirmDutyRemove">Take off duty</button>
+      </div>
+    </div>
+    <div id="duty-body"></div>
+  </div>
+</div>
+
+<div id="pane-log" role="tabpanel" aria-labelledby="tab-log" hidden>
+  <div class="scr-log">
+    <h2 class="scr-log-title">Screener log</h2>
+    <p class="scr-log-sub">Who screened how many patients, at which counter, how long from opening to routing, the triage mix and the OPDs chosen.</p>
+    <div class="ncr-ctl">
+      <div class="ncr-fld"><label for="log-from">From</label><input type="date" id="log-from"/></div>
+      <div class="ncr-fld"><label for="log-to">To</label><input type="date" id="log-to"/></div>
+      <button type="button" class="ncr-btn ncr-btn-main" data-onclick="loadScreenerLog">Show</button>
+      <button type="button" class="ncr-btn" id="log-xls" data-onclick="downloadScreenerLog">⬇ Excel</button>
+    </div>
+    <div class="ncr-msg" id="log-msg" role="status"></div>
+    <div id="log-body"></div>
+  </div>
+</div>
 
 <script type="module" src="js/pages/screening.js"></script>
 </body>

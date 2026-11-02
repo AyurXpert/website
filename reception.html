@@ -539,6 +539,8 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
 .badge-pending {background:#fff3de;color:#8a5a00}
 .badge-onreq   {background:#fff3de;color:var(--gold)}
 .badge-emerg   {background:var(--red-light);color:var(--red)}
+/* Session 374B: Screening triage badge (always with its word) */
+.badge-tri-urgent{background:#fff3cd;color:#6b4f00}.badge-tri-semi_urgent{background:#e3f0ff;color:#1a4080}
 .badge-cat     {background:var(--blue-light);color:var(--blue)}
 
 .q-right{display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0}
@@ -1583,6 +1585,7 @@ body.lab-bills-only #rx-work-pane{flex:1 1 600px!important;display:block!importa
                   <label class="rx-chip"><input type="radio" name="rx-pay" value="card"/><span>Card</span></label>
                   <label class="rx-chip"><input type="radio" name="rx-pay" value="later"/><span>Pay later</span></label>
                 </div>
+                <div id="rx-tele-pay-note" class="rx-tele-pay-note" role="note" hidden style="font-size:13px;color:var(--text-mid);margin-top:6px">🎥 Teleconsultation: online payment only (UPI / Card) or Pay later. A payment-link payment: choose UPI or Card and enter the gateway's reference.</div>
                 <input id="payment-ref" type="text" maxlength="60" placeholder="UPI / card transaction reference" aria-label="UPI / card transaction reference" style="display:none;margin-top:8px"/>
               </div>
             </div>
