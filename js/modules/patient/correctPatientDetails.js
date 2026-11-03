@@ -9,6 +9,7 @@
 // Used by reception.html (the patient card) and mrd.html (the patient file).
 
 import { noAutofill } from '../../utils/noAutofill.js';   // Session 358 (§285)
+import { abhaText } from '../abdm/linkStatus.js';   // Session 375 (§411)
 import { safeErrorMessage } from '../../utils/errors.js';
 import { istDateStr, todayISTStr } from '../../utils/dateUtils.js';
 import { canCorrectIdentity } from '../../utils/staffPowers.js';   // Session 359 (§305)
@@ -74,6 +75,8 @@ export function openCorrectPatientDetails({ supabase, patient, uhidText, onSaved
 
   panel.appendChild(_el('h2', { id: 'cpd-title', class: 'cpd-title' }, 'Correct patient details'));
   panel.appendChild(_el('p', { class: 'cpd-sub' }, `${patient.name || '—'} · UHID ${uhidText || patient.uhid || '—'}`));
+  // Session 375 (§411): the ABHA number / address with the patient's details (read-only here -- ABHA is changed only through ABDM)
+  panel.appendChild(_el('p', { class: 'cpd-sub cpd-abha' }, abhaText(patient)));
   panel.appendChild(_el('p', { class: 'cpd-help' },
     'Change only what was recorded wrongly. Every change is saved with your name, the old and new value and your reason. The UHID never changes; the ABHA is linked at Reception. ' + AFTER_CONSULTATION_TEXT));
 

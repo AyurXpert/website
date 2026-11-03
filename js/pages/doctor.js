@@ -30,6 +30,7 @@ import { loadMyPkSessions, resetMyPkSessions } from '../modules/panchakarma/myPk
 import { initAlertBell } from '../components/alertBell.js';
 import { loadAwaitingDeposit, loadDepositWaivers } from '../modules/ipd/admissionCounter.js';
 import { findingsLines, vitalsPrefill, queueOrder, payState, triageLabel } from '../modules/screening/findings.js';   // Session 374B
+import { abhaText, loadLinkProblems, renderLinkProblems } from '../modules/abdm/linkStatus.js';   // Session 375 (§410 / §411)
 
 // Auth + navbar first — page must always be visible and navigable even if proforma module is absent
 await requireAuth(['doctor', 'trainee_doctor', 'super_admin', 'dept_admin']);
@@ -690,6 +691,9 @@ async function _queueExtras(visits) {
 async function _loadScreeningFindings(visit) {
   const box = document.getElementById('scr-findings');
   box.hidden = true;
+  // Session 375 (§409): ↩ Return to Screening while the visit is open (the server re-checks who, what was ordered, the day)
+  document.getElementById('rts-panel').hidden = true;
+  document.getElementById('btn-return-screening').hidden = !(visit?.screening_visit_id && ['waiting', 'in_progress'].includes(visit.status));
   if (!visit?.screening_visit_id) return;
   const { data: f, error } = await supabase.from('screening_findings').select('*').eq('specialty_visit_id', visit.id).maybeSingle();
   if (_activeVisitId !== visit.id) return;
@@ -1726,6 +1730,9 @@ window.startConsultation = async function(visitId) {
   } else {
     abhaAddrWrap.style.display = 'none';
   }
+  // Session 375 (§411): the ABHA on the always-visible name line; §410: a failed ABDM link with Retry
+  document.getElementById('pt-abha-line').textContent = (_activePatient?.abha_number || _activePatient?.abha_address) ? '· ' + abhaText(_activePatient) : '';
+  _showDoctorLinkProblems(_activePatient);
 
   // Session 279 -- always-visible age/gender + New/Followup badge (Dr. Venkatesh),
   // collapsed by default; the rest (UHID/phone/ABHA/prakriti/last-visit-diagnosis)
@@ -8218,6 +8225,37 @@ document.getElementById('btn-print-rx').addEventListener('click', async () => {
   window.addEventListener('afterprint', () => document.body.classList.remove('rxpreview-print'), { once: true });
   window.print();
 });
+
+// ── Session 375 (§410): "ABDM linking failed — Retry" for the patient on screen ─────────────────────
+async function _showDoctorLinkProblems(patient) {
+  const el = document.getElementById('pt-abdm-link');
+  el.hidden = true;
+  if (!patient?.id || !(patient.abha_number || patient.abha_address)) return;
+  const problems = await loadLinkProblems(supabase, tenantId, patient.id);
+  if (_activePatient?.id !== patient.id) return;
+  renderLinkProblems(el, { supabase, patient, problems, onDone: () => setTimeout(() => _showDoctorLinkProblems(patient), 3000) });
+}
+
+// ── Session 375 (§409): ↩ Return to Screening -- a wrongly routed patient goes back to the TOP of the Screening queue ─────────────
+window.openReturnToScreening = function() {
+  document.getElementById('rts-reason').value = '';
+  document.getElementById('rts-msg').textContent = '';
+  document.getElementById('rts-panel').hidden = false;
+  document.getElementById('rts-reason').focus();
+};
+window.closeReturnToScreening = function() { document.getElementById('rts-panel').hidden = true; };
+window.confirmReturnToScreening = async function() {
+  const reason = document.getElementById('rts-reason').value.trim();
+  const msg = document.getElementById('rts-msg');
+  if (reason.length < 5 || reason.length > 300) { msg.textContent = 'Give the reason (5 to 300 characters).'; return; }
+  if (!_activeVisitId) return;
+  const { error } = await supabase.rpc('return_to_screening', { p_specialty_visit: _activeVisitId, p_reason: reason });
+  if (error) { msg.textContent = safeErrorMessage(error, 'Could not return the patient to Screening.'); return; }
+  notify('Sent back to Screening — the patient is at the top of the Screening queue.', 'success');
+  document.getElementById('rts-panel').hidden = true;
+  _closeConsult();
+  loadQueue();
+};
 
 // ── Close consultation ────────────────────────────
 document.getElementById('btn-close').addEventListener('click', _closeConsult);

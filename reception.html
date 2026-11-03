@@ -82,6 +82,12 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
 .pt-item{font-size:11px;color:var(--text-muted)}
 .pt-item span{color:var(--text-dark);font-weight:500}
 .pt-balance{color:var(--red)!important}
+.pt-abha{grid-column:1/-1;color:var(--text-dark)!important;font-weight:600}
+.pt-abdm-link{margin-top:6px;padding:6px 8px;border-radius:6px;background:#fdecea;border:1px solid #a5281b;color:#7a1a10;font-size:12px;font-weight:600}
+.pt-abdm-link[hidden]{display:none}
+.rq-nocounter{margin:6px 10px;padding:8px 10px;border-radius:6px;background:#fdecea;border:1px solid #a5281b;color:#7a1a10;font-size:12.5px;font-weight:700}
+.rq-nocounter[hidden]{display:none}
+.abdm-retry-btn{min-height:44px;padding:4px 12px;border:1px solid #7a1a10;border-radius:6px;background:#fff;color:#7a1a10;font-weight:700;cursor:pointer}
 .pt-prakriti{display:inline-flex;align-items:center;gap:4px;margin-top:6px;padding:2px 10px;border-radius:20px;font-size:11px;font-weight:600;background:#fdf3e2;border:1px solid #e8c97a;color:#7a5200}
 .pt-prakriti.none{background:#f5f5f5;border-color:#ddd;color:#888;font-weight:400}
 .pt-family-btn{
@@ -1395,7 +1401,9 @@ body.lab-bills-only #rx-work-pane{flex:1 1 600px!important;display:block!importa
                   <div class="pt-item">Age / Gender: <span id="pt-demog">—</span></div>
                   <div class="pt-item">Last Visit: <span id="pt-lastvisit">—</span></div>
                   <div class="pt-item pt-balance">Balance: <span id="pt-balance">₹0</span></div>
+                  <div class="pt-item pt-abha"><span id="pt-abha">No ABHA</span></div>
                 </div>
+                <div id="pt-abdm-link" class="pt-abdm-link" role="status" hidden></div>
                 <div id="pt-prakriti" class="pt-prakriti none" style="display:none"></div>
                 <div id="pt-bills"></div>
                 <button id="btn-correct-patient" type="button" class="cpd-open-btn" hidden>✎ Correct patient details</button>
@@ -1656,6 +1664,8 @@ body.lab-bills-only #rx-work-pane{flex:1 1 600px!important;display:block!importa
             <button class="rx-sub q-tab" id="tab-regqueue" type="button" data-group="regqueue" style="display:none">📋 ABHA Req. Queue <span id="regqueue-count"></span></button>
             <button class="rx-sub q-tab" id="tab-pkplans" type="button" data-group="pkplans">🌸 PK Care Plans <span id="pkplans-count"></span></button>
           </div>
+    <!-- Session 375 (§407, Q6): patients waiting at Screening while no counter is active -->
+    <div id="rq-nocounter" class="rq-nocounter" role="status" hidden></div>
     <div class="queue-body" id="queue-list">
       <div class="q-empty"><div class="q-empty-icon">⏳</div><div class="q-empty-text">Loading…</div></div>
     </div>
@@ -1751,7 +1761,7 @@ body.lab-bills-only #rx-work-pane{flex:1 1 600px!important;display:block!importa
     <input type="hidden" id="qe-visit-id">
     <div class="qe-row">
       <div class="qe-field">
-        <label>Doctor</label>
+        <label for="qe-doctor">Doctor</label>
         <select id="qe-doctor"><option value="">— No preference —</option></select>
       </div>
       <div class="qe-field">
@@ -1767,6 +1777,11 @@ body.lab-bills-only #rx-work-pane{flex:1 1 600px!important;display:block!importa
       </div>
     </div>
     <p class="qe-note" id="qe-note" aria-live="polite"></p>
+    <!-- Session 375 (§409 / Q10): changing the doctor needs a reason (server: change_visit_doctor, written to visit_change_log) -->
+    <div class="qe-field" id="qe-reason-wrap" hidden>
+      <label for="qe-reason">Reason for changing the doctor (5 to 300 characters)</label>
+      <input id="qe-reason" type="text" maxlength="300" placeholder="e.g. the patient asked for this doctor">
+    </div>
     <div class="qe-field" style="margin-bottom:0">
       <label>Chief Complaint</label>
       <input id="qe-complaint" type="text" placeholder="Chief complaint / reason for visit">

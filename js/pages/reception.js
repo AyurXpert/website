@@ -29,6 +29,7 @@ import { openWalkinPanel, canBookWalkin, walkinBadgeText } from '../modules/lab/
 import { stageChip, awaitingRows, buildCounterPanel, canWaiveDeposit, SCHEMES } from '../modules/ipd/admissionCounter.js';
 // Session 371B (plan session 370): the new layout, the NCISM strip / date range, the form checks, gender M / F / O
 import { genderCode, genderLabel } from '../utils/gender.js';
+import { abhaText, loadLinkProblems, renderLinkProblems } from '../modules/abdm/linkStatus.js';   // Session 375 (§410 / §411)
 import { wireAadhaarBox, aadhaarDigits, aadhaarLengthError, maskAadhaar } from '../utils/aadhaar.js';
 import { NO_MOBILE_REASONS, NO_MOBILE_EMERGENCY, normaliseMobile, searchKind, validateRegistration, showFieldErrors, clearFieldError, addressParts } from '../modules/reception/patientForm.js';
 import { mountNcismStrip } from '../modules/reception/ncismStrip.js';
@@ -1348,6 +1349,10 @@ async function _selectPatient(patient, chosenCombo) {
     document.getElementById('abha').value = patient.abha_number;
     _setAbhaNote('verified', `ABHA on record: ${patient.abha_number}`);
   }
+  // Session 375 (§411): the ABHA number / address on the patient card again (since 371 it sat only in the hidden ABHA tab) + a failed
+  // ABDM link with Retry (§410)
+  document.getElementById('pt-abha').textContent = abhaText(patient);
+  _showLinkProblems(patient);
   await _loadAbhaAddressPicker(patient);
 
   document.getElementById('reg-fee').value = '0';
@@ -1887,7 +1892,7 @@ document.getElementById('btn-correct-patient').addEventListener('click', async (
   if (!_patient?.id) return;
   if (!_cpAllowed) { _alert('info', _cpWhyNot); return; }
   const { data: row, error } = await supabase.from('patients')
-    .select('id, uhid, name, phone, gender, date_of_birth, age, blood_group, address, address_line, address_town, address_district, address_state, address_pin, no_mobile, no_mobile_reason, has_allergies, abha_number, created_at')
+    .select('id, uhid, name, phone, gender, date_of_birth, age, blood_group, address, address_line, address_town, address_district, address_state, address_pin, no_mobile, no_mobile_reason, has_allergies, abha_number, abha_address, created_at')
     .eq('id', _patient.id).single();
   if (error || !row) { _alert('error', safeErrorMessage(error, 'Could not load the patient.')); return; }
   openCorrectPatientDetails({
@@ -1935,6 +1940,8 @@ function _clearTag() {
   document.getElementById('pkg-use-chk').checked = false;
   document.getElementById('patient-picker').classList.remove('show');
   document.getElementById('pt-prakriti').style.display = 'none';
+  document.getElementById('pt-abha').textContent = 'No ABHA';   // Session 375 (§411)
+  document.getElementById('pt-abdm-link').hidden = true;
   document.getElementById('abha').value = '';
   document.getElementById('abha-addr-row').style.display = 'none';
   _setPendingAbhaAddress(null);
@@ -2591,36 +2598,9 @@ async function handleSubmit() {
 
     const nextToken = (lastToken && lastToken.length > 0) ? lastToken[0].token_number + 1 : 1;
 
-    // 4b. Multi-counter Screening fair-assignment (queue redesign piece 3, 17 Aug 2026)
-    // — only matters for a visit actually entering the Screening OPD queue (a new
-    // patient; a returning patient is routed straight to their previous specialty OPD
-    // and never touches this). Same fair-share pattern as piece 2's Registration
-    // Queue: whichever currently-on-'screening'-duty staffer (staff_duty_sessions) has
-    // the fewest patients still waiting gets this one. Nobody on screening duty (or a
-    // tenant that's never turned this on) leaves it null — screening.js then falls
-    // back to its original single shared undifferentiated queue, unchanged.
-    let assignedScreenerId = null;
-    if (opdId && opdId === _screeningOpdId) {
-      const { data: onDuty } = await supabase
-        .from('staff_duty_sessions')
-        .select('profile_id')
-        .eq('tenant_id', tenantId)
-        .is('ended_at', null)
-        .contains('active_duty', ['screening']);
-      if (onDuty?.length) {
-        const screenerIds = [...new Set(onDuty.map(d => d.profile_id))];
-        const { data: pending } = await supabase
-          .from('visits')
-          .select('assigned_screener_id')
-          .in('assigned_screener_id', screenerIds)
-          .eq('opd_id', _screeningOpdId)
-          .in('status', ['waiting', 'in_progress'])
-          .gte('created_at', todayStart.toISOString());
-        const loadByScreener = new Map(screenerIds.map(id => [id, 0]));
-        (pending || []).forEach(v => loadByScreener.set(v.assigned_screener_id, (loadByScreener.get(v.assigned_screener_id) || 0) + 1));
-        assignedScreenerId = [...loadByScreener.entries()].sort((a, b) => a[1] - b[1] || a[0].localeCompare(b[0]))[0][0];
-      }
-    }
+    // 4b. Screening fair share -- Session 375 (§407): decided by the SERVER (screening_queue_today + the visits insert trigger: the
+    // least-loaded ACTIVE counter, re-shared when a counter stops); the browser no longer chooses a screener (a value sent is ignored).
+    const assignedScreenerId = null;
 
     // 5. Create visit
     const isTele = visitCat === 'teleconsultation';
@@ -3050,6 +3030,7 @@ async function loadQueue() {
 
   const count = visits ? visits.length : 0;
   document.getElementById('queue-count').textContent = count;
+  _showNoCounterWarning();   // Session 375 (§407, Q6)
 
   const list = document.getElementById('queue-list');
   if (!count) {
@@ -3110,7 +3091,7 @@ async function loadQueue() {
       <div class="q-right">
         <span class="q-time">${t}</span>
         <span class="q-wait">${wait}</span>
-        <button class="q-edit-btn" data-visit-id="${v.id}" data-doctor-id="${v.doctor_id || ''}" data-complaint="${_esc(v.chief_complaint || '')}" data-category="${v.visit_category || 'opd'}" data-opd-id="${v.opd_id || ''}" data-status="${_esc(v.status || '')}" title="Edit this queue entry" type="button">✎</button>
+        <button class="q-edit-btn" data-visit-id="${v.id}" data-doctor-id="${v.doctor_id || ''}" data-complaint="${_esc(v.chief_complaint || '')}" data-category="${v.visit_category || 'opd'}" data-opd-id="${v.opd_id || ''}" data-status="${_esc(v.status || '')}" data-routed="${v.screening_visit_id ? '1' : ''}" title="Edit this queue entry" type="button">✎</button>
       </div>
     </div>`;
   }).join('');
@@ -3130,18 +3111,35 @@ async function loadQueue() {
   list.querySelectorAll('.q-edit-btn').forEach(btn => {
     btn.addEventListener('click', e => {
       e.stopPropagation();
-      _openQueueEdit(btn.dataset.visitId, btn.dataset.doctorId, btn.dataset.complaint, btn.dataset.category, btn.dataset.opdId, btn.dataset.status);
+      _openQueueEdit(btn.dataset.visitId, btn.dataset.doctorId, btn.dataset.complaint, btn.dataset.category, btn.dataset.opdId, btn.dataset.status, btn.dataset.routed === '1');
     });
   });
+}
+
+// Session 375 (§407, Q6): "N patients waiting at Screening — no counter active" (server: screening_today_stats)
+async function _showNoCounterWarning() {
+  const el = document.getElementById('rq-nocounter');
+  if (!el) return;
+  if (!_screeningOn || !_screeningOpdId) { el.hidden = true; return; }
+  const { data } = await supabase.rpc('screening_today_stats');
+  const n = Number(data?.waiting_no_counter || 0);
+  el.hidden = !n;
+  el.textContent = n ? `⚠ ${n} patient${n === 1 ? '' : 's'} waiting at Screening — no counter active. Tell the Medical Superintendent.` : '';
 }
 
 // ── Queue Edit ────────────────────────────────────
 // Session 353C (F-347-1, owner D13): before the consultation starts, the doctor can be changed only to a doctor ON DUTY TODAY in
 // this visit's OPD (the server refuses anything else) -- so a Screening-OPD visit is never given a specialty doctor here. Once the
 // consultation has started, only the complaint can be changed.
-let _qeEditable = true;
-async function _openQueueEdit(visitId, doctorId, complaint, category, opdId, status) {
+// Session 375 (§409 / Q10): a Screening-ROUTED visit's doctor is not changed here while Screening is ON (the Screening counter
+// re-routes it); any other doctor change needs a reason and goes through change_visit_doctor (the server refuses a plain update).
+let _qeEditable = true, _qeDoctorLocked = false, _qeDoctorWas = null;
+async function _openQueueEdit(visitId, doctorId, complaint, category, opdId, status, routed = false) {
   document.getElementById('qe-visit-id').value   = visitId;
+  _qeDoctorLocked = !!(routed && _screeningOn);
+  _qeDoctorWas = doctorId || null;
+  document.getElementById('qe-reason').value = '';
+  document.getElementById('qe-reason-wrap').hidden = true;
   document.getElementById('qe-complaint').value  = complaint || '';
   document.getElementById('qe-category').value   = category  || 'opd';
   _qeEditable = status === 'waiting';
@@ -3169,11 +3167,13 @@ async function _openQueueEdit(visitId, doctorId, complaint, category, opdId, sta
     sel.appendChild(o);
   }
   sel.value = doctorId || '';
-  sel.disabled = !_qeEditable;
-  document.getElementById('qe-category').disabled = !_qeEditable;
+  sel.disabled = !_qeEditable || _qeDoctorLocked;
+  sel.onchange = () => { document.getElementById('qe-reason-wrap').hidden = (sel.value || null) === _qeDoctorWas; };
+  document.getElementById('qe-category').disabled = !_qeEditable || _qeDoctorLocked;   // rehearsal W1: the visit type too
 
   let msg = '';
   if (!_qeEditable) msg = 'The consultation has started — only the complaint can be changed.';
+  else if (_qeDoctorLocked) msg = 'This visit was routed by Screening — ask the Screening counter to Re-route it. Only the complaint can be changed here.';
   else if (opdId && opdId === _screeningOpdId) msg = 'This visit is in the Screening OPD — the specialty doctor is chosen at the Screening desk. Only doctors on duty today in the Screening OPD are listed.';
   else msg = "Only doctors on duty today in this visit's OPD are listed.";
   note.textContent = msg;
@@ -3195,14 +3195,27 @@ async function _saveQueueEdit() {
   btn.disabled = true;
   btn.textContent = 'Saving…';
 
+  const doctorChanged = _qeEditable && !_qeDoctorLocked && doctorId !== _qeDoctorWas;
+  const reason = document.getElementById('qe-reason').value.trim();
+  if (doctorChanged && (reason.length < 5 || reason.length > 300)) {
+    btn.disabled = false; btn.textContent = 'Save Changes';
+    _alert('error', 'Give the reason for changing the doctor (5 to 300 characters).');
+    document.getElementById('qe-reason').focus();
+    return;
+  }
   const upd = { chief_complaint: complaint || null };
-  if (_qeEditable) { upd.doctor_id = doctorId; upd.visit_category = category; }
-  const { error } = await supabase.from('visits').update(upd).eq('id', visitId);
+  if (_qeEditable && !_qeDoctorLocked) upd.visit_category = category;
+  const { data: saved, error } = await supabase.from('visits').update(upd).eq('id', visitId).select('id');
+  let err = error || (!saved?.length ? { message: 'The queue entry was not changed (no right, or it was closed meanwhile).' } : null);
+  if (!err && doctorChanged) {
+    const { error: dErr } = await supabase.rpc('change_visit_doctor', { p_visit: visitId, p_doctor: doctorId, p_reason: reason });
+    err = dErr;
+  }
 
   btn.disabled = false;
   btn.textContent = 'Save Changes';
 
-  if (error) { _alert('error', safeErrorMessage(error, 'Save failed. Please try again.')); return; }
+  if (err) { _alert('error', safeErrorMessage(err, 'Save failed. Please try again.')); return; }
 
   // Update _doctorMap in case new doctor not yet loaded
   if (doctorId && !_doctorMap[doctorId]) {
@@ -4880,7 +4893,19 @@ async function _abdmLinkTokenAfterVerify(patientId, { abhaNumber, abhaAddress } 
       }),
     });
     if (ltRes.ok) _alert('info', 'Health record link notification sent to patient\'s ABHA app.');
+    else _alert('error', 'ABDM linking failed — use ↻ Retry on the patient card.');   // Session 375 (§410): never silent
   } catch (e) { console.warn('ABDM link token (reception):', e?.message); }
+}
+
+// Session 375 (§410): "ABDM linking failed — Retry" on the patient card (care_contexts.link_status, written by abdm-hip)
+async function _showLinkProblems(patient) {
+  const el = document.getElementById('pt-abdm-link');
+  if (!el) return;
+  el.hidden = true;
+  if (!patient?.id || !(patient.abha_number || patient.abha_address)) return;
+  const problems = await loadLinkProblems(supabase, tenantId, patient.id);
+  if (_patient?.id !== patient.id) return;   // another patient was chosen meanwhile
+  renderLinkProblems(el, { supabase, patient, problems, onDone: () => setTimeout(() => _showLinkProblems(patient), 3000) });
 }
 
 // Scenario 2: no ABHA — send SMS deep-link for patient-initiated discovery.

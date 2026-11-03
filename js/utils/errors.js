@@ -325,6 +325,8 @@ export function safeErrorMessage(error, fallback = 'Something went wrong. Please
   // Session 348 (TODO §209 / §211 / §212): OPD Management (opd_doctor_*) and the HOD functions (hod_*) -- the server's plain refusals;
   // who may change an OPD's doctors / which department / which organisation decides what the person does next
   const OPD_DOCTOR_MSGS = ["Only an active super admin, or the department admin (HOD) of this OPD's department, can change its doctors",
+    // Session 375 (§408): the same refusal now names the Medical Superintendent
+    "Only an active super admin, the Medical Superintendent, or the department admin (HOD) of this OPD's department, can change its doctors",
     'Not authorized for this department', 'This OPD does not belong to your department', 'Doctor not found in your organisation',
     'Assignment not found', 'Choose active or not active', 'NCISM §7 mandates dedicated consultants', 'Staff member not found in your organisation',
     'Shift not found in your department', 'Trainee not found in your organisation', 'This profile is not a Trainee Doctor'];
@@ -563,6 +565,17 @@ export function safeErrorMessage(error, fallback = 'Something went wrong. Please
     / not found in your organisation\.$/, / is already in use by .+ — choose another\.$/, / is already on Screening duty for \d{2}-\d{2}-\d{4}\.$/];
   if (['P0001','42501','22023','P0002','23514','23505'].includes(error?.code)
       && (S374_MSGS.some(m => error?.message?.startsWith(m)) || S374_RE.some(r => r.test(error?.message || '')))) {
+    return error.message;
+  }
+  // Session 375 (§407 / §409): Re-route, Return to Screening, reception's doctor change, the Screening waiting time -- shown as written
+  const S375_MSGS = ['Give the reason for re-routing', 'Only the screener who routed this patient', "Only today's routings can be re-routed",
+    'The doctor has already opened this visit', 'This is where the patient already is', 'Give the reason for returning the patient to Screening',
+    'Only a patient routed by Screening can be returned', "Only this visit's doctor, a doctor on duty in this OPD, or the Medical Superintendent",
+    "Only today's patients can be returned to Screening", 'This visit is no longer open', 'Something was already ordered on this visit',
+    "The Screening visit of this patient is not today's", 'This visit was routed by Screening', 'The doctor can be changed only before the consultation starts',
+    'The doctor can be changed only to a doctor on duty today', 'Give the reason for changing the doctor', 'Change the doctor through Edit Queue Entry',
+    "Only the organisation's active Super Admin can change the Screening waiting time", 'Choose between 3 and 60 minutes', 'Give a reason (5 to 300 characters)'];
+  if (['P0001','42501','22023','P0002','23514'].includes(error?.code) && S375_MSGS.some(m => error?.message?.startsWith(m))) {
     return error.message;
   }
   if (error?.code === '42501' && error?.message === 'Not authorized') {   // 359: an inactive / relieved account, or no right at all

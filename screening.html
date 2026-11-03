@@ -219,6 +219,31 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
         <button type="button" class="btn-cancel" data-onclick="closeAdminRelease">Cancel</button>
       </div>
     </div>
+    <!-- Session 375 (§407, Q6): patients waiting while no counter is active -- shown to the read-only views (MS / DMS / RMO / MD / SA) -->
+    <div id="scr-nocounter" class="scr-nocounter" role="status" hidden></div>
+    <!-- Session 375 (§409): a wrong routing is corrected only from Screening -- the routing screener or the MS / DMS / RMO / Super Admin
+         re-route a patient BEFORE a doctor opens the visit (a reason; server: screening_reroute_visit) -->
+    <div id="routed-row" class="scr-bypass" hidden>
+      <button type="button" class="scr-bypass-head" data-onclick="toggleRoutedList" aria-expanded="false" id="routed-btn">
+        <span>🔁 Routed today, not yet seen: <span id="routed-count">0</span></span>
+        <span id="routed-toggle-icon" aria-hidden="true">▾</span>
+      </button>
+      <div id="routed-list" hidden></div>
+    </div>
+    <div id="rr-panel" class="scr-rel scr-rr" hidden>
+      <div class="scr-rel-title" id="rr-title">Re-route this patient</div>
+      <label for="rr-opd">Send to OPD</label>
+      <select id="rr-opd" data-onchange="onRerouteOpdChange"></select>
+      <label for="rr-doctor">Doctor</label>
+      <select id="rr-doctor"><option value="">— Choose the OPD first —</option></select>
+      <label for="rr-reason">Reason for re-routing (5 to 300 characters)</label>
+      <textarea id="rr-reason" maxlength="300" rows="2"></textarea>
+      <div class="scr-rel-msg" id="rr-msg" role="alert"></div>
+      <div class="scr-rel-btns">
+        <button type="button" class="btn-route" data-onclick="confirmReroute">Re-route</button>
+        <button type="button" class="btn-cancel" data-onclick="closeReroute">Cancel</button>
+      </div>
+    </div>
     <div class="queue-list" id="queue-list" aria-live="polite">
       <div class="queue-empty">Loading queue…</div>
     </div>

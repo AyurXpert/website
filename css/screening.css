@@ -127,3 +127,12 @@ button.sd-dept:disabled{cursor:default}
 .ncr-day-btn{min-height:44px;padding:2px 8px;border:1px solid var(--border);border-radius:6px;background:#fff;color:var(--green-deep);font:inherit;font-weight:600;cursor:pointer;text-decoration:underline}
 .ncr-day-btn:focus-visible,.sdc-bar:focus-visible{outline:3px solid var(--gold);outline-offset:1px}
 .sdc-day{margin:8px 0;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;background:#fff}
+/* Session 375 (§407 / §409): waiting long, returned by a doctor, no counter active, the Re-route panel -- always with words, never colour alone */
+.scr-badge-wait{display:inline-block;padding:1px 8px;border-radius:6px;background:#fdecea;border:1.5px solid #a5281b;color:#7a1a10;font-size:11px;font-weight:700}
+.scr-badge-ret{display:inline-block;padding:1px 8px;border-radius:6px;background:#e8eef8;border:1.5px solid #1a4080;color:#1a4080;font-size:11px;font-weight:700;white-space:normal}
+.scr-nocounter{margin:8px;padding:10px 12px;border-radius:8px;background:#fdecea;border:1.5px solid #a5281b;color:#7a1a10;font-size:13px;font-weight:700}
+.scr-nocounter[hidden]{display:none}
+.scr-rr{background:var(--gold-light,#fdf6e3);border-bottom-color:var(--gold)}
+.scr-rr select,.scr-rr textarea{font:inherit;padding:6px 8px;border:1px solid var(--border,#d8d2c4);border-radius:6px;min-height:44px}
+.scr-routed-item{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 0;border-top:1px solid var(--border,#e5e0d5);font-size:12px}
+.scr-routed-item button{min-height:44px;padding:4px 12px}

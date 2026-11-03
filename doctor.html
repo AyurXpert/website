@@ -220,6 +220,17 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
 .badge-paid{background:var(--green-light);color:var(--green-deep);border:1px solid var(--green-mid)}
 .badge-pending{background:#fff3cd;color:#6b4f00;border:1px solid #e0c060}
 .scr-findings{margin:0;padding:10px 20px;background:#f4f8f5;border-bottom:2px solid var(--green-mid);font-size:13px}
+/* Session 375 (§409 / §410 / §411) */
+.btn-return-scr{min-height:44px;margin-top:8px;padding:6px 14px;border:1.5px solid #1a4080;border-radius:6px;background:#fff;color:#1a4080;font-weight:700;cursor:pointer}
+.btn-return-scr[hidden],.rts-panel[hidden],.pt-abdm-link[hidden]{display:none}
+.rts-panel{margin-top:8px;padding:10px;border:1px solid #1a4080;border-radius:6px;background:#e8eef8;display:flex;flex-direction:column;gap:6px}
+.rts-panel textarea{font:inherit;padding:6px 8px;border:1px solid var(--border);border-radius:6px}
+.rts-msg{color:#a5281b;font-weight:600;min-height:1em}
+.rts-btns{display:flex;gap:8px}
+.btn-rts-cancel{min-height:44px;padding:6px 14px;border:1px solid var(--border);border-radius:6px;background:#fff;cursor:pointer}
+.pt-abha-line{font-size:11px;color:var(--text-mid);font-weight:600}
+.pt-abdm-link{margin-top:4px;padding:5px 8px;border-radius:6px;background:#fdecea;border:1px solid #a5281b;color:#7a1a10;font-size:12px;font-weight:600}
+.abdm-retry-btn{min-height:44px;padding:4px 12px;border:1px solid #7a1a10;border-radius:6px;background:#fff;color:#7a1a10;font-weight:700;cursor:pointer}
 .scr-findings-h{font-family:'DM Sans',sans-serif;font-size:13px;font-weight:700;color:var(--green-deep);margin:0 0 6px}
 .scr-findings-ro{font-weight:400;color:var(--text-muted);font-size:12px}
 .scr-findings-list{display:grid;grid-template-columns:max-content 1fr;gap:3px 12px;margin:0}
@@ -1499,8 +1510,12 @@ body.final-mode .tab-body{padding-bottom:130px}   /* the banner's height on top 
               <span class="pt-name" id="pt-name">—</span>
               <span class="pt-age-gender" id="pt-age-gender"></span>
               <span class="pt-visit-badge" id="pt-visit-badge" style="display:none"></span>
+              <!-- Session 375 (§411): the ABHA on the always-visible line -->
+              <span class="pt-abha-line" id="pt-abha-line"></span>
             </div>
             <div class="pt-complaint" id="pt-complaint">—</div>
+            <!-- Session 375 (§410): "ABDM linking failed — Retry" (care_contexts.link_status, written by abdm-hip) -->
+            <div id="pt-abdm-link" class="pt-abdm-link" role="status" hidden></div>
           </div>
           <button type="button" class="pt-detail-toggle" id="pt-detail-toggle" data-onclick="togglePatientDetail" title="Show more patient details">▾ More</button>
         </div>
@@ -1541,6 +1556,17 @@ body.final-mode .tab-body{padding-bottom:130px}   /* the banner's height on top 
         <h2 id="scr-findings-h" class="scr-findings-h">🩺 Screening findings <span class="scr-findings-ro">(read-only, from the Screening desk)</span></h2>
         <dl id="scr-findings-list" class="scr-findings-list"></dl>
         <div id="scr-findings-note" class="scr-findings-note"></div>
+        <!-- Session 375 (§409): a wrong routing is sent back to Screening (a reason; server: return_to_screening) -->
+        <button type="button" id="btn-return-screening" class="btn-return-scr" data-onclick="openReturnToScreening" hidden>↩ Return to Screening</button>
+        <div id="rts-panel" class="rts-panel" hidden>
+          <label for="rts-reason">Why does this patient go back to Screening? (5 to 300 characters)</label>
+          <textarea id="rts-reason" maxlength="300" rows="2" placeholder="e.g. eye complaint — Shalakya, not Kayachikitsa"></textarea>
+          <div id="rts-msg" class="rts-msg" role="alert"></div>
+          <div class="rts-btns">
+            <button type="button" class="btn-return-scr" data-onclick="confirmReturnToScreening">↩ Return to Screening</button>
+            <button type="button" class="btn-rts-cancel" data-onclick="closeReturnToScreening">Cancel</button>
+          </div>
+        </div>
       </section>
 
       <!-- §18y — High-Risk Pregnancy alert (shown whenever patient has a high-risk ANC visit) -->

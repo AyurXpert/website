@@ -204,7 +204,7 @@ async function _loadSupervisors() {
 function _updateDutyUI() {
   const on = !!_me?.duty_session_id;
   $('btn-screening-duty-toggle').textContent = on ? '🔴 Stop Triaging' : '🟢 Start Triaging';
-  $('screening-duty-status').textContent = on ? `On duty at ${_me.counter || '—'} — your fair share (+ anything unassigned)` : `${START_FIRST} The full queue is shown.`;
+  $('screening-duty-status').textContent = on ? `On duty at ${_me.counter || '—'} — your fair share, patients waiting long and patients a doctor returned` : `${START_FIRST} The full queue is shown.`;
   $('scr-counter').disabled = on;
 }
 
@@ -261,14 +261,14 @@ window.loadQueue = async function(quiet = false) {
   if (!quiet && !_queue.length) _emptyQueue('Loading…');
   const { data, error } = await supabase.rpc('screening_queue_today');
   if (error) { if (!quiet) _emptyQueue(safeErrorMessage(error, 'Could not load the queue.')); return; }
-  let rows = data || [];
-  // On duty: my fair share + anything nobody was assigned + whatever I have open (a page filter, contract §10.2)
-  if (_me.can_screen && _me.duty_session_id) rows = rows.filter(r => !r.assigned_screener_id || r.assigned_screener_id === profile.id || r.claimed_by_me);
-  _queue = rows;
+  // Session 375 (§407): the SERVER decides the fair share -- an active counter gets its share + patients waiting long + patients a doctor
+  // returned + what it has open (visible_to_me); everyone else sees the whole queue. The page no longer filters by itself.
+  _queue = (data || []).filter(r => r.visible_to_me !== false);
   // the patient I have open vanished from the queue (routed / no longer waiting) -> say so, stop routing
   if (_active && !_queue.some(r => r.visit_id === _active.visit_id)) _lose('This patient is no longer in the Screening queue (routed or closed at another counter).');
   _renderQueue();
   _loadStats();
+  _loadRouted();
   if (!quiet) loadScanBypassLog();
 };
 
@@ -279,6 +279,9 @@ window.readOnlyInfo = function() {
 
 function _tags(r) {
   const out = [];
+  // Session 375 (§409 / §407): sent back by a doctor (top of the queue, every counter) / waiting longer than the hospital's minutes
+  if (r.returned) out.push(h('span', { class: 'scr-badge-ret' }, `↩ Returned by ${r.returned_by_name || 'the doctor'}${r.return_reason ? ' — ' + r.return_reason : ''}`));
+  if (r.overflow) out.push(h('span', { class: 'scr-badge-wait' }, `⏱ Waiting ${r.waiting_minutes ?? '?'} min`));
   // V8 (owner 2 Nov 2026): the bill is not paid (or there is none yet) -- a highlighted badge with the word
   if (r.bill_status !== 'paid') out.push(h('span', { class: 'scr-badge-unpaid' }, r.bill_status === 'pending' ? 'UNPAID — bill pending' : 'UNPAID'));
   if (r.visit_category === 'emergency') out.push(h('span', { class: 'scr-badge scr-badge-emergency' }, 'EMERGENCY'));
@@ -326,9 +329,73 @@ async function _loadStats() {
   $('ss-screened').textContent = data.screened_today ?? '—';
   $('ss-mine').textContent = data.screened_by_me ?? '—';
   $('ss-emergency').textContent = data.emergency_today ?? '—';
+  // Session 375 (§407, Q6): nobody is screening -- say so (the MS / office view, and anyone on duty who has not started)
+  const nc = Number(data.waiting_no_counter || 0);
+  $('scr-nocounter').hidden = !nc;
+  $('scr-nocounter').textContent = nc ? `⚠ ${nc} patient${nc === 1 ? '' : 's'} waiting at Screening — no counter active.` : '';
   const notSeen = document.querySelector('#scr-ncism-strip .sd-extra');
   if (notSeen && data.screened_not_seen !== undefined) notSeen.textContent = `Screened, not yet seen by a department doctor: ${data.screened_not_seen}`;
 }
+
+// ── Session 375 (§409): Re-route a routed patient BEFORE a doctor opens the visit ─────────────────────────────────────────────────
+let _routed = [], _rr = null, _routedOpen = false;
+async function _loadRouted() {
+  if (!(_me?.can_screen || _me?.can_keep_list)) return;
+  const { data, error } = await supabase.rpc('screening_routed_today');
+  if (error) return;   // not on duty / not a keeper: the list simply stays hidden
+  _routed = data || [];
+  $('routed-row').hidden = !_routed.length;
+  $('routed-count').textContent = _routed.length;
+  _renderRouted();
+}
+function _renderRouted() {
+  $('routed-list').replaceChildren(..._routed.map(r => h('div', { class: 'scr-routed-item' },
+    h('span', {}, `#${r.token_number ?? '?'} ${r.patient_name || 'Unknown'} → ${r.opd_name || '—'}${r.doctor_name ? ' · ' + r.doctor_name : ''} (by ${r.routed_by_name || '—'})`),
+    r.can_reroute ? h('button', { type: 'button', class: 'btn-cancel', 'data-onclick': 'openReroute', 'data-onclick-a0': r.specialty_visit_id }, 'Re-route…') : null)));
+  $('routed-list').hidden = !_routedOpen;
+}
+window.toggleRoutedList = function() {
+  _routedOpen = !_routedOpen;
+  $('routed-btn').setAttribute('aria-expanded', String(_routedOpen));
+  $('routed-toggle-icon').textContent = _routedOpen ? '▴' : '▾';
+  $('routed-list').hidden = !_routedOpen;
+};
+window.openReroute = async function(visitId) {
+  const r = _routed.find(x => x.specialty_visit_id === visitId);
+  if (!r) return;
+  _rr = r;
+  $('rr-title').textContent = `Re-route ${r.patient_name || 'this patient'} (now: ${r.opd_name || '—'}${r.doctor_name ? ' · ' + r.doctor_name : ''})`;
+  $('rr-reason').value = ''; $('rr-msg').textContent = '';
+  const sel = $('rr-opd');
+  sel.replaceChildren(h('option', { value: '' }, '— Choose the OPD —'));
+  const { data } = await supabase.from('opds').select('id, name, is_screening, is_emergency, is_active').eq('tenant_id', tenantId).eq('is_active', true).order('name');
+  for (const o of (data || []).filter(o => !o.is_screening)) sel.append(h('option', { value: o.id }, o.is_emergency ? `${o.name} (Emergency OPD)` : o.name));
+  $('rr-doctor').replaceChildren(h('option', { value: '' }, '— Choose the OPD first —'));
+  $('rr-panel').hidden = false;
+  sel.focus();
+};
+window.onRerouteOpdChange = async function() {
+  const opdId = $('rr-opd').value, sel = $('rr-doctor');
+  if (!opdId) { sel.replaceChildren(h('option', { value: '' }, '— Choose the OPD first —')); return; }
+  sel.replaceChildren(h('option', { value: '' }, 'Loading doctors…'));
+  const { data, error } = await supabase.rpc('opd_doctors_on_duty', { p_opd_id: opdId });
+  if ($('rr-opd').value !== opdId) return;
+  sel.replaceChildren(h('option', { value: '' }, NO_DOCTOR));
+  if (error) sel.append(h('option', { value: '', disabled: true }, '— Doctor list not loaded — reload the page —'));
+  for (const d of (data || []).slice().sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')))) sel.append(h('option', { value: d.doctor_id }, d.name));
+};
+window.closeReroute = function() { $('rr-panel').hidden = true; _rr = null; };
+window.confirmReroute = async function() {
+  if (!_rr) return;
+  const opd = $('rr-opd').value, doc = $('rr-doctor').value || null, reason = $('rr-reason').value.trim();
+  if (!opd) { $('rr-msg').textContent = 'Choose the OPD to send the patient to.'; return; }
+  if (reason.length < 5 || reason.length > 300) { $('rr-msg').textContent = 'Give the reason for re-routing (5 to 300 characters).'; return; }
+  const { data, error } = await supabase.rpc('screening_reroute_visit', { p_specialty_visit: _rr.specialty_visit_id, p_opd: opd, p_doctor: doc, p_reason: reason });
+  if (error) { $('rr-msg').textContent = safeErrorMessage(error, 'Could not re-route the patient.'); return; }
+  notify(`Re-routed to ${data.opd_name}${data.doctor_name ? ' · ' + data.doctor_name : ''} — token #${data.token_number}.`, 'success');
+  window.closeReroute();
+  await _loadRouted();
+};
 
 // Session 181: ABHA Scan & Share patients who went straight to a department (passive awareness, not a queue)
 async function loadScanBypassLog() {
@@ -697,14 +764,17 @@ window.showScrTab = function(which) {
   if (which === 'duty') _openDuty();
 };
 
+// Session 375 (rehearsal W2): + Re-routed / Returned per screener; "OPDs chosen" = each patient's FINAL routing (after a Re-route the new
+// OPD, after a Return "Returned to Screening"); "Corrected" = what was changed ("first OPD → final: n")
 const LOG_HEAD = ['Screener', 'Designation', 'Counter', 'Routed', 'Average minutes (open → route)', 'Routine', 'Semi-urgent', 'Urgent', 'Emergency',
-  'Self-routed', 'Own OPD', 'On request', 'OPDs chosen', 'Supervised by'];
-const LOG_NUM = [3, 5, 6, 7, 8, 9, 10, 11];
-const OPD_COL = 12;
+  'Self-routed', 'Own OPD', 'On request', 'Re-routed', 'Returned', 'OPDs chosen (final)', 'Corrected (first → final)', 'Supervised by'];
+const LOG_NUM = [3, 5, 6, 7, 8, 9, 10, 11, 12, 13];
+const OPD_COL = 14;
 const pairs = o => Object.entries(o || {}).map(([k, v]) => `${k}: ${v}`).join(', ');
 const logCells = r => [r.screener_name || '—', r.designation ? desigWords(r.designation) : '—', r.counter_label || '—', String(r.routed ?? 0),
   r.avg_minutes === null || r.avg_minutes === undefined ? '—' : String(r.avg_minutes), String(r.routine ?? 0), String(r.semi_urgent ?? 0), String(r.urgent ?? 0),
-  String(r.emergency ?? 0), String(r.self_routed ?? 0), String(r.own_opd ?? 0), String(r.on_request ?? 0), pairs(r.by_opd) || '—', pairs(r.supervised_by) || '—'];
+  String(r.emergency ?? 0), String(r.self_routed ?? 0), String(r.own_opd ?? 0), String(r.on_request ?? 0), String(r.rerouted ?? 0), String(r.returned ?? 0),
+  pairs(r.by_opd) || '—', pairs(r.changes) || '—', pairs(r.supervised_by) || '—'];
 // F1: the OPDs chosen with their department's colour (always with the name)
 function _opdCell(byOpd) {
   const items = Object.entries(byOpd || {});
@@ -714,7 +784,7 @@ function _opdCell(byOpd) {
     const t = _targets.find(x => x.opd_name === name);
     const idx = Math.max(0, _targets.findIndex(x => x.opd_name === name));
     if (i) wrap.append(', ');
-    wrap.append(deptLabel(`${name}: ${n}`, t?.ncism_code, idx));
+    wrap.append(name === 'Returned to Screening' ? `${name}: ${n}` : deptLabel(`${name}: ${n}`, t?.ncism_code, idx));
   });
   return wrap;
 }
