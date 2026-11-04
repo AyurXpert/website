@@ -143,9 +143,11 @@ p:last-child{margin-bottom:0}
   </div>
   <div class="sidebar-nav">
     <div class="nav-section">Overview</div>
+    <a class="nav-link" href="#whats-new">What's new (Nov 2026)</a>
     <a class="nav-link" href="#overview">System Overview</a>
     <a class="nav-link" href="#roles">Roles & Access</a>
     <a class="nav-link" href="#workflow">Master Workflow</a>
+    <a class="nav-link" href="#by-role">Your Day, Role by Role</a>
 
     <div class="nav-section">Setup (Admin)</div>
     <a class="nav-link" href="#setup-org">1. Register Organisation</a>
@@ -184,12 +186,30 @@ p:last-child{margin-bottom:0}
 <main class="main ax-print-root">
 
   <div class="main-title">AyurXpert HMS</div>
-  <div class="main-subtitle">Complete User Manual — v1.0 · May 2026</div>
+  <div class="main-subtitle">Complete User Manual — updated 4 Nov 2026</div>
 
   <!-- Session 167: role-scoped landing -- populated by the script at the bottom of the page.
        Deliberately never hides any other section (per Dr. Venkatesh's explicit instruction) --
        this is purely a scroll-to + a visible way back, nothing here is removed or hidden. -->
   <div id="role-banner" class="no-print" style="display:none"></div>
+
+  <!-- ══════════════════════════════════════════════
+       WHAT'S NEW
+       ══════════════════════════════════════════════ -->
+  <div class="section" id="whats-new">
+    <div class="section-title">What's new (Nov 2026)</div>
+    <p>The biggest changes to the OPD this month. Each line links to the steps.</p>
+    <table class="feature-table">
+      <tr><th>Who</th><th>What changed</th></tr>
+      <tr><td>Receptionist</td><td><a href="#reception">A new reception page</a>: two panes (Registration · Today's work), the server chooses the fee and says why, and the patient card shows the ABHA. A patient routed by Screening keeps the doctor and Visit Type Screening gave: ask the Screening counter to Re-route. Changing the doctor of any other visit needs a reason.</td></tr>
+      <tr><td>Screener (nurse, doctor, intern)</td><td><a href="#role-screener">A new Screening desk</a>: you screen only when you are on today's duty list and have pressed 🟢 Start Triaging. The server shares the patients between the counters; a stopped counter's patients move at once, and a patient waiting too long shows at every counter. <strong>🔁 Routed today → Re-route…</strong> corrects your own routing before the doctor opens the visit.</td></tr>
+      <tr><td>Intern, PG scholar</td><td><a href="#role-intern">Your own guide</a>: an intern on the duty list screens with a supervising doctor; PG scholars do not screen. Ask your consultant to send back a wrongly routed patient.</td></tr>
+      <tr><td>Doctor</td><td><a href="#doctor-day">Your day, step by step</a>: the 🩺 Screening findings box, <strong>↩ Return to Screening</strong> for a patient sent to the wrong OPD, the ABHA on the patient's name line, and a line with <strong>↻ Retry</strong> if ABDM refused to link a record.</td></tr>
+      <tr><td>Medical Superintendent, Deputy MS, RMO</td><td><a href="#role-offices">Your own guide</a>: the MS sets the doctors of <em>every</em> OPD. The MS, Deputy MS and RMO keep the Screening duty list, re-route a patient and see the warning "no counter active".</td></tr>
+      <tr><td>Super Admin</td><td><a href="#role-admin">Your own guide</a>: the Screening waiting time, the follow-up window, OPD department targets and the daily routine. Full settings: <a href="user-guide/tenant-admin.html">Tenant Administration guide</a>.</td></tr>
+    </table>
+    <div class="note"><strong>Every morning, before OPD opens:</strong> doctors must be ticked <strong>Active today</strong> for today's date (it does not carry over to tomorrow), and the screeners must be on today's <strong>🗓 Screening duty</strong> list. Without these, doctors are not listed and nobody can screen.</div>
+  </div>
 
   <!-- ══════════════════════════════════════════════
        OVERVIEW
@@ -219,7 +239,7 @@ p:last-child{margin-bottom:0}
       </table>
     </div>
 
-    <div class="tip"><strong>Access URL:</strong> Open a browser and go to <code>http://127.0.0.1:5500/login.html</code> (local development via VS Code Live Server). Production URL is <strong>ayurxpert.com/login.html</strong> once deployed.</div>
+    <div class="tip"><strong>Signing in:</strong> open your hospital's own sign-in link, <strong>https://ayurxpert.com/login.html?t=YOURCODE</strong>, where YOURCODE is your hospital code. You see your hospital's name and logo on the sign-in page, and the browser remembers it for next time. An admin can copy the exact link from <strong>Admin → Organisation Profile → 🔗 Public links</strong>.</div>
   </div>
 
   <!-- ══════════════════════════════════════════════
@@ -228,7 +248,7 @@ p:last-child{margin-bottom:0}
   <div class="section" id="roles">
     <div class="section-title">Roles &amp; Access</div>
 
-    <p>Every staff member has exactly one role. The role controls which pages they can open and what they can do. A <strong>super_admin</strong> can access every page in the system.</p>
+    <p>Every staff member has one main role and may have a second role. The roles control which pages they can open and what they can do; some powers go with the <strong>designation</strong> (for example the Medical Superintendent). A <strong>super_admin</strong> can access every page in the system.</p>
 
     <div class="role-grid">
       <div class="role-card">
@@ -244,7 +264,7 @@ p:last-child{margin-bottom:0}
       <div class="role-card">
         <div class="role-name">Doctor</div>
         <div class="role-home">→ doctor.html</div>
-        <div class="role-desc">Views patient queue, records consultation notes, writes prescriptions, requests IPD admission.</div>
+        <div class="role-desc">Views patient queue, records consultation notes, writes prescriptions, requests IPD admission. Screens patients when on the day's Screening duty list.</div>
       </div>
       <div class="role-card">
         <div class="role-name">Receptionist</div>
@@ -262,12 +282,22 @@ p:last-child{margin-bottom:0}
              Notes/Shift Handover); corrected while adding role-scoped landing for this file. -->
         <div class="role-name">Nurse</div>
         <div class="role-home">→ nursing.html</div>
-        <div class="role-desc">Bedside IPD nursing — vitals chart, medication administration record, intake-output, nursing notes and shift handover. Also assigned duty shifts via the Nursing Superintendent's roster.</div>
+        <div class="role-desc">Bedside IPD nursing — vitals chart, medication administration record, intake-output, nursing notes and shift handover. Also assigned duty shifts via the Nursing Superintendent's roster. Screens patients when on the day's Screening duty list (<a href="#role-screener" style="color:var(--green-deep)">guide</a>).</div>
       </div>
       <div class="role-card">
         <div class="role-name">Nursing Superintendent</div>
         <div class="role-home">→ nursing-admin.html</div>
         <div class="role-desc">Runs the nursing service — duty roster generation, leave approval, weekly-off, on-ground duty monitoring. See the dedicated <a href="#nursing-admin" style="color:var(--green-deep)">Nursing Superintendent</a> section below.</div>
+      </div>
+      <div class="role-card">
+        <div class="role-name">Intern / PG Scholar</div>
+        <div class="role-home">→ doctor.html</div>
+        <div class="role-desc">Records the case and orders investigations; a consultant verifies it. Interns on the duty list also screen. See <a href="#role-intern" style="color:var(--green-deep)">the guide</a>.</div>
+      </div>
+      <div class="role-card">
+        <div class="role-name">Medical Superintendent · Deputy MS · RMO</div>
+        <div class="role-home">designations, not roles</div>
+        <div class="role-desc">The Medical Superintendent sets the doctors of every OPD. All three keep the Screening duty list and can re-route a patient. See <a href="#role-offices" style="color:var(--green-deep)">the guide</a>.</div>
       </div>
       <div class="role-card">
         <div class="role-name">Therapist</div>
@@ -276,7 +306,7 @@ p:last-child{margin-bottom:0}
       </div>
       <div class="role-card">
         <div class="role-name">Accountant</div>
-        <div class="role-home">→ fee-admin.html</div>
+        <div class="role-home">→ finance.html</div>
         <div class="role-desc">Creates fee structures (pending approval), views billing reports and collections.</div>
       </div>
       <div class="role-card">
@@ -288,7 +318,7 @@ p:last-child{margin-bottom:0}
       </div>
     </div>
 
-    <div class="note"><strong>Note:</strong> A staff member's role is assigned when they join via the signup flow and is approved by the super_admin or dept_admin before they can log in.</div>
+    <div class="note"><strong>Note:</strong> Staff join <strong>by invitation only</strong>: the hospital sends a personal invite link, which carries the role. After signing up they wait for approval before they can log in. A hospital accepts sign-ups without an invite only if its Super Admin has switched on <strong>👤 Staff self-signup</strong> (it is off unless switched on).</div>
   </div>
 
   <!-- ══════════════════════════════════════════════
@@ -317,6 +347,24 @@ p:last-child{margin-bottom:0}
     </div>
 
     <div class="subsection">
+      <div class="subsection-title">OPD Patient Journey — with a Screening OPD (teaching hospitals / colleges)</div>
+      <div class="flow">
+        <div class="flow-box">Patient Arrives</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-box gold">Reception<br><small>register + bill</small></div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-box blue">Screening<br><small>triage + route</small></div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-box">Specialty OPD<br><small>waiting</small></div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-box gold">Doctor<br><small>consult + Rx</small></div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-box">Dispensary<br><small>medicines</small></div>
+      </div>
+      <p>New patients and new complaints take this path. Follow-ups, teleconsultations and walk-in Panchakarma go straight to the OPD; an emergency goes straight to the Emergency OPD. A wrong routing goes back through Screening: <strong>Re-route</strong> before the doctor opens the visit, <strong>↩ Return to Screening</strong> after.</p>
+    </div>
+
+    <div class="subsection">
       <div class="subsection-title">IPD + Panchakarma Journey</div>
       <div class="flow">
         <div class="flow-box gold">Doctor<br><small>admit order</small></div>
@@ -336,7 +384,7 @@ p:last-child{margin-bottom:0}
       <div class="flow">
         <div class="flow-box">Register Org<br><small>register.html</small></div>
         <div class="flow-arrow">→</div>
-        <div class="flow-box">Add Staff<br><small>signup.html</small></div>
+        <div class="flow-box">Invite Staff<br><small>invite link</small></div>
         <div class="flow-arrow">→</div>
         <div class="flow-box gold">Approve Staff<br><small>admin.html</small></div>
         <div class="flow-arrow">→</div>
@@ -345,6 +393,86 @@ p:last-child{margin-bottom:0}
         <div class="flow-box">Setup Fees<br><small>fee-admin</small></div>
         <div class="flow-arrow">→</div>
         <div class="flow-box">Add Medicines<br><small>inventory</small></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════
+       YOUR DAY, ROLE BY ROLE
+       ══════════════════════════════════════════════ -->
+  <div class="section" id="by-role">
+    <div class="section-title">Your Day, Role by Role</div>
+    <p>The OPD day in the order you work it. Each step says what to click and what you should see; the fuller detail is in the section linked from each guide.</p>
+
+    <div class="subsection" id="role-receptionist">
+      <div class="subsection-title">Receptionist</div>
+      <div class="steps">
+        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Find the patient</div><div class="step-desc">Type a mobile number, name or UHID in <strong>① Find patient</strong>. You see: the patient card with the <strong>ABHA number · address</strong>, or nothing for a new patient. Details: <a href="#reception">Reception</a>.</div></div></div>
+        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Fill the visit</div><div class="step-desc">A new patient or a new complaint goes to the Screening OPD where the hospital has one: the Doctor box says <strong>— assigned at Screening —</strong>. A follow-up goes to the previous OPD.</div></div></div>
+        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Collect and register</div><div class="step-desc">Check the fee the server chose and its reason in <strong>④ Payment</strong>, take the payment, click <strong>Register &amp; Create Visit</strong>. You see: the token, and the bill or receipt to print. Send the patient to the Screening desk (or the OPD).</div></div></div>
+        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Watch the warning</div><div class="step-desc">A red line under the tabs of Today's work, <strong>"⚠ N patients waiting at Screening — no counter active. Tell the Medical Superintendent."</strong>, means no screener is working. Tell the MS.</div></div></div>
+        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Wrong doctor or OPD</div><div class="step-desc">Click <strong>✎</strong> on the queue card. On a visit routed by Screening the Doctor and Visit Type boxes are greyed and only the complaint can change: ask the Screening counter to Re-route. On any other visit, changing the doctor asks for a reason.</div></div></div>
+        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Wrong name, mobile or age</div><div class="step-desc">Click <strong>✎ Correct patient details</strong> and give a reason. Reception may correct while the patient has a visit today not yet consulted; after that it is Medical Records or the Super Admin.</div></div></div>
+        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">End of shift</div><div class="step-desc">Click <strong>🤝 Close my shift</strong>, then <strong>Logout</strong>.</div></div></div>
+      </div>
+    </div>
+
+    <div class="subsection" id="role-screener">
+      <div class="subsection-title">Screener — nurse, doctor or intern on Screening duty</div>
+      <p>This guide covers Screening only. A nurse's ward work is on nursing.html.</p>
+      <div class="steps">
+        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Open Screening OPD</div><div class="step-desc">Click <strong>Screening OPD</strong> in the menu. You see: the counter box. If you see "You are not on Screening duty today. Ask the Medical Superintendent.", you are not on today's list: ask the MS, Deputy MS or RMO to add you.</div></div></div>
+        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Start your counter</div><div class="step-desc">Check the counter name and click <strong>🟢 Start Triaging</strong>. You see: "On duty at Counter 1" and your share of the waiting patients.</div></div></div>
+        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Choose from the queue</div><div class="step-desc">At the top: <strong>↩ Returned by …</strong> (a doctor sent the patient back; every counter sees it). Below: your own patients, and <strong>⏱ Waiting N min</strong> (waited too long; every counter sees it). The list refreshes every 20 seconds.</div></div></div>
+        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Screen and route</div><div class="step-desc">Click the patient → choose the triage level → enter complaint and vitals → choose the <strong>OPD</strong> (and doctor, or leave it for the OPD's shared queue) → <strong>↗ Route to …</strong>. You see: "… routed to Kayachikitsa OPD — token #4".</div></div></div>
+        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Routed to the wrong OPD?</div><div class="step-desc">Click <strong>🔁 Routed today, not yet seen</strong> above the queue → <strong>Re-route…</strong> beside the patient → choose the OPD and doctor → give the reason (5 to 300 characters) → <strong>Re-route</strong>. You see: "Re-routed to … — token #N". This works only before the doctor opens the visit; after that the doctor presses ↩ Return to Screening.</div></div></div>
+        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">A returned patient</div><div class="step-desc">Open the <strong>↩ Returned</strong> patient, read the doctor's reason on the badge, and route again as above.</div></div></div>
+        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Leaving the counter</div><div class="step-desc">Click <strong>🔴 Stop Triaging</strong>. You see: your waiting patients move to the counters still active. Details: <a href="#screening">Screening OPD</a>.</div></div></div>
+      </div>
+    </div>
+
+    <div class="subsection" id="role-intern">
+      <div class="subsection-title">Intern and PG Scholar</div>
+      <div class="steps">
+        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">On the doctor page</div><div class="step-desc">You land on doctor.html with your posting department's queue. Open a patient and record the case; you can order investigations.</div></div></div>
+        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Submit for Review</div><div class="step-desc">Where the hospital uses verification, your button reads <strong>📝 Submit for Review</strong>: a consultant verifies and completes the case from <strong>Pending Review</strong>. Where it does not, consultants complete every consultation. A trainee's draft does not reach the lab until it is finalised.</div></div></div>
+        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Screening — interns only</div><div class="step-desc">An intern on today's duty list screens like any screener, but must choose the <strong>supervising doctor</strong> before routing; the name is recorded. PG scholars do not screen.</div></div></div>
+        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Patient in the wrong OPD</div><div class="step-desc">You cannot press ↩ Return to Screening yourself: the server allows only a consultant. Ask the visit's doctor, a doctor on duty in that OPD, or the Medical Superintendent.</div></div></div>
+      </div>
+    </div>
+
+    <div class="subsection" id="role-doctor">
+      <div class="subsection-title">Doctor</div>
+      <p>Your day step by step is at the top of the <a href="#doctor-day">Doctor section</a>. If you also screen, follow the <a href="#role-screener">Screener guide</a>.</p>
+    </div>
+
+    <div class="subsection" id="role-offices">
+      <div class="subsection-title">Medical Superintendent, Deputy MS and RMO</div>
+      <table class="feature-table">
+        <tr><th>Task</th><th>MS</th><th>Deputy MS</th><th>RMO</th><th>Medical Director</th></tr>
+        <tr><td>Set the doctors of any OPD (OPD Setup)</td><td>Yes</td><td>No</td><td>No</td><td>No</td></tr>
+        <tr><td>Keep the Screening duty list</td><td>Yes</td><td>Yes</td><td>Yes</td><td>Sees it only</td></tr>
+        <tr><td>See the Screening queue (read-only)</td><td>Yes</td><td>Yes</td><td>Yes</td><td>Yes</td></tr>
+        <tr><td>Re-route a patient</td><td>Yes</td><td>Yes</td><td>Yes</td><td>No</td></tr>
+        <tr><td>↩ Return to Screening</td><td>Yes</td><td colspan="2">Only as a doctor on duty in that OPD</td><td>No</td></tr>
+        <tr><td>📋 Screener log, Release… a counter's patient</td><td>Yes</td><td>Yes</td><td>Yes</td><td>Yes</td></tr>
+      </table>
+      <div class="steps">
+        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Before OPD opens: doctors (MS)</div><div class="step-desc">Click <strong>OPD Setup</strong> → an OPD → <strong>↻ Copy yesterday's doctors</strong>, or tick each doctor <strong>Active today</strong>. <strong>✓ All Active Today</strong> ticks everyone in that OPD. You see: "N of M doctors active today". Repeat for each OPD. Every change is recorded. The HOD can do the same for their own department on My Department.</div></div></div>
+        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Before OPD opens: screeners</div><div class="step-desc">Click <strong>Screening OPD</strong> → <strong>🗓 Screening duty</strong> → <strong>＋ Add</strong> each nurse, doctor or intern for today (up to 7 days ahead). <strong>Take off…</strong> needs a reason; the entry stays, struck through.</div></div></div>
+        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">During OPD</div><div class="step-desc">Your Screening page shows the queue read-only; clicking a patient only tells you why it will not open. You see <strong>"⚠ N patients waiting at Screening — no counter active."</strong> when nobody is working: get a screener to press 🟢 Start Triaging, or add one to the list.</div></div></div>
+        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">A wrongly routed patient</div><div class="step-desc">Before the doctor opens the visit: <strong>🔁 Routed today, not yet seen</strong> → <strong>Re-route…</strong> → OPD, doctor, reason. After the doctor opens it, the doctor uses ↩ Return to Screening.</div></div></div>
+        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Review</div><div class="step-desc">Click <strong>📋 Screener log</strong>, pick the period. You see: per screener, the patients, Re-routed / Returned, and what was corrected; ⬇ Excel downloads it.</div></div></div>
+      </div>
+    </div>
+
+    <div class="subsection" id="role-admin">
+      <div class="subsection-title">Super Admin</div>
+      <div class="steps">
+        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Once, at set-up</div><div class="step-desc">Admin → 🔧 Feature Modules → <strong>🩺 OPD workflow</strong>: the Screening OPD and Intern / PG verification switches. OPD Setup → <strong>Mark as Emergency OPD</strong>. Fee Management → the fees and <strong>↩ Follow-up consultation window</strong> (not set = 30 days).</div></div></div>
+        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Optional settings</div><div class="step-desc">Admin → 🔧 Feature Modules: <strong>⏱ Screening: waiting time before every counter sees a patient</strong> (not set = 10 minutes), <strong>🎯 OPD department targets</strong> and <strong>🔗 Share health records via ABDM</strong>. Each needs a reason and is recorded.</div></div></div>
+        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Every morning</div><div class="step-desc">If nobody else does it: the doctors Active today (OPD Setup) and the Screening duty list, as in the guide above.</div></div></div>
+        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">If you screen</div><div class="step-desc">Being Super Admin does not put you at a counter: you see the queue read-only until you are on the duty list. Full reference: <a href="user-guide/tenant-admin.html">Tenant Administration guide</a>.</div></div></div>
       </div>
     </div>
   </div>
@@ -370,13 +498,15 @@ p:last-child{margin-bottom:0}
     <div class="section-title">2. Add Staff Members</div>
 
     <div class="subsection">
-      <div class="subsection-title">Staff Sign Up (signup.html)</div>
-      <p>Each staff member does this on their own device. They do <strong>not</strong> need a pre-created account.</p>
+      <div class="subsection-title">Invite Staff (by invitation only)</div>
+      <p>New staff join only through an invite link from the hospital. The link carries the role, works for 14 days and can be used once.</p>
       <div class="steps">
-        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Open signup.html</div><div class="step-desc">Enter their full name, phone, email, password, and the <strong>Tenant Code</strong> given by the admin.</div></div></div>
-        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Select role</div><div class="step-desc">Choose from the role list: doctor, receptionist, pharmacist, nurse, therapist, lab_tech, accountant, etc.</div></div></div>
-        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Submit</div><div class="step-desc">Account is created with status <strong>pending_approval</strong>. They cannot log in until approved.</div></div></div>
+        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">The admin sends the invite</div><div class="step-desc">Click <strong>+ Invite</strong> on a position in Human Resources, or <strong>📨 Bulk invite</strong> (Super Admin) for many people at once. Send the link with <strong>📧 Send by email</strong> or <strong>💬 WhatsApp</strong>.</div></div></div>
+        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">The staff member opens the link</div><div class="step-desc">On their own device, they enter their name, phone, email and password. The hospital and role are already set. If the invite has an email, they must sign up with exactly that email.</div></div></div>
+        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Submit</div><div class="step-desc">The account waits for approval. They cannot log in until approved.</div></div></div>
+        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Link expired or lost</div><div class="step-desc">The person sees "This invite link has expired. Please ask your admin for a new one." The admin presses <strong>🔄 Re-send (new link)</strong>; the old link stops working.</div></div></div>
       </div>
+      <p>Someone who has only the hospital code is told the hospital "adds new staff by invite only". Details: <a href="user-guide/tenant-admin.html#hr-bulk-invite">Tenant Administration guide</a>.</p>
     </div>
 
     <div class="subsection">
@@ -420,7 +550,9 @@ p:last-child{margin-bottom:0}
       <div class="steps">
         <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Click an OPD from the left list</div><div class="step-desc">The right panel loads the doctors currently assigned to that OPD.</div></div></div>
         <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Use "Add a doctor" dropdown</div><div class="step-desc">Select a doctor from the dropdown (shows all active doctors not yet assigned) and click Add. The doctor is added and marked active for today.</div></div></div>
-        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Toggle "Active Today"</div><div class="step-desc">Each morning, toggle which doctors are present. Only active-today doctors appear in the Reception OPD dropdown.</div></div></div>
+        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Mark who is on duty today</div><div class="step-desc">Each morning tick <strong>Active today</strong> for the doctors present, press <strong>✓ All Active Today</strong>, or press <strong>↻ Copy yesterday's doctors</strong>. You see: "N of M doctors active today". The tick lasts for <strong>today's date only</strong>: tomorrow nobody is on duty in that OPD until it is done again. Reception, Screening and the doctor's queue all follow it.</div></div></div>
+        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Who may do this</div><div class="step-desc">The Super Admin and the Medical Superintendent, for every OPD (OPD Setup). The head of a department, for their own department (OPD Setup, or My Department). Every change is recorded.</div></div></div>
+        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Mark the Emergency OPD (Super Admin)</div><div class="step-desc">Click <strong>Mark as Emergency OPD</strong> on the OPD in the left list. Emergency visits then go straight there, ahead of Screening.</div></div></div>
       </div>
     </div>
   </div>
@@ -572,7 +704,7 @@ p:last-child{margin-bottom:0}
       <div class="subsection-title">4. Walk-in registration — a returning patient</div>
       <div class="steps">
         <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">① Find patient</div><div class="step-desc">Type: a mobile number, a name or a UHID. This box <strong>only searches</strong> — nothing typed here is saved. A mobile is matched on its last 10 digits (spaces, +91 or a leading 0 do not matter). You see: the patient card (UHID, visits, age / gender, last visit, balance, <strong>ABHA number · address</strong>; a red line <strong>⚠ ABDM linking failed … ↻ Retry</strong> when ABDM refused a record link — Retry sends it again) with a <strong>✎ Correct patient details</strong> button. The box has ONE clear button, <strong>✕</strong>: it clears the search <strong>and the whole form</strong> (patient, visit, payment) and the <strong>✓ Visit Registered</strong> card of the previous patient (receipt, feedback link) — use it before the next patient.</div></div></div>
-        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">② Patient details</div><div class="step-desc">You see: the recorded details greyed (read-only) and a blue <strong>ℹ️ info line</strong>: a wrong name, mobile, age or address is changed only through <strong>✎ Correct patient details</strong> (the same button as on the patient card). Click it: reception may correct on the day the patient was registered, before the consultation is completed — the form opens. Otherwise the button is drawn dashed and the click tells you to ask Medical Records (MRD) or the Super Admin. A blank detail may be filled in here.</div></div></div>
+        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">② Patient details</div><div class="step-desc">You see: the recorded details greyed (read-only) and a blue <strong>ℹ️ info line</strong>: a wrong name, mobile, age or address is changed only through <strong>✎ Correct patient details</strong> (the same button as on the patient card). Click it: reception may correct any patient, new or returning, while the patient has a visit <strong>today</strong> not yet consulted — the form opens. For a returning patient, register today's visit first. Otherwise the button is drawn dashed and the click tells you to ask Medical Records (MRD) or the Super Admin. A blank detail may be filled in here.</div></div></div>
         <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">③ Visit</div><div class="step-desc"><strong>Same complaint (Follow-up):</strong> the visit goes straight to the previous OPD (Screening is skipped). The Doctor box shows the previous doctor when that doctor is <strong>on duty today</strong> (locked); otherwise it shows <strong>— choose —</strong> — choose a doctor, or leave it for the OPD's queue. It is never blank.<br><strong>New complaint:</strong> press <strong>🆕 Different issue this time</strong> (or choose another visit category). Where the hospital uses a Screening OPD, the visit goes to Screening and the Doctor box says <strong>— assigned at Screening —</strong> (you cannot choose one there). The one exception: tick <strong>On Request by Doctor</strong> when the patient asks for a particular doctor — the Doctor box then lists every doctor on duty today, choose the one asked for; the surcharge is added. Then the chief complaint.</div></div></div>
         <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">④ Payment — the server's fee</div><div class="step-desc">You see: the fee the <strong>server chose</strong>, with its reason. Registration only for a patient who has never visited. The <strong>follow-up rate</strong> when the last consultation in the <em>same OPD</em> was within the hospital's follow-up window (or a doctor referred the patient to this OPD) — the line says it in one sentence, e.g. "Follow-up rate — last consultation in this OPD 3 days ago (window: 30 days)." A hospital that has not set its window uses the <strong>default of 30 days</strong>. A visit at the Screening OPD, and "Different issue this time", pay the full fee. To charge another consultation fee press <strong>Change (needs reason)</strong>, choose the fee and give a reason (at least 5 characters) — it is recorded for Finance. Then who is paying and Cash / UPI / Card / Pay later. A <strong>teleconsultation</strong> is priced only with the Teleconsultation fee and paid online only — no Cash: UPI / Card / Pay later (a payment-link payment = UPI or Card with the gateway's reference).</div></div></div>
         <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Register &amp; Create Visit</div><div class="step-desc">Click: <strong>Register &amp; Create Visit</strong> in the dark bar at the bottom. You see: "added to queue" with the token — only after the server has saved the visit and the bill — and the bill / receipt to print. When no doctor was chosen the card shows the doctor as <strong>OPD queue (no doctor assigned)</strong>: the first doctor of that OPD to open the visit takes it.</div></div></div>
@@ -618,11 +750,11 @@ p:last-child{margin-bottom:0}
 
     <div class="subsection">
       <div class="subsection-title">10. Correct patient details</div>
-      <p>Click <strong>✎ Correct patient details</strong> (on the patient card, or on the info line in ②) → change the detail → give a reason → save. A patient's name, phone, gender, date of birth, age, blood group and address are never overwritten any other way.</p>
+      <p>Click <strong>✎ Correct patient details</strong> (on the patient card, or on the info line in ②). You see: the form, with the patient's ABHA number · address at the top. Change the detail → give a reason → save. A patient's name, phone, gender, date of birth, age, blood group and address are never overwritten any other way.</p>
       <table class="feature-table">
         <tr><th>Who</th><th>When</th></tr>
         <tr><td>MRD staff, Super Admin</td><td>Any time</td></tr>
-        <tr><td>Receptionist</td><td>Only on the day the patient was registered, and only until that day's consultation is completed (typo fixes). After that you see: "Only Medical Records (MRD) or the Super Admin can correct this patient's details once the consultation is completed, with a reason."</td></tr>
+        <tr><td>Receptionist</td><td>Any patient, new or returning, while the patient has a visit today not yet consulted (waiting or in progress). Once today's consultation is completed you see: "Today's consultation is completed — only Medical Records (MRD) or the Super Admin can correct this patient's details now, with a reason." An unidentified casualty patient is corrected only by MRD or the Super Admin.</td></tr>
         <tr><td>Office Superintendent (holds the MRD role)</td><td>Any time, with a reason</td></tr>
       </table>
       <p>Every change is recorded with the old and new value, who made it and why. If the patient has an ABHA linked, a changed name, gender, date of birth or age must still match the ABHA record — check a government photo ID. The UHID never changes.</p>
@@ -639,8 +771,9 @@ p:last-child{margin-bottom:0}
         <tr><td>Lab Reports</td><td>🔬 Waiting for reports</td></tr>
         <tr><td>More ▾</td><td>ABHA Req. Queue (the Scan &amp; Share requests), PK Care Plans, 🤝 Close my shift</td></tr>
       </table>
+      <p><strong>"⚠ N patients waiting at Screening — no counter active. Tell the Medical Superintendent."</strong> appears in red under the tabs of Today's work when patients wait and no screener is working.</p>
       <p> More shows a count when a Scan &amp; Share arrival is waiting. ABHA Req. Queue also shows scans given to a colleague who is no longer on registration duty.</p>
-      <p><strong>✎ on a queue card</strong> changes the doctor, visit type and complaint <strong>before the consultation starts</strong>; only doctors on duty today in that visit's OPD are listed (a Screening OPD visit gets its doctor at the Screening desk). <strong>Changing the doctor needs a reason</strong> (recorded). A patient <strong>routed by Screening</strong> keeps the doctor Screening chose while Screening is on — the Screening counter re-routes it. After the consultation starts only the complaint can change.</p>
+      <p><strong>✎ on a queue card</strong> changes the doctor, visit type and complaint <strong>before the consultation starts</strong>; only doctors on duty today in that visit's OPD are listed (a Screening OPD visit gets its doctor at the Screening desk). <strong>Changing the doctor needs a reason</strong> (recorded). A patient <strong>routed by Screening</strong> keeps the doctor and Visit Type Screening gave while Screening is on: both boxes are greyed and you see "This visit was routed by Screening — ask the Screening counter to Re-route it. Only the complaint can be changed here." After the consultation starts only the complaint can change.</p>
       <p><strong>🔬 Lab Reports &amp; Registrations:</strong> <em>Waiting for reports</em> — when the patient returns with the reports press <strong>Back with reports</strong>: the doctor is told; <strong>no new visit, token or fee</strong> (the same consultation, up to 7 days). <strong>⚠ Incomplete registrations</strong> (under Patients) — casualty patients: press <strong>Complete registration (mobile, address, date of birth, blood group)</strong> and fill the BLANK details; a detail already recorded, and an unidentified patient's real name and age, are changed only by MRD or the Super Admin through Correct patient details.</p>
       <p><strong>⚙ Arrange the tabs</strong>: move tabs and choose which sit on the bar — "Save for me" keeps it for you; "Reset to hospital default" goes back. The Super Admin can save the hospital default (with a reason). Arranging never changes who may use a tab.</p>
       <p>Browser autofill is switched off on the registration, correction and payer / insurance forms, so the browser never fills in another patient's details.</p>
@@ -660,7 +793,7 @@ p:last-child{margin-bottom:0}
        ══════════════════════════════════════════════ -->
   <div class="section" id="screening">
     <div class="section-title">Screening OPD</div>
-    <p>Page: <strong>screening.html</strong> &nbsp;|&nbsp; Access: nurses, doctors, interns (with a supervising doctor), dept_admin, super_admin <strong>who are on today's Screening duty list</strong>. PG scholars do not screen. Someone not on today's list sees only "You are not on Screening duty today. Ask the Medical Superintendent." — no patient list. The Super Admin, Medical Superintendent, Deputy MS, RMO and Medical Director see today's queue <strong>read-only</strong> (they screen only when on the list themselves).</p>
+    <p>Page: <strong>screening.html</strong> &nbsp;|&nbsp; Access: nurses, doctors, interns (with a supervising doctor), dept_admin, super_admin <strong>who are on today's Screening duty list</strong>. PG scholars do not screen. Someone not on today's list sees only "You are not on Screening duty today. Ask the Medical Superintendent." — no patient list. The Super Admin, Medical Superintendent, Deputy MS, RMO and Medical Director see today's queue <strong>read-only</strong>: clicking a patient says why it will not open (they screen only when on the list themselves).</p>
     <p>Every new patient (and a new complaint) of a teaching hospital / college comes here first (NCISM Reg. 40(5)). The screener records triage and the first findings and sends the patient to a specialty OPD in <strong>one step</strong>. Several counters can work at once; a patient opened at one counter cannot be opened at another. <strong>Teleconsultation</strong> and <strong>walk-in Panchakarma</strong> patients and follow-ups do not come here — reception sends them straight to the OPD.</p>
     <div class="subsection">
       <div class="subsection-title">1. Start at your counter</div>
@@ -693,7 +826,18 @@ p:last-child{margin-bottom:0}
         <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">📋 Screener log</div><div class="step-desc">Shown to the Super Admin, Medical Superintendent, Deputy MS, RMO and Medical Director: who screened how many, at which counter, the average minutes from opening to routing, the triage mix, <strong>Self-routed / Own OPD / On request</strong>, <strong>Re-routed / Returned</strong>, the OPDs chosen (each patient's FINAL routing — after a Re-route the new OPD, after a Return "Returned to Screening"), what was corrected (first OPD → final) and the supervising doctors; any period, ⬇ Excel. The Super Admin / MS / DMS / RMO / MD can also <strong>Release…</strong> another counter's patient, with a reason (recorded).</div></div></div>
       </div>
     </div>
-    <div class="note"><strong>A wrong routing is corrected only from Screening.</strong> Before the doctor opens the visit: <strong>🔁 Routed today, not yet seen</strong> (above the queue) → <strong>Re-route…</strong> → another OPD / doctor + a reason (the screener who routed it, or the Medical Superintendent / Deputy MS / RMO / Super Admin). Once the doctor has opened it, the doctor presses <strong>↩ Return to Screening</strong> in the Screening findings box (a reason) — refused once a prescription, an order or an admission advice exists (use Referral then); the patient comes back to the top of the Screening queue. Reception cannot change the doctor of a routed visit while Screening is on. The Screener log counts <strong>Re-routed / Returned</strong> per screener. When no counter is active, the read-only view and reception show "N patients waiting at Screening — no counter active".</div>
+    <div class="subsection">
+      <div class="subsection-title">4. Correcting a wrong routing</div>
+      <p>A wrong routing is corrected <strong>only from Screening</strong>. Reception cannot change the doctor or Visit Type of a routed visit while Screening is on.</p>
+      <div class="steps">
+        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Before the doctor opens the visit: Re-route</div><div class="step-desc">Who: the screener who routed it (while on today's list), or the Medical Superintendent, Deputy MS, RMO or Super Admin. Click <strong>🔁 Routed today, not yet seen</strong> above the queue → <strong>Re-route…</strong> beside the patient → choose <strong>Send to OPD</strong> and the <strong>Doctor</strong> → give the reason (5 to 300 characters) → <strong>Re-route</strong>. You see: "Re-routed to … — token #N". The same visit moves to the new OPD; the patient gets a new token there.</div></div></div>
+        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">After the doctor opens it: Return</div><div class="step-desc">Who: the visit's doctor, a doctor on duty in that OPD, or the Medical Superintendent. The doctor clicks <strong>↩ Return to Screening</strong> in the 🩺 Screening findings box, gives the reason and clicks <strong>↩ Return to Screening</strong> again in the panel. You see at Screening: the patient at the top of every counter's queue, marked <strong>↩ Returned by …</strong>, with the reason. Open the patient and route again.</div></div></div>
+        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">When Return is refused</div><div class="step-desc">Once a prescription, an order, an admission advice, a Panchakarma plan or a bill exists on the visit, you see: "Something was already ordered on this visit … — use Referral at the end of the consultation instead." Only today's patients can be returned.</div></div></div>
+        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Trying to Re-route too late</div><div class="step-desc">You see: "The doctor has already opened this visit — the doctor can return it to Screening (↩ Return to Screening)."</div></div></div>
+      </div>
+      <p>The Screener log counts <strong>Re-routed / Returned</strong> per screener. Nothing is deleted: each correction is kept with who, when and why.</p>
+    </div>
+    <div class="note"><strong>No counter active:</strong> when patients wait and nobody is working, the read-only view shows "⚠ N patients waiting at Screening — no counter active." and reception shows the same with "Tell the Medical Superintendent."</div>
     <div class="note">The specialty doctor sees a read-only <strong>🩺 Screening findings</strong> box at the top of the consultation (triage, vitals, Naadi, observations, suggested investigations, instructions, "Screened by … · Counter 2 · 10:42") and the empty Vitals boxes filled from it — the doctor may change them. The doctor's queue puts EMERGENCY, then URGENT, then Semi-urgent first and shows <strong>PAID / PENDING</strong> from the registration bill.</div>
   </div>
 
@@ -704,6 +848,18 @@ p:last-child{margin-bottom:0}
     <div class="section-title">Doctor / Clinical Queue</div>
     <p>Page: <strong>doctor.html</strong> &nbsp;|&nbsp; Access: doctor, nurse, dept_admin, super_admin</p>
     <p>The doctor sees a live list of waiting patients on the left. Clicking a patient opens a full <strong>9-tab clinical documentation</strong> panel on the right.</p>
+
+    <div class="subsection" id="doctor-day">
+      <div class="subsection-title">Your day, step by step</div>
+      <div class="steps">
+        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Be on duty</div><div class="step-desc">You appear for Reception and Screening only when ticked <strong>Active today</strong> in your OPD for today's date. If you are missing, ask your HOD or the Medical Superintendent.</div></div></div>
+        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Read the queue</div><div class="step-desc">You see: EMERGENCY, then URGENT, then Semi-urgent first, with <strong>PAID / PENDING</strong>. An <strong>OPD queue</strong> badge means no doctor was chosen: the first doctor to open the visit takes it, and it leaves the other doctors' lists.</div></div></div>
+        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Open the patient</div><div class="step-desc">Click the patient. You see: the name line with the <strong>ABHA</strong> when the patient has one, and for a Screening patient the read-only <strong>🩺 Screening findings</strong> box (triage, vitals, Naadi, observations, suggested investigations, who screened). The empty Vitals boxes are filled from it; you may change them.</div></div></div>
+        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Wrong OPD?</div><div class="step-desc">Click <strong>↩ Return to Screening</strong> in the findings box → give the reason (5 to 300 characters) → <strong>↩ Return to Screening</strong>. You see: "Sent back to Screening — the patient is at the top of the Screening queue." and the patient leaves your queue. After a prescription, an order, an admission advice, a Panchakarma plan or a bill, use Referral instead.</div></div></div>
+        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Consult</div><div class="step-desc">Work through the tabs below. In the medicine box, suggestions appear after 2 letters and list only the medicines <strong>in this hospital's stock</strong>; a medicine not in stock shows no suggestion.</div></div></div>
+        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Finish</div><div class="step-desc">Choose how the visit finishes (Disposition tab, below). Where the patient has an ABHA the record is linked to it automatically. If ABDM refuses, you see in red <strong>"⚠ ABDM linking failed (code) — N record(s) not linked."</strong> with <strong>↻ Retry</strong> under the patient's name; click it to send the link again.</div></div></div>
+      </div>
+    </div>
 
     <div class="subsection">
       <div class="subsection-title">The 9 Clinical Tabs</div>
@@ -738,7 +894,7 @@ p:last-child{margin-bottom:0}
 
     <div class="subsection">
       <div class="subsection-title">Sending to Dispensary</div>
-      <p>When the prescription is complete, click <strong>"Send to Dispensary"</strong>. This creates a prescription record that immediately appears in the Dispensary POS queue. The visit status changes to "completed".</p>
+      <p>When the prescription is complete, click <strong>✓ Complete &amp; Send to Pharmacy</strong> on the Disposition tab. This creates a prescription record that immediately appears in the Dispensary POS queue. The visit status changes to "completed".</p>
     </div>
 
     <div class="subsection">
@@ -1034,7 +1190,7 @@ p:last-child{margin-bottom:0}
         <tr><th>Page</th><th>Who Can Access</th></tr>
         <tr><td>login.html</td><td>Everyone (no login required)</td></tr>
         <tr><td>register.html</td><td>Everyone (creates new org)</td></tr>
-        <tr><td>signup.html</td><td>Everyone (joins existing org)</td></tr>
+        <tr><td>signup.html</td><td>Staff with an invite link</td></tr>
         <tr><td>admin.html</td><td>All roles (role-filtered content)</td></tr>
         <tr><td>reception.html</td><td>receptionist, nurse, dept_admin, super_admin</td></tr>
         <tr><td>doctor.html</td><td>doctor, nurse, dept_admin, super_admin</td></tr>
@@ -1058,18 +1214,18 @@ p:last-child{margin-bottom:0}
         <tr><td>Page shows "Not authorised"</td><td>Your role doesn't have access. Ask super_admin to check your role assignment.</td></tr>
         <tr><td>OPD dropdown empty at Reception</td><td>No doctors marked "Active Today" in opd-admin.html, or no active OPDs.</td></tr>
         <tr><td>Bill fees not showing</td><td>Fee structures not yet active. Go to fee-admin.html and ensure fees are in "active" status.</td></tr>
-        <tr><td>Medicines not in dispensary queue</td><td>Doctor hasn't clicked "Send to Dispensary" in doctor.html. Or prescription status is already "dispensed".</td></tr>
+        <tr><td>Medicines not in dispensary queue</td><td>Doctor hasn't clicked "✓ Complete &amp; Send to Pharmacy" in doctor.html. Or prescription status is already "dispensed".</td></tr>
         <tr><td>Bed picker empty in IPD</td><td>No vacant beds in the selected department. Check bed-admin.html → Bed Matrix.</td></tr>
         <tr><td>ABHA OTP not received</td><td>ABDM sandbox rate limit (3 OTPs per 15 min). Wait 15 minutes and retry.</td></tr>
         <tr><td>Session data not saving</td><td>Logged out due to inactivity. Log in again — data from the current form will need to be re-entered.</td></tr>
-        <tr><td>Always open via Live Server</td><td>Never open HTML files directly (file://). Always use http://127.0.0.1:5500/. Use Ctrl+Shift+R to hard-refresh after updates.</td></tr>
+        <tr><td>Page looks out of date</td><td>Press <strong>Ctrl + F5</strong> to reload it. Always open the system through your hospital's link on ayurxpert.com.</td></tr>
       </table>
     </div>
 
     <div class="subsection">
       <div class="subsection-title">Key Keyboard / Navigation Tips</div>
       <table class="feature-table">
-        <tr><td>Ctrl + Shift + R</td><td>Hard refresh (clears service worker cache after updates)</td></tr>
+        <tr><td>Ctrl + F5</td><td>Reloads the page in full (use it if a page looks out of date after an update)</td></tr>
         <tr><td>Phone search in Reception</td><td>Type at least 3 digits — results appear automatically after 350ms</td></tr>
         <tr><td>Print prescription</td><td>Doctor.html → Prescription tab → "Print". Opens printPrescription.html in a new tab.</td></tr>
         <tr><td>Print dispensary invoice</td><td>Dispensary → after dispensing → "Print Invoice". Opens printInvoice.html.</td></tr>
@@ -1104,7 +1260,8 @@ import { ROLE_DUTY_FALLBACK } from './js/config/designations.js';
 // (land at the top, nothing scoped away) is already correct for those two roles.
 const ROLE_SECTION = {
   doctor: 'doctor',
-  trainee_doctor: 'doctor', // same page (doctor.html) -- closest real match, no dedicated trainee content yet
+  trainee_doctor: 'role-intern',
+  nurse: 'role-screener',
   receptionist: 'reception',
   pharmacist: 'dispensary',
   nurse_manager: 'nursing-admin',

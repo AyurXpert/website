@@ -96,6 +96,7 @@
   <aside class="sidebar">
     <div class="sidebar-label">Contents</div>
     <nav>
+      <a href="#whats-new">What's new (Nov 2026)</a>
       <a href="#overview">1. Overview</a>
       <a href="#overview-roles" class="sub">1.1 Roles &amp; Access</a>
       <a href="#overview-nav" class="sub">1.2 Sidebar Navigation</a>
@@ -127,6 +128,18 @@
 
   <main class="main">
 
+    <h2 id="whats-new">What's new (Nov 2026)</h2>
+    <ul>
+      <li><strong>New settings</strong> in <a href="#modules">Feature Modules</a>: ⏱ Screening waiting time, 🎯 OPD department targets, 🔗 Share health records via ABDM; the 🧾 reception set-up; the 🗓 Screening duty list on the Screening page.</li>
+      <li><strong>The Medical Superintendent</strong> sets the doctors of every OPD; every change is recorded.</li>
+      <li><strong>"Active today" lasts one day.</strong> See <a href="#scenarios">Scenario D</a> for the daily routine.</li>
+      <li><strong>A wrong routing is corrected only from Screening</strong>: Scenario F.</li>
+      <li><strong>ABDM linking</strong>: a refused link now shows a red line with ↻ Retry (see <a href="#troubleshoot">Troubleshooting</a>).</li>
+    </ul>
+    <p>Step-by-step guides for each role: <a href="../user-manual.html#by-role">User Manual → Your Day, Role by Role</a>.</p>
+
+    <hr />
+
     <h2 id="overview">1. Overview</h2>
     <p>This guide covers <strong>admin.html</strong> — "Master Control" — the hospital-level administration dashboard used by a tenant's own super admin or department admin. Every section here is scoped to that one tenant's own data; nothing shown or edited here affects any other hospital on the platform.</p>
 
@@ -143,6 +156,10 @@
     <div class="box box-tip">
       <strong>Both roles land here by default</strong>
       Both <code>super_admin</code> and <code>dept_admin</code> are routed to admin.html on login (see <code>ROLE_HOME</code> in <code>js/config/constants.js</code>).
+    </div>
+    <div class="box box-tip">
+      <strong>Medical Superintendent, Deputy MS, RMO</strong>
+      These are designations, not roles. The Medical Superintendent needs the Dept Admin role (main or second) and sets the doctors of every OPD through OPD Setup. The Deputy MS and RMO have no OPD Setup. All three keep the Screening duty list and can re-route a patient. The Medical Director only reads the list.
     </div>
 
     <h3 id="overview-nav">1.2 Sidebar Navigation</h3>
@@ -387,6 +404,31 @@
       <p>Go to Human Resources → find their profile → use the "Reset MFA" action (super_admin only). This clears their enrolled factor so they can re-enroll on next login.</p>
     </div>
 
+    <div class="scenario">
+      <h4>D. The daily routine before OPD opens</h4>
+      <ol>
+        <li><strong>Doctors:</strong> OPD Setup → each OPD → <strong>↻ Copy yesterday's doctors</strong>, or tick <strong>Active today</strong>. Done by the Super Admin or MS for any OPD, the HOD for their own department. You see: "N of M doctors active today".</li>
+        <li><strong>Screeners:</strong> Screening OPD → <strong>🗓 Screening duty</strong> → <strong>＋ Add</strong> today's screeners. Done by the Super Admin, MS, Deputy MS or RMO.</li>
+        <li><strong>Counters:</strong> each screener opens Screening OPD and clicks <strong>🟢 Start Triaging</strong>.</li>
+      </ol>
+    </div>
+
+    <div class="scenario">
+      <h4>E. Setting up Screening for the first time</h4>
+      <ol>
+        <li>OPD Setup → <strong>Seed NCISM OPDs</strong> creates the Screening OPD (the system marks it).</li>
+        <li>Feature Modules → <strong>🩺 OPD workflow</strong> → switch Screening OPD ON.</li>
+        <li>OPD Setup → <strong>Mark as Emergency OPD</strong> on your casualty OPD.</li>
+        <li>Assign doctors to each OPD, then follow Scenario D.</li>
+        <li>Optional: <strong>⏱ Screening waiting time</strong> (default 10 minutes) and <strong>🎯 OPD department targets</strong>.</li>
+      </ol>
+    </div>
+
+    <div class="scenario">
+      <h4>F. A patient was sent to the wrong OPD</h4>
+      <p><strong>Doctor has not opened the visit:</strong> Screening OPD → <strong>🔁 Routed today, not yet seen</strong> → <strong>Re-route…</strong> → OPD, doctor, reason (the screener who routed it, or the Super Admin / MS / Deputy MS / RMO). <strong>Doctor has opened it:</strong> the doctor clicks <strong>↩ Return to Screening</strong> with a reason; the patient comes to the top of every counter's queue. Once a prescription, order, admission advice, Panchakarma plan or bill exists, use Referral. Reception cannot change a routed visit's doctor or Visit Type while Screening is on. Both corrections show in the 📋 Screener log.</p>
+    </div>
+
     <hr />
 
     <h2 id="troubleshoot">13. Troubleshooting</h2>
@@ -396,14 +438,39 @@
       The banner (and the red dot on the sidebar's Subscription item) only appears within 30 days of the effective expiry date. Check Section 8.1 for what date is actually being used — if Subscription Expiry isn't set and the plan is no longer Trial, there may be no date for the banner to compare against.
     </div>
 
+    <div class="box box-warn">
+      <strong>"You are not on Screening duty today"</strong>
+      The screener is not on today's list. The Super Admin, MS, Deputy MS or RMO adds them on Screening OPD → 🗓 Screening duty. A Super Admin not on the list sees the queue read-only.
+    </div>
+
+    <div class="box box-warn">
+      <strong>"N patients waiting at Screening — no counter active"</strong>
+      Nobody on the list has pressed 🟢 Start Triaging, or everyone has stopped. Get a screener to start a counter; their share fills at once.
+    </div>
+
+    <div class="box box-warn">
+      <strong>A doctor is missing from the Reception or Screening list</strong>
+      "Active today" lasts one day. Tick the doctor in OPD Setup, or press ↻ Copy yesterday's doctors.
+    </div>
+
+    <div class="box box-warn">
+      <strong>Reception's Doctor and Visit Type boxes are greyed</strong>
+      The visit was routed by Screening and Screening is on: correct it from Screening (Scenario F). The complaint can still be changed.
+    </div>
+
+    <div class="box box-warn">
+      <strong>"⚠ ABDM linking failed (code)" on the patient's line</strong>
+      ABDM refused to link a record to the patient's ABHA. Reception or the doctor clicks ↻ Retry. "ABDM linking not confirmed" means no answer came within 15 minutes; Retry too. If it keeps failing, send the code to support.
+    </div>
+
     <div class="box box-critical">
       <strong>A feature I was just told about isn't visible on my screen</strong>
-      Hard-refresh (Ctrl+Shift+R) before assuming something is broken — the live site can take a minute or two to catch up after a change, and the browser's own cache can hold onto an old copy of the page's JavaScript even after that.
+      Press Ctrl+F5 before assuming something is broken — the live site can take a minute or two to catch up after a change, and the browser's own cache can hold onto an old copy of the page's JavaScript even after that.
     </div>
 
   </main>
 </div>
 
-<footer>AyurXpert Technologies™ — Internal reference document. Last updated Session 191, 31 Aug 2026.</footer>
+<footer>AyurXpert Technologies™ — Internal reference document. Last updated 4 Nov 2026.</footer>
 </body>
 </html>
