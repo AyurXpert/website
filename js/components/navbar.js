@@ -245,6 +245,8 @@ function _injectNavbar(profile, tenant, role, secondaryRole, hasMonitoringAccess
   // Session 329: Shift Close & Cash Handover -- for every role that can take or receive counter cash (the page re-checks)
   const _SHIFT_ROLES = ['receptionist', 'nurse', 'cashier', 'accountant', 'finance_manager', 'dept_admin', 'super_admin', 'lab_tech', 'pharmacist'];
   const shiftOk = _SHIFT_ROLES.includes(role) || _SHIFT_ROLES.includes(secondaryRole);
+  // Session 377a: the Reference shelf -- the server shows it only to teaching organisations, and not to office-only staff
+  const refShelfOk = NCISM.includes(tenant.type) && !(role === 'office_staff' && !secondaryRole);
 
   const logoHTML = tenant.logo_url
     ? `<img src="${tenant.logo_url}" alt="${tenant.name}" class="ax-logo"/>`
@@ -276,6 +278,7 @@ function _injectNavbar(profile, tenant, role, secondaryRole, hasMonitoringAccess
       ${shiftOk ? '<a class="ax-dd-item" href="shift-close.html">🤝 Shift Close &amp; Handover</a>' : ''}
       <button type="button" class="ax-dd-item" id="ax-dd-copycode">📋 Copy Organisation Code</button>
       <a class="ax-dd-item" href="${manualUrl}" target="_blank" rel="noopener">📖 User Guide</a>
+      ${refShelfOk ? '<a class="ax-dd-item" href="reference-documents.html">📚 Reference Documents</a>' : ''}
     </div>
   </div>`;
 
@@ -291,6 +294,7 @@ function _injectNavbar(profile, tenant, role, secondaryRole, hasMonitoringAccess
       ${shiftOk ? '<a class="ax-link" href="shift-close.html">🤝 Shift Close &amp; Handover</a>' : ''}
       <button type="button" class="ax-link" id="ax-mob-dd-copycode">📋 Copy Organisation Code</button>
       <a class="ax-link" href="${manualUrl}" target="_blank" rel="noopener">📖 User Guide</a>
+      ${refShelfOk ? '<a class="ax-link" href="reference-documents.html">📚 Reference Documents</a>' : ''}
     </div>`;
 
   const nav = document.createElement('nav');

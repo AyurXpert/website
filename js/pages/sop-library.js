@@ -1,10 +1,11 @@
-import { requireAuth, getCurrentProfile, getCurrentTenantId } from '../core/auth.js';
+import { requireAuth, getCurrentProfile, getCurrentTenant, getCurrentTenantId } from '../core/auth.js';
 import { initNavbar } from '../components/navbar.js';
 import { supabase } from '../core/db/supabaseClient.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
 import { todayLocalStr } from '../utils/dateUtils.js';
 import { notify } from '../components/notify.js';
+import { isNCISMType } from '../config/ncism.js';
 
 await requireAuth(['super_admin','dept_admin'], 'index.html');
 initNavbar();
@@ -12,6 +13,8 @@ wireDelegatedEvents();
 const tenantId = getCurrentTenantId();
 const profile  = getCurrentProfile();
 let _docs = [];
+// Session 377a: the Reference shelf is for teaching organisations only (the server decides; this only shows the pointer)
+document.getElementById('ref-shelf-note').hidden = !isNCISMType(getCurrentTenant()?.type);
 
 window._closeIfSelf = function(isSelf, fnName) {
   if (isSelf) { const fn = window[fnName]; if (typeof fn === 'function') fn(); }
@@ -158,13 +161,12 @@ window.saveSOP = async function() {
     updated_at:     new Date().toISOString()
   };
   const editId = document.getElementById('edit-id').value;
-  let err;
-  if (editId) {
-    ({ error: err } = await supabase.from('sop_documents').update(payload).eq('id', editId));
-  } else {
-    ({ error: err } = await supabase.from('sop_documents').insert(payload));
-  }
+  // Session 377a: a refused change comes back as 0 rows with no error -- never report it as saved
+  const { data: saved, error: err } = editId
+    ? await supabase.from('sop_documents').update(payload).eq('id', editId).select('id')
+    : await supabase.from('sop_documents').insert(payload).select('id');
   if (err) { toast(safeErrorMessage(err, 'Save failed.'), 'error'); return; }
+  if (!saved?.length) { toast('Save failed: only a Dept Admin or the Super Admin can change the SOP register.', 'error'); return; }
   toast(editId ? 'SOP updated' : 'SOP added', 'success');
   closeModal();
   load();
@@ -173,8 +175,9 @@ window.saveSOP = async function() {
 window.archiveSOP = async function(id) {
   const d = _docs.find(x => x.id === id); if (!d) return;
   if (!confirm(`Archive "${d.title}"? Status will be set to Superseded.`)) return;
-  const { error } = await supabase.from('sop_documents').update({ status:'superseded', updated_at:new Date().toISOString() }).eq('id', id);
+  const { data: saved, error } = await supabase.from('sop_documents').update({ status:'superseded', updated_at:new Date().toISOString() }).eq('id', id).select('id');
   if (error) { toast(safeErrorMessage(error, 'Could not archive SOP.'), 'error'); return; }
+  if (!saved?.length) { toast('Could not archive: only a Dept Admin or the Super Admin can change the SOP register.', 'error'); return; }
   toast('SOP archived', 'success'); load();
 };
 

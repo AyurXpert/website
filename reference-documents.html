@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Reference Documents — AyurXpert</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' https://cdn.jsdelivr.net https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob: https://*.supabase.co; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://cloudflareinsights.com https://static.cloudflareinsights.com; font-src 'self' https://fonts.gstatic.com https://fonts.googleapis.com; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'"/>
+<meta http-equiv="X-Content-Type-Options" content="nosniff"/>
+<link rel="icon" href="assets/icon.svg"/>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+[hidden]{display:none !important}
+:root{
+  --green-deep:#1a4a2e;--green-mid:#2d7a4f;--green-light:#e8f5ee;
+  --gold:#c9902a;--gold-light:#fdf3e2;--cream:#faf8f3;
+  --text-dark:#1c2b1f;--text-mid:#4a6352;
+  --border:#d4e6da;--white:#fff;
+  --red:#c0392b;--red-light:#fdf0f0;
+  --radius:10px;--shadow:0 2px 12px rgba(0,0,0,.08)
+}
+body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-dark);min-height:100vh}
+.page{max-width:900px;margin:0 auto;padding:24px 16px 80px}
+h1{font-family:'Cormorant Garamond',serif;font-size:26px;color:var(--green-deep);margin-bottom:4px}
+.subtitle{font-size:13px;color:var(--text-mid);margin-bottom:20px}
+.ref-card{background:var(--white);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);padding:18px 20px;margin-bottom:16px}
+.ref-cat{display:inline-block;font-size:12px;font-weight:500;color:var(--green-deep);background:var(--green-light);border-radius:20px;padding:2px 10px;margin-bottom:8px}
+.ref-title{font-family:'Cormorant Garamond',serif;font-size:21px;color:var(--green-deep);margin-bottom:8px}
+.ref-label{font-size:14px;font-weight:500;color:var(--text-dark);background:var(--gold-light);border-left:4px solid var(--gold);border-radius:6px;padding:10px 12px;margin-bottom:10px}
+.ref-meta{font-size:13px;color:var(--text-mid);margin-bottom:4px}
+.ref-actions{margin-top:12px}
+.btn{display:inline-flex;align-items:center;min-height:44px;padding:10px 18px;border:none;border-radius:8px;font-family:'DM Sans',sans-serif;font-size:14px;font-weight:500;cursor:pointer;text-decoration:none}
+.btn-primary{background:var(--green-deep);color:var(--white)}
+.btn-primary:hover{background:var(--green-mid)}
+.btn-outline{background:transparent;color:var(--green-deep);border:1px solid var(--green-deep)}
+.ref-msg{font-size:14px;color:var(--text-mid);background:var(--white);border:1px solid var(--border);border-radius:var(--radius);padding:18px 20px}
+.ref-err{font-size:14px;color:var(--red);background:var(--red-light);border-radius:var(--radius);padding:14px 16px;margin-bottom:12px}
+.ref-file-err{font-size:13px;color:var(--red);margin-top:10px}
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>📚 Reference Documents</h1>
+  <p class="subtitle">Published documents kept for reference. They are read-only and are not this hospital's own SOPs.</p>
+  <div id="ref-error" class="ref-err" role="alert" hidden></div>
+  <button id="ref-retry" class="btn btn-outline" type="button" data-onclick="loadReferences" hidden>Try again</button>
+  <div id="ref-list"></div>
+</div>
+<script type="module" src="js/pages/reference-documents.js"></script>
+</body>
+</html>

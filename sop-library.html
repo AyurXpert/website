@@ -23,6 +23,8 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
 .page{max-width:1200px;margin:0 auto;padding:24px 16px 80px}
 h1{font-family:'Cormorant Garamond',serif;font-size:26px;color:var(--green-deep);margin-bottom:4px}
 .subtitle{font-size:13px;color:var(--text-muted);margin-bottom:20px}
+#ref-shelf-note{color:var(--text-mid);margin-top:-12px}
+#ref-shelf-note a{color:var(--green-deep)}
 
 .alert-banner{padding:10px 16px;border-radius:8px;font-size:13px;font-weight:500;margin-bottom:16px;display:none}
 .alert-banner.warn{background:var(--amber-light);border:1.5px solid #f0c040;color:#7a5200}
@@ -100,6 +102,7 @@ tr:hover td{background:#f9fdfb}
 <div class="page">
   <h1>SOP Document Library</h1>
   <p class="subtitle">IMS.6 CORE — Document management, version control, review scheduling</p>
+  <p class="subtitle" id="ref-shelf-note" hidden>Looking for the NCISM internship regulation? → <a href="reference-documents.html">📚 Reference Documents</a></p>
 
   <div class="alert-banner warn" id="overdue-banner"></div>
 
