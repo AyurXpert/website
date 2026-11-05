@@ -700,6 +700,16 @@ function _watchTabUser() {
   window.addEventListener('focus', _checkTabUser);
 }
 
+// §424 (owner, 5 Nov 2026): only a definite answer may send someone away. A refusal from the server is one (4xx: refresh token refused, no such
+// row, not allowed); a network error, a server error or a timeout is NO answer: never sign the user out or redirect on it.
+const _noAnswer = (error, status = error?.status) => !!error && !(status >= 400 && status < 500 && status !== 408 && status !== 429);
+// Stop here with the page still hidden: authGate.js shows "taking longer than usual" + Retry / Go to sign-in at 8 s. The promise never resolves,
+// so the page's own code does not run. A page without the gate (or if its file failed) is shown rather than left blank.
+function _waitForAnswer() {
+  if (!window.axAuthGate) document.documentElement.style.visibility = '';
+  return new Promise(() => {});
+}
+
 export async function requireAuth(allowedRoles = [], redirectTo = 'login.html', { monitoringSafe = false } = {}) {
   // Hide page content immediately — prevents cached page flashing after logout (WASA 5.7)
   document.documentElement.style.visibility = 'hidden';
@@ -713,12 +723,15 @@ export async function requireAuth(allowedRoles = [], redirectTo = 'login.html', 
     return;
   }
 
-  const { data: { session } } = await supabase.auth.getSession();
+  const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+  if (_noAnswer(sessionError)) return _waitForAnswer();   // e.g. an expired token whose refresh hit a network error: not known to be signed out
 
   if (!session) {
     sessionStorage.clear();
     window.location.replace(redirectTo);
-    return;
+    // §424: stop here. The promise never resolves, so the page's own code cannot run and overwrite this redirect (dept-admin and fee-admin
+    // used to send a signed-out visitor on to the public home, finance / hr / mrd / quality / recruitment to admin.html).
+    return new Promise(() => {});
   }
 
   // §250: this tab was opened as someone else, who has since been replaced in another tab --
@@ -738,16 +751,17 @@ export async function requireAuth(allowedRoles = [], redirectTo = 'login.html', 
 
   if (needsFetch) {
     sessionStorage.clear(); // evict any stale cross-user data
-    const { data: profile } = await supabase
+    const { data: profile, error: profileError, status: profileStatus } = await supabase
       .from('profiles')
       .select('*, tenants(*)')
       .eq('id', session.user.id)
       .single();
+    if (_noAnswer(profileError, profileStatus)) return _waitForAnswer();
 
     if (!profile || profile.status !== 'active') {
       await supabase.auth.signOut({ scope: 'global' });
       window.location.replace('login.html');
-      return;
+      return new Promise(() => {});   // §424: as above
     }
 
     sessionStorage.setItem(SESSION_KEYS.PROFILE,   JSON.stringify(profile));
@@ -766,17 +780,18 @@ export async function requireAuth(allowedRoles = [], redirectTo = 'login.html', 
     // was skipped whenever cachedProfile was already present. One lightweight
     // status-only query per page load closes that, without touching the existing
     // once-per-login caching behaviour for everything else.
-    const { data: statusRow } = await supabase
+    const { data: statusRow, error: statusError, status: statusStatus } = await supabase
       .from('profiles')
       .select('status')
       .eq('id', session.user.id)
       .single();
+    if (_noAnswer(statusError, statusStatus)) return _waitForAnswer();
 
     if (!statusRow || statusRow.status !== 'active') {
       sessionStorage.clear();
       await supabase.auth.signOut({ scope: 'global' });
       window.location.replace('login.html');
-      return;
+      return new Promise(() => {});   // §424: as above
     }
   }
 
@@ -827,7 +842,8 @@ export async function requireAuth(allowedRoles = [], redirectTo = 'login.html', 
   const mfaMandatory = MFA_MANDATORY_ROLES.includes(getCurrentRole())
     || (mfaCheckSecondaryRole && MFA_MANDATORY_ROLES.includes(mfaCheckSecondaryRole));
   if (mfaMandatory && currentPage !== 'account-settings.html') {
-    const { data: factors } = await supabase.auth.mfa.listFactors();
+    const { data: factors, error: factorsError } = await supabase.auth.mfa.listFactors();
+    if (_noAnswer(factorsError)) return _waitForAnswer();
     const hasVerifiedFactor = factors?.totp?.some(f => f.status === 'verified');
     if (!hasVerifiedFactor) {
       window.location.replace('account-settings.html?mfa_required=1');
