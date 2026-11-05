@@ -37,7 +37,7 @@ import { renderOverflowSetting } from '../modules/screening/overflowSetting.js';
 import { inviteLink, inviteMessage, whatsAppButton, emailInvites, fmtDate, loadLoginEmails, mountPhoneEditor, mountEmailChanger, BTN_OUT } from '../modules/staff/staffContacts.js';
 import { loadDepositWaivers, isAdmissionOverseer } from '../modules/ipd/admissionCounter.js';   // Session 357 (owner addition 8)
 
-await requireAuth(['super_admin','dept_admin'], 'index.html');
+await requireAuth(['super_admin','dept_admin']);
 initNavbar();
 wireDelegatedEvents();
 

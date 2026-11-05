@@ -7,7 +7,7 @@ import { todayLocalStr } from '../utils/dateUtils.js';
 import { notify } from '../components/notify.js';
 import { isNCISMType } from '../config/ncism.js';
 
-await requireAuth(['super_admin','dept_admin'], 'index.html');
+await requireAuth(['super_admin','dept_admin']);
 initNavbar();
 wireDelegatedEvents();
 const tenantId = getCurrentTenantId();

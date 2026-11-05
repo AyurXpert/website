@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; img-src 'self' data: blob: https://*.supabase.co; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://abhasbx.abdm.gov.in https://phrsbx.abdm.gov.in https://healthid.abdm.gov.in https://cloudflareinsights.com https://static.cloudflareinsights.com; font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com https://fonts.googleapis.com; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
 <meta http-equiv="X-Content-Type-Options" content="nosniff">
-<title>No Connection — AyurXpert</title>
+<title>Could not reach AyurXpert</title>
 <link rel="icon" href="assets/icon.svg"/>
 <link rel="manifest" href="manifest.json"/>
 <meta name="theme-color" content="#1a4a2e"/>
@@ -37,18 +37,18 @@ p{font-size:14px;color:#8a9e90;line-height:1.7;margin-bottom:28px}
 }
 .btn:hover{background:#1f5c37}
 .retry{font-size:13px;color:#8a9e90;margin-top:18px}
+[hidden]{display:none !important}
 </style>
 </head>
 <body>
 <div class="card">
-  <div class="icon">📶</div>
-  <h1>No Internet Connection</h1>
-  <p>
-    AyurXpert needs a connection to sync patient data and records.<br>
-    Please check your Wi-Fi or mobile data and try again.
-  </p>
+  <div class="icon" id="off-icon">⚠️</div>
+  <!-- TODO §423: this text = "the device has a connection, the server did not answer"; js/pages/offline.js changes it only when the device
+       is really offline (navigator.onLine false) -->
+  <h1 id="off-title">Could not reach AyurXpert</h1>
+  <p id="off-text">Please try again.</p>
   <button class="btn" data-onclick="reloadPage">Try Again</button>
-  <div class="retry">Pages you've already visited will load from cache.</div>
+  <div class="retry" id="off-hint" hidden>Pages you've already visited will load from cache.</div>
 </div>
 <script type="module" src="js/pages/offline.js"></script>
 </body>

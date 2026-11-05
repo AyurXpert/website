@@ -10,7 +10,7 @@ import { notify } from '../components/notify.js';
 
 wireDelegatedEvents();
 
-await requireAuth(['super_admin','dept_admin','doctor','nurse','receptionist'], 'index.html');
+await requireAuth(['super_admin','dept_admin','doctor','nurse','receptionist']);
 initNavbar();
 
 const profile  = getCurrentProfile();

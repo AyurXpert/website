@@ -7,7 +7,7 @@ import { safeErrorMessage } from '../utils/errors.js';
 import { localDateStr, todayLocalStr, istMonthStr } from '../utils/dateUtils.js';
 import { notify } from '../components/notify.js';
 
-await requireAuth(['super_admin','dept_admin','nurse','doctor'], 'index.html');
+await requireAuth(['super_admin','dept_admin','nurse','doctor']);
 initNavbar();
 wireDelegatedEvents();
 

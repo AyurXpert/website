@@ -11,7 +11,7 @@ const BUCKET = 'reference-documents';
 const LINK_SECONDS = 600;
 const LINK_RENEW_MS = 8 * 60 * 1000;
 
-await requireAuth([], 'index.html');
+await requireAuth([]);
 initNavbar();
 wireDelegatedEvents();
 

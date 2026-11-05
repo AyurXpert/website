@@ -8,7 +8,7 @@ import { canWriteRegister, hideRegisterWrites, showViewOnlyNote } from '../utils
 import { initCorrections, defineCorrection, corrRowClass, corrCell } from '../modules/registers/corrections.js';
 import { notify } from '../components/notify.js';
 
-await requireAuth(['super_admin','dept_admin','doctor','nurse','receptionist'], 'index.html');
+await requireAuth(['super_admin','dept_admin','doctor','nurse','receptionist']);
 initNavbar();
 wireDelegatedEvents();
 

@@ -1,6 +1,7 @@
 // AyurXpert Service Worker
 // Strategy:
-//   - Navigation (HTML)  → Network first → cached copy → offline.html
+//   - Navigation (HTML)  → Network first: whatever the server answers goes to the browser (a 404 / 5xx is the real page, a redirect is
+//                          followed); only when the server cannot be reached at all: one retry → cached copy → offline.html
 //   - Local assets (JS/CSS/images) → Cache first → network → cache update
 //   - External APIs (Supabase, Google Fonts, CDN) → Network only, no caching
 
@@ -19,7 +20,9 @@ const SEC_HEADERS = [
   ['Content-Security-Policy',    "frame-ancestors 'none'; default-src 'self' https://*.supabase.co https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://cdn.tailwindcss.com https://fonts.googleapis.com https://fonts.gstatic.com https://cloudflareinsights.com https://static.cloudflareinsights.com data: blob: 'unsafe-inline' 'unsafe-eval' ws://127.0.0.1:* http://127.0.0.1:* ws://localhost:* http://localhost:*; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://cdn.jsdelivr.net https://api.pwnedpasswords.com https://cloudflareinsights.com https://static.cloudflareinsights.com ws://127.0.0.1:* http://127.0.0.1:* ws://localhost:* http://localhost:*; object-src 'none'; base-uri 'self';"],
 ];
 
+// TODO §423: a redirect reaches a navigation as an opaque response (status 0): Response() cannot rebuild it, it goes to the browser as it is
 function withSecHeaders(res) {
+  if (res.type === 'opaqueredirect' || res.status === 0) return res;
   const h = new Headers(res.headers);
   SEC_HEADERS.forEach(([k, v]) => h.set(k, v));
   return new Response(res.body, { status: res.status, statusText: res.statusText, headers: h });
@@ -55,6 +58,20 @@ function isExternal(url) {
     url.includes('fonts.gstatic.com')      ||
     url.includes('chrome-extension')
   );
+}
+
+// TODO §423 (owner, 4 Nov 2026): the server answered -> the browser shows that answer. "Could not reach" is decided only when the
+// connection itself fails, and one dropped connection on hospital Wi-Fi is retried once first.
+const NAV_RETRY_MS = 500;
+const pause = ms => new Promise(r => setTimeout(r, ms));
+async function fetchNavigation(req) {
+  try { return await fetch(req, { cache: 'no-store' }); }
+  catch (_) { await pause(NAV_RETRY_MS); }
+  return fetch(req, { cache: 'no-store' });
+}
+async function offlineAnswer(req) {
+  const cached = await caches.match(req);
+  return cached ? withSecHeaders(cached) : caches.match(OFFLINE);
 }
 
 // ── Install: pre-cache the app shell ────────────────────────────────────────
@@ -97,21 +114,17 @@ self.addEventListener('fetch', event => {
   // exact same symptom already fixed for JS/CSS in Session 94, just never extended here.
   if (req.mode === 'navigate') {
     event.respondWith(
-      fetch(req, { cache: 'no-store' })
+      fetchNavigation(req)
         .then(res => {
-          if (!res.ok) return caches.match(req).then(c => c || caches.match(OFFLINE));
           // Clone BEFORE withSecHeaders consumes res.body — fixes "body already used" error
-          const isPublic = PRECACHE.some(p => req.url.includes(p.replace('./', '')));
+          const isPublic = res.ok && PRECACHE.some(p => req.url.includes(p.replace('./', '')));
           const cacheRes = isPublic ? res.clone() : null;
           if (cacheRes) {
             caches.open(CACHE).then(c => c.put(req, cacheRes));
           }
           return withSecHeaders(res);
         })
-        .catch(() =>
-          caches.match(req)
-            .then(cached => cached ? withSecHeaders(cached) : caches.match(OFFLINE))
-        )
+        .catch(() => offlineAnswer(req))
     );
     return;
   }
