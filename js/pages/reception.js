@@ -5629,8 +5629,10 @@ window.openOutsideLab = function() {
 // Session 363 (owner B3, 27 Oct 2026): a cashier (with no front-desk role) uses this page for 💰 Lab Bills ONLY -- collect, Urgent, the
 // walk-in booking; the registration form and the other tabs are hidden (the server decides every action: create_investigation_bill,
 // mark_lab_order_urgent, create_walkin_lab_order all allow the cashier)
+// §432: a doctor + cashier at a hospital, teaching hospital or college is here only as the cashier (the server closes the rest to the doctor)
 const _labBillsOnly = [profile?.role, profile?.secondary_role].includes('cashier')
-  && !['receptionist', 'nurse', 'super_admin', 'dept_admin', 'doctor'].some(r => [profile?.role, profile?.secondary_role].includes(r));
+  && !['receptionist', 'nurse', 'super_admin', 'dept_admin'].some(r => [profile?.role, profile?.secondary_role].includes(r))
+  && (![profile?.role, profile?.secondary_role].includes('doctor') || HOSP_STAFFED_RECEPTION_TYPES.includes(tenant?.type));
 if (_labBillsOnly) {
   document.body.classList.add('lab-bills-only');
   document.getElementById('tab-labbills')?.click();

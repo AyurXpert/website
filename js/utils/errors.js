@@ -101,6 +101,13 @@ export function safeErrorMessage(error, fallback = 'Something went wrong. Please
     return error.message;
   }
 
+  // Session 378a (§58, §432): the doctor's Escalate to Emergency + an account that is not active, whatever the page
+  const ACCESS_378A_MSGS = ['Your account is not active', 'You cannot escalate this visit', 'This visit is not in your organisation', 'This OPD is not in your organisation',
+    'That is not the Emergency OPD', 'This visit is already closed', 'Give the reason for the escalation'];
+  if (['42501', '22023'].includes(error?.code) && ACCESS_378A_MSGS.some(m => error?.message?.startsWith(m))) {
+    return error.message;
+  }
+
   // Session 324 OPD payment collection + paid-bill stop-gap (sql/session324_opd_payments.sql).
   // Plain, staff-actionable reasons (wrong mode, missing UPI reference, already paid...).
   const OPD_PAYMENT_MSGS = ['This bill is already marked paid', 'This bill is ', 'Only OPD and investigation bills',
@@ -114,7 +121,7 @@ export function safeErrorMessage(error, fallback = 'Something went wrong. Please
   // Session 323 GST OPD / investigation billing (sql/session323_gst_stage2.sql) + the shared
   // GST engine messages it surfaces (Accounts-review block, discount bound). Same reasoning:
   // the reason decides what reception does next (fix the fee master, pick another package...).
-  const OPD_GST_MSGS = ['This organisation bills', 'Unknown payment status', 'Unknown payment mode',
+  const OPD_GST_MSGS = ['In this organisation patients are registered', 'This organisation bills', 'Unknown payment status', 'Unknown payment mode',
     'Unknown payer type', 'Give a reason for the discount', 'This visit already has an OPD bill',
     'This visit was deleted', 'This package does not belong', 'Add at least one charge', 'Line ',
     'The bill discount', 'This bill cannot be finalised', 'IPD investigations are charged',

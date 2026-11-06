@@ -4,6 +4,8 @@
 // Safety (owner, 5 Nov 2026): a page must never stay blank, and slowness is never a reason to send anyone away: only a definite "not signed in"
 // answer goes to the sign-in page, and that is requireAuth()'s decision. If the page is still hidden after 8 s (the check is slow, had no answer,
 // or its script never loaded) -> a visible message with Retry and Go to sign-in; if the check finishes after all, the message goes.
+// No connection (owner, 6 Nov 2026) is not "signed out": the message says so, Go to sign-in is hidden, and the page opens by itself when the connection
+// returns (it is still hidden here, so nothing typed can be lost).
 (function () {
   var root = document.documentElement;
   window.axAuthGate = true;
@@ -28,13 +30,26 @@
     card.style.cssText = 'background:#fff;max-width:460px;width:100%;border-radius:12px;padding:24px;box-shadow:0 8px 32px rgba(0,0,0,.15);border-top:5px solid #c9902a';
     var title = document.createElement('h1');
     title.style.cssText = 'margin:0 0 18px;font:600 24px "Cormorant Garamond",serif;color:#1a4a2e';
-    title.textContent = 'Checking your sign-in is taking longer than usual';
+    var note = document.createElement('p');
+    note.style.cssText = 'margin:0 0 18px;font-size:15px;line-height:1.5;color:#1a1a1a';
     var row = document.createElement('div');
     row.style.cssText = 'display:flex;gap:12px;flex-wrap:wrap';
     var retry = button('Retry', 'background:#1a4a2e;color:#fff;border:2px solid #1a4a2e', function () { window.location.reload(); });
     row.appendChild(retry);
-    row.appendChild(button('Go to sign-in', 'background:#fff;color:#1a4a2e;border:2px solid #1a4a2e', function () { window.location.replace('login.html'); }));
+    var signIn = button('Go to sign-in', 'background:#fff;color:#1a4a2e;border:2px solid #1a4a2e', function () { window.location.replace('login.html'); });
+    row.appendChild(signIn);
+    function show() {
+      var off = navigator.onLine === false;
+      title.textContent = off ? 'No internet connection' : 'Checking your sign-in is taking longer than usual';
+      note.textContent = off ? 'You are still signed in. This page will open by itself when the connection returns.' : '';
+      note.hidden = !off;
+      signIn.hidden = off;
+    }
+    show();
+    window.addEventListener('offline', show);
+    window.addEventListener('online', function () { window.location.reload(); });
     card.appendChild(title);
+    card.appendChild(note);
     card.appendChild(row);
     cover.appendChild(card);
     (document.body || root).appendChild(cover);

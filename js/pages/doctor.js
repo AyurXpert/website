@@ -8552,31 +8552,14 @@ window.escalateToEmergency = async function() {
       return;
     }
 
-    // Next token for Emergency OPD today
-    const today = todayLocalStr();
-    const { count } = await supabase
-      .from('visits').select('*', { count:'exact', head:true })
-      .eq('opd_id', emergOpd.id).eq('tenant_id', tenantId)
-      .gte('created_at', istDayStartUTC(today));   // IST midnight — Emergency tokens reset at 05:30 IST before (TODO §59)
-    const nextToken = (count || 0) + 1;
-
-    // Create new Emergency visit
+    // Create new Emergency visit, on the server (§432: a doctor no longer inserts visits; the server gives the next token of the day)
     const complaint = `ESCALATED from Agadatantra — ${vishaLabel} Visha case. Original token: ${_activeVisit?.token_number || '—'}.`;
-    const { data: newVisit, error: vErr } = await supabase
-      .from('visits')
-      .insert({
-        tenant_id:       tenantId,
-        patient_id:      _activePatient.id,
-        opd_id:          emergOpd.id,
-        status:          'waiting',
-        chief_complaint: complaint,
-        token_number:    nextToken,
-        is_on_request:   true,
-      })
-      .select('id, token_number')
-      .single();
+    const { data: newVisit, error: vErr } = await supabase.rpc('escalate_visit_to_emergency', {
+      p_visit_id: _activeVisitId, p_opd_id: emergOpd.id, p_complaint: complaint,
+    });
 
     if (vErr) throw vErr;
+    const nextToken = newVisit.token_number;
 
     // Alert all on-duty Emergency doctors
     const { data: emergDoctors } = await supabase

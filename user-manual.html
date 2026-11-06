@@ -672,7 +672,7 @@ p:last-child{margin-bottom:0}
        ══════════════════════════════════════════════ -->
   <div class="section" id="reception">
     <div class="section-title">Reception</div>
-    <p>Page: <strong>reception.html</strong> &nbsp;|&nbsp; Access: receptionist, nurse, dept_admin, super_admin (a cashier sees only 💰 Lab Bills)</p>
+    <p>Page: <strong>reception.html</strong> &nbsp;|&nbsp; Access: receptionist, nurse, dept_admin, super_admin (a cashier sees only 💰 Lab Bills; doctors only at a clinic, PK centre or dispensary)</p>
     <p>This is where every patient's day begins. You find or register the patient, the server works out the fee, you collect the payment, and the patient joins the doctor's queue. The steps below follow the order of a working day: <strong>what to click</strong>, then <strong>what you should see</strong>.</p>
 
     <div class="subsection">
@@ -1226,6 +1226,12 @@ p:last-child{margin-bottom:0}
         <tr><td>Bed picker empty in IPD</td><td>No vacant beds in the selected department. Check bed-admin.html → Bed Matrix.</td></tr>
         <tr><td>ABHA OTP not received</td><td>ABDM sandbox rate limit (3 OTPs per 15 min). Wait 15 minutes and retry.</td></tr>
         <tr><td>Session data not saving</td><td>Logged out due to inactivity. Log in again — data from the current form will need to be re-entered.</td></tr>
+        <tr><td>Logged out after a break</td><td>After 15 minutes with no mouse movement, key press, scroll or touch in any tab of this browser, you are logged out; a warning shows at 13 minutes. If the computer slept or the browser was closed for longer, you are asked to log in again on the next page.</td></tr>
+        <tr><td>Sign-in page after closing the laptop</td><td>If the laptop was closed, or the computer asleep, for more than 15 minutes, the sign-in page opens when you come back. This is normal and protects patient records. Log in again; anything you had saved is safe, but text not yet saved may be lost, so save before closing the laptop.</td></tr>
+        <tr><td>A doctor opening Reception goes to the Doctor page</td><td>At a hospital, teaching hospital or college, patients are registered and billed by the reception staff, so Reception is not open to doctors. At a clinic, PK centre or dispensary it stays open.</td></tr>
+        <tr><td>"Checking your sign-in is taking longer than usual"</td><td>The page could not confirm your sign-in, usually because of a slow connection. You have not been signed out. Check the connection and press <strong>Retry</strong>. <strong>Go to sign-in</strong> opens the sign-in page.</td></tr>
+        <tr><td>"No internet connection. You are still signed in."</td><td>The page could not reach the server because this device has no connection. You have not been signed out. Check the Wi-Fi or cable; the page opens by itself when the connection returns.</td></tr>
+        <tr><td>"No Internet Connection" or "Could not reach AyurXpert"</td><td>"No Internet Connection" means this computer is offline. "Could not reach AyurXpert" means the computer is online but the system did not answer. Check the connection, then press <strong>Try Again</strong>.</td></tr>
         <tr><td>Page looks out of date</td><td>Press <strong>Ctrl + F5</strong> to reload it. Always open the system through your hospital's link on ayurxpert.com.</td></tr>
       </table>
     </div>

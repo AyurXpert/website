@@ -45,6 +45,16 @@ export function isPageDeniedForDesignation(profile, page) {
   return (DESIGNATION_DENIED_PAGES[profile?.designation] || []).includes(page);
 }
 
+// §432 (owner, 5 Nov 2026): a hospital, teaching hospital or college has its own front-desk staff, so an account whose only way to Reception is the
+// role doctor does not work there. A clinic, PK centre or dispensary keeps it. The same rule as the server's _doctor_desk_closed(), which also refuses
+// the writes; a second role cashier opens the page for its Lab Bills only.
+const STAFFED_FRONT_DESK_TYPES = ['hospital', 'teaching_hospital', 'college'];
+export function isReceptionClosedForDoctor(profile, tenant) {
+  const roles = [profile?.role, profile?.secondary_role];
+  if (!roles.includes(ROLES.DOCTOR) || roles.some(r => ['receptionist', 'nurse', 'dept_admin', 'super_admin', 'cashier'].includes(r))) return false;
+  return !tenant?.type || STAFFED_FRONT_DESK_TYPES.includes(tenant.type);
+}
+
 
 // 27 Aug 2026 — shared safety net for every signup flow below. Both
 // registerTenant() and registerStaff() call auth.signUp() BEFORE writing the
@@ -260,6 +270,7 @@ async function _finalizeLogin(user, profile) {
   sessionStorage.setItem(SESSION_KEYS.SECONDARY_ROLE, profile.secondary_role || '');
   sessionStorage.setItem(SESSION_KEYS.MONITORING_ACCESS, profile.has_monitoring_access ? '1' : '');
   setTabUser(profile.id); // §250: this tab now belongs to this user
+  _noteSignIn(); // §434: a new sign-in starts the idle time again
   // §319 (Session 362): this browser now remembers the account's OWN organisation for the login page's branding (only here: after a
   // SUCCESSFUL sign-in, MFA done -- never from an email lookup)
   rememberOrgCode(profile.tenants?.tenant_code);
@@ -414,7 +425,9 @@ export async function logout() {
   try {
     await Promise.race([supabase.rpc('end_my_duty'), new Promise(r => setTimeout(r, 2000))]);
   } catch { /* the sign-out goes on */ }
-  await supabase.auth.signOut({ scope: 'global' }); // invalidate ALL sessions on all devices
+  const { error } = await supabase.auth.signOut({ scope: 'global' }); // invalidate ALL sessions on all devices
+  // Owner, 6 Nov 2026: the server could not be told (no connection), and the library then keeps the session: this browser's copy goes here, signed out means signed out
+  if (error) { try { localStorage.removeItem(supabase.auth.storageKey); } catch { /* storage blocked */ } }
   sessionStorage.clear();
   window.location.replace('login.html'); // replace prevents back-button returning to protected page
 }
@@ -631,8 +644,14 @@ function _frameGuard() {
 }
 
 // 15-minute inactivity auto-logout (NDHM §2.1.4.7)
+// §434 (owner, 5 Nov 2026): ONE idle time for all tabs of a browser, kept in localStorage. Activity in any tab counts for every tab, and because the time
+// is stored, a computer that slept or a browser that was closed past the limit is signed out on its next page load.
+const _ACTIVITY_KEY = 'ax_last_activity';
+const _ACTIVITY_WRITE_MS = 5000;   // mouse moves are many: store at most this often
 let _inactivityTimer = null;
-let _inactivityWarnTimer = null;
+let _lastActivity = 0;             // this tab's copy, in case the browser refuses localStorage
+let _lastMouse = null;
+let _idleWatching = false;
 const _INACTIVITY_MS = 15 * 60 * 1000;
 const _INACTIVITY_WARN_MS = 2 * 60 * 1000; // warn 2 min before the forced logout
 
@@ -645,7 +664,7 @@ function _showInactivityWarning() {
   const banner = document.createElement('div');
   banner.id = 'ax-inactivity-warning';
   banner.style.cssText = 'position:fixed;bottom:20px;right:20px;z-index:99999;background:#c0392b;color:#fff;padding:14px 20px;border-radius:8px;font:600 14px "DM Sans",sans-serif;box-shadow:0 4px 16px rgba(0,0,0,.25);max-width:320px';
-  banner.textContent = '⚠️ You will be logged out in 2 minutes due to inactivity. Click or type anywhere on this page to stay logged in.';
+  banner.textContent = '⚠️ You will be logged out in 2 minutes due to inactivity. Move the mouse or press a key to stay logged in.';
   document.body.appendChild(banner);
 }
 
@@ -653,21 +672,56 @@ function _hideInactivityWarning() {
   document.getElementById('ax-inactivity-warning')?.remove();
 }
 
-function _resetInactivity() {
+function _storedActivity() {
+  try { return Number(localStorage.getItem(_ACTIVITY_KEY)) || 0; } catch { return 0; }
+}
+
+function _storeActivity(now) {
+  _lastActivity = now;
+  try { localStorage.setItem(_ACTIVITY_KEY, String(now)); } catch { /* this tab's copy still counts */ }
+}
+
+function _noteSignIn() { _storeActivity(Date.now()); }
+
+// Runs at each deadline and whenever another tab reports activity: the stored time decides, so a tab asleep behind another never signs out a working user.
+function _checkIdle() {
   clearTimeout(_inactivityTimer);
-  clearTimeout(_inactivityWarnTimer);
-  _hideInactivityWarning();
   // §250: a blocked tab must not sign the OTHER person out 15 minutes later
+  if (isTabBlocked()) { _hideInactivityWarning(); return; }
+  const idle = Date.now() - Math.max(_lastActivity, _storedActivity());
+  if (idle >= _INACTIVITY_MS) { logout(); return; }
+  const warnAt = _INACTIVITY_MS - _INACTIVITY_WARN_MS;
+  if (idle >= warnAt) _showInactivityWarning(); else _hideInactivityWarning();
+  _inactivityTimer = setTimeout(_checkIdle, (idle >= warnAt ? _INACTIVITY_MS : warnAt) - idle);
+}
+
+function _noteActivity(e) {
   if (isTabBlocked()) return;
-  _inactivityWarnTimer = setTimeout(_showInactivityWarning, _INACTIVITY_MS - _INACTIVITY_WARN_MS);
-  _inactivityTimer = setTimeout(() => logout(), _INACTIVITY_MS);
+  if (e.type === 'mousemove') {
+    // Chrome sends a mousemove with the same position when the page changes under a still mouse (a live queue): that is not a person
+    if (_lastMouse && _lastMouse.x === e.screenX && _lastMouse.y === e.screenY) return;
+    _lastMouse = { x: e.screenX, y: e.screenY };
+  }
+  const now = Date.now();
+  const warned = !!document.getElementById('ax-inactivity-warning');
+  if (!warned && now - _lastActivity < _ACTIVITY_WRITE_MS) return;
+  _storeActivity(now);
+  if (warned) _checkIdle();
 }
 
 function _startInactivityWatch() {
-  ['click', 'keydown', 'touchstart', 'scroll'].forEach(ev =>
-    document.addEventListener(ev, _resetInactivity, { passive: true })
-  );
-  _resetInactivity();
+  if (!_storedActivity()) _storeActivity(Date.now());   // the first page after this release, or storage cleared: start the time, do not sign out
+  if (!_idleWatching) {
+    _idleWatching = true;
+    // capture: a scroll inside a panel does not reach document otherwise, and a page's own stopPropagation does not hide activity
+    ['click', 'keydown', 'touchstart', 'mousemove', 'scroll'].forEach(ev =>
+      document.addEventListener(ev, _noteActivity, { passive: true, capture: true })
+    );
+    window.addEventListener('storage', e => { if (e.key === _ACTIVITY_KEY) _checkIdle(); });
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) _checkIdle(); });   // back from sleep
+    window.addEventListener('focus', _checkIdle);
+  }
+  _checkIdle();
 }
 
 // ── §250: one sign-in per browser, one user per tab ──────────────────────────────
@@ -677,7 +731,9 @@ function _startInactivityWatch() {
 async function _checkTabUser() {
   const pinned = getTabUser();
   if (!pinned || isTabBlocked()) return;
-  const { data: { session } } = await supabase.auth.getSession();
+  const { data: { session }, error } = await supabase.auth.getSession();
+  // §433: a refresh that met a network error is no answer, the same rule as requireAuth(): keep the tab, the next check decides
+  if (_noAnswer(error)) return;
   if (!session) blockTab('');
   else if (session.user.id !== pinned) blockTab(session.user.email || 'another account');
 }
@@ -688,7 +744,6 @@ function _watchTabUser() {
   _tabUserWatching = true;
   onTabBlocked(() => {
     clearTimeout(_inactivityTimer);
-    clearTimeout(_inactivityWarnTimer);
     _hideInactivityWarning();
     try { supabase.removeAllChannels(); } catch { /* realtime may not be in use */ }
   });
@@ -807,6 +862,12 @@ export async function requireAuth(allowedRoles = [], redirectTo = 'login.html', 
     return new Promise(() => {});
   }
 
+  // §432: this replaces the page before it shows, so the doctor sees no Reception frame
+  if (currentPage === 'reception.html' && isReceptionClosedForDoctor(getCurrentProfile(), getCurrentTenant())) {
+    window.location.replace(getHomePage(getCurrentProfile()));
+    return new Promise(() => {});
+  }
+
   if (allowedRoles.length > 0) {
     const role = getCurrentRole();
     const secondaryRole = getCurrentSecondaryRole();
@@ -854,7 +915,7 @@ export async function requireAuth(allowedRoles = [], redirectTo = 'login.html', 
   setTabUser(session.user.id); // §250: remember who this tab was opened as
   _watchTabUser();
   document.documentElement.style.visibility = ''; // show page — auth confirmed
-  _startInactivityWatch(); // auto-logout after 30 min inactivity
+  _startInactivityWatch(); // auto-logout after 15 min inactivity (warning at 13)
 }
 
 
