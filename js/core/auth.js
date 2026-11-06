@@ -17,6 +17,7 @@ import { safeErrorMessage } from '../utils/errors.js';
 import { RETURN_KEY, safeReturnPath } from '../utils/signInGate.js';
 import { rememberOrgCode } from '../utils/rememberedOrg.js';
 import { getTabUser, setTabUser, clearTabUser, blockTab, isTabBlocked, onTabBlocked } from './tabUser.js';
+import { isRuleDHod } from '../utils/hodAccess.js';
 
 // TODO §253: a designation that has its own landing page (role home otherwise).
 // The yoga instructor is role 'therapist' + designation 'yoga_instructor' and works on
@@ -53,6 +54,31 @@ export function isReceptionClosedForDoctor(profile, tenant) {
   const roles = [profile?.role, profile?.secondary_role];
   if (!roles.includes(ROLES.DOCTOR) || roles.some(r => ['receptionist', 'nurse', 'dept_admin', 'super_admin', 'cashier'].includes(r))) return false;
   return !tenant?.type || STAFFED_FRONT_DESK_TYPES.includes(tenant.type);
+}
+
+// §435 (owner, 6 Nov 2026): pages closed to a doctor at a hospital, teaching hospital or college; a clinic, PK centre or dispensary keeps them. One list for requireAuth, the
+// menu (navbar.js) and dept-hub.js. others = the other roles that have the page, primary or second (null = any other role); hod = a department head keeps it (Rule D);
+// designations = an office that works on the page. An account with another way in keeps the page, as with Reception above.
+// Opening a page is not writing on it: the server decides (§445). Owner, 6 Nov 2026: HODs keep the five quality pages until the fine-tuning by department (§446, after the pilot).
+const OFFICE_DOCTORS = ['medical_superintendent', 'deputy_medical_superintendent', 'resident_medical_officer'];
+const DOCTOR_CLOSED_PAGES = {
+  'shift-close.html': { others: ['receptionist', 'nurse', 'cashier', 'accountant', 'finance_manager', 'dept_admin', 'super_admin', 'lab_tech', 'pharmacist', 'nurse_manager', 'therapist'] },
+  'lab-nabl.html': { others: ['lab_tech', 'nurse', 'dept_admin', 'super_admin'], designations: ['pathologist', 'lab_incharge', ...OFFICE_DOCTORS], hod: true },
+  'aushadha-nirman.html': { others: ['pharmacist', 'dept_admin', 'super_admin'], designations: OFFICE_DOCTORS, hod: true },
+  'sterilisation.html': { others: ['nurse', 'receptionist', 'dept_admin', 'super_admin'], designations: ['cssd_incharge', ...OFFICE_DOCTORS], hod: true },
+  'bmw.html': { others: ['nurse', 'receptionist', 'dept_admin', 'super_admin'], designations: ['bmw_officer', ...OFFICE_DOCTORS], hod: true },
+  'iqac.html': { others: ['receptionist', 'dept_admin', 'super_admin'], designations: ['iqac_coordinator', ...OFFICE_DOCTORS], hod: true },
+  'pk-protocol-admin.html': { others: null, designations: ['pk_incharge', 'medical_director', 'principal', 'medical_superintendent', 'deputy_medical_superintendent'] },
+  'fee-admin.html': { others: ['dept_admin', 'super_admin', 'accountant', 'finance_manager'], hod: true },   // Session 359: the HOD gives step 1 of a fee
+};
+export function isPageClosedForDoctor(profile, tenant, page) {
+  const rule = DOCTOR_CLOSED_PAGES[page];
+  const roles = [profile?.role, profile?.secondary_role].filter(Boolean);
+  if (!rule || !roles.includes(ROLES.DOCTOR)) return false;
+  if (tenant?.type && !STAFFED_FRONT_DESK_TYPES.includes(tenant.type)) return false;
+  if (roles.some(r => r !== ROLES.DOCTOR && (rule.others === null || rule.others.includes(r)))) return false;
+  if ((rule.designations || []).includes(profile?.designation)) return false;
+  return !(rule.hod && isRuleDHod(profile));
 }
 
 
@@ -758,11 +784,28 @@ function _watchTabUser() {
 // §424 (owner, 5 Nov 2026): only a definite answer may send someone away. A refusal from the server is one (4xx: refresh token refused, no such
 // row, not allowed); a network error, a server error or a timeout is NO answer: never sign the user out or redirect on it.
 const _noAnswer = (error, status = error?.status) => !!error && !(status >= 400 && status < 500 && status !== 408 && status !== 429);
-// Stop here with the page still hidden: authGate.js shows "taking longer than usual" + Retry / Go to sign-in at 8 s. The promise never resolves,
-// so the page's own code does not run. A page without the gate (or if its file failed) is shown rather than left blank.
+// Stop here with the page still hidden: authGate.js shows "taking longer than usual" + Retry / Go to sign-in 8 s after the files load. The promise never
+// resolves, so the page's own code does not run. A page without the gate (or if its file failed) is shown rather than left blank.
 function _waitForAnswer() {
   if (!window.axAuthGate) document.documentElement.style.visibility = '';
   return new Promise(() => {});
+}
+
+// §441 (reproduced, 378b): a 401 from the database means it refused this token, not that this person is signed out. A device clock behind the server's is enough: the browser
+// keeps a token the server calls expired, and this used to sign the person out on every device. So a 401 asks the auth server, the one place that can say "signed out": a
+// session it refuses to refresh is a definite answer; a new token gets one more try; anything else is no answer (_waitForAnswer), never a sign-out.
+async function _readOwnProfile(read) {
+  const first = await read();
+  if (first.status !== 401) return first;
+  const { error } = await supabase.auth.refreshSession();
+  if (error) return _noAnswer(error) ? { noAnswer: true } : { signedOut: true };
+  const second = await read();
+  return second.status === 401 ? { noAnswer: true } : second;
+}
+function _goToSignIn() {
+  sessionStorage.clear();
+  window.location.replace('login.html');
+  return new Promise(() => {});   // §424: as below
 }
 
 export async function requireAuth(allowedRoles = [], redirectTo = 'login.html', { monitoringSafe = false } = {}) {
@@ -806,11 +849,14 @@ export async function requireAuth(allowedRoles = [], redirectTo = 'login.html', 
 
   if (needsFetch) {
     sessionStorage.clear(); // evict any stale cross-user data
-    const { data: profile, error: profileError, status: profileStatus } = await supabase
+    const read = await _readOwnProfile(() => supabase
       .from('profiles')
       .select('*, tenants(*)')
       .eq('id', session.user.id)
-      .single();
+      .single());
+    if (read.noAnswer) return _waitForAnswer();
+    if (read.signedOut) return _goToSignIn();
+    const { data: profile, error: profileError, status: profileStatus } = read;
     if (_noAnswer(profileError, profileStatus)) return _waitForAnswer();
 
     if (!profile || profile.status !== 'active') {
@@ -835,11 +881,14 @@ export async function requireAuth(allowedRoles = [], redirectTo = 'login.html', 
     // was skipped whenever cachedProfile was already present. One lightweight
     // status-only query per page load closes that, without touching the existing
     // once-per-login caching behaviour for everything else.
-    const { data: statusRow, error: statusError, status: statusStatus } = await supabase
+    const read = await _readOwnProfile(() => supabase
       .from('profiles')
       .select('status')
       .eq('id', session.user.id)
-      .single();
+      .single());
+    if (read.noAnswer) return _waitForAnswer();
+    if (read.signedOut) return _goToSignIn();
+    const { data: statusRow, error: statusError, status: statusStatus } = read;
     if (_noAnswer(statusError, statusStatus)) return _waitForAnswer();
 
     if (!statusRow || statusRow.status !== 'active') {
@@ -862,8 +911,9 @@ export async function requireAuth(allowedRoles = [], redirectTo = 'login.html', 
     return new Promise(() => {});
   }
 
-  // §432: this replaces the page before it shows, so the doctor sees no Reception frame
-  if (currentPage === 'reception.html' && isReceptionClosedForDoctor(getCurrentProfile(), getCurrentTenant())) {
+  // §432, §435: this replaces the page before it shows, so the doctor sees no frame of it
+  if ((currentPage === 'reception.html' && isReceptionClosedForDoctor(getCurrentProfile(), getCurrentTenant()))
+      || isPageClosedForDoctor(getCurrentProfile(), getCurrentTenant(), currentPage)) {
     window.location.replace(getHomePage(getCurrentProfile()));
     return new Promise(() => {});
   }

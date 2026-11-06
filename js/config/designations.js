@@ -9,6 +9,7 @@ export const DESIGS = [
   {v:'medical_director',            l:'Medical Director (Dean/Principal/Director)', cat:'Administration', lv:0, d:'Apex administrative + clinical head of the institution (Sch I, apex faculty post — no longer a dedicated Sch XX line since the 2026-27 circular) — final authority on hospital operations.'},
   {v:'medical_superintendent',      l:'Medical Superintendent',          cat:'Administration', lv:2, d:'Runs day-to-day hospital operations — duty rosters, bed management, discipline (Sch XX/1).'},
   {v:'deputy_medical_superintendent',l:'Deputy Medical Superintendent',  cat:'Administration', lv:3, d:'Assists the Medical Superintendent; covers IPD/OPD operational oversight (Sch XX/2).'},
+  {v:'iqac_coordinator',            l:'IQAC Coordinator',                cat:'Administration', lv:4, d:'Coordinates the Internal Quality Assurance Cell: records its meetings and tracks action items (Session 378b).'},
   {v:'administrative_officer',      l:'Administrative Officer',          cat:'Administration', lv:4, d:'Non-clinical administration — HR records, procurement paperwork, statutory filings (no longer a dedicated Sch XX post since the 2026-27 circular).'},
   {v:'opd_incharge',                l:'Office Superintendent',           cat:'Administration', lv:3, d:'Administers hospital office/OPD administrative staff — registration desks, clerical operations and daily patient flow (Sch XX/6).'},
   {v:'hod',                         l:'Head of Department (HOD)',        cat:'Faculty',        lv:1, d:'Senior-most faculty in a clinical department — teaching, patient care and NCISM compliance for that dept (Sch I).'},
@@ -134,10 +135,11 @@ export const ROLE_DUTY_FALLBACK = {
 // compares them). Session 353A: + yoga_instructor (the yoga write right comes from it; sql/session353a_*.sql).
 // Session 353B: + pathologist, lab_incharge (lab sign-off), blood_bank_technician (blood bank) -- D5, sql/session353b_*.sql.
 // Session 365: + chief_pharmacist (the pharmacy in-charge: cancels goods receipts) -- sql/session365_*.sql.
+// Session 378b: + iqac_coordinator (records IQAC meetings) -- sql/session378b_*.sql.
 export const POWERFUL_ROLES = ['super_admin', 'dept_admin', 'finance_manager', 'nurse_manager'];
 export const POWERFUL_DESIGS = ['medical_director', 'principal', 'medical_superintendent', 'deputy_medical_superintendent',
   'nursing_superintendent', 'deputy_nursing_superintendent', 'pk_incharge', 'finance_manager', 'yoga_instructor',
-  'pathologist', 'lab_incharge', 'blood_bank_technician', 'chief_pharmacist'];
+  'pathologist', 'lab_incharge', 'blood_bank_technician', 'chief_pharmacist', 'iqac_coordinator'];
 export function isPowerfulPosition(role, designation) {
   const norm = v => String(v ?? '').trim().toLowerCase();
   return POWERFUL_ROLES.includes(norm(role)) || POWERFUL_DESIGS.includes(norm(designation));

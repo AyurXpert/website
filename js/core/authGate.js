@@ -2,14 +2,22 @@
 // only after the browser may already have painted the page, so this plain script runs first, from the page's <head>, and hides the page.
 // requireAuth() shows it again (every way it ends sets visibility back to ''), or redirects.
 // Safety (owner, 5 Nov 2026): a page must never stay blank, and slowness is never a reason to send anyone away: only a definite "not signed in"
-// answer goes to the sign-in page, and that is requireAuth()'s decision. If the page is still hidden after 8 s (the check is slow, had no answer,
-// or its script never loaded) -> a visible message with Retry and Go to sign-in; if the check finishes after all, the message goes.
+// answer goes to the sign-in page, and that is requireAuth()'s decision. §443 (owner, 6 Nov 2026): the 8 s start when the page's files have loaded, so they measure the check
+// and not the connection (a slow connection took 13-33 s to load a page). If the page is still hidden after them -> a visible message with Retry and Go to sign-in; if the
+// check finishes after all, the message goes. A file that never finishes loading fires no load event, so a separate limit covers that: 45 s from the start.
+// Owner, 6 Nov 2026: during the wait a plain "Loading AyurXpert…" shows instead of a blank screen. It is a CSS line on the hidden root, not an element: no frame and no data
+// can come with it, it needs no code to remove (it is tied to the hidden state), and it waits 0.4 s so a fast page never flickers.
 // No connection (owner, 6 Nov 2026) is not "signed out": the message says so, Go to sign-in is hidden, and the page opens by itself when the connection
 // returns (it is still hidden here, so nothing typed can be lost).
 (function () {
   var root = document.documentElement;
   window.axAuthGate = true;
   root.style.visibility = 'hidden';
+  var wait = document.createElement('style');
+  wait.textContent = 'html[style*="visibility: hidden"]::before{content:"Loading AyurXpert…";position:fixed;inset:0;z-index:2147483646;visibility:visible;display:flex;'
+    + 'align-items:center;justify-content:center;background:#faf8f3;color:#1a4a2e;font:500 18px "DM Sans",sans-serif;opacity:0;animation:ax-wait 0s .4s forwards}'
+    + '@keyframes ax-wait{to{opacity:1}}';
+  (document.head || root).appendChild(wait);
 
   function button(text, css, onClick) {
     var b = document.createElement('button');
@@ -20,8 +28,13 @@
     return b;
   }
 
-  setTimeout(function () {
+  var AFTER_FILES_MS = 8000, NEVER_LOADED_MS = 45000, timer, shown = false;
+  function waitFor(ms) { clearTimeout(timer); timer = setTimeout(showCard, ms); }
+  function filesDone() { if (!shown) waitFor(AFTER_FILES_MS); }
+
+  function showCard() {
     if (root.style.visibility !== 'hidden') return;
+    shown = true;
     var cover = document.createElement('div');
     cover.id = 'ax-signin-slow';
     cover.setAttribute('role', 'alert');
@@ -40,9 +53,8 @@
     row.appendChild(signIn);
     function show() {
       var off = navigator.onLine === false;
-      title.textContent = off ? 'No internet connection' : 'Checking your sign-in is taking longer than usual';
-      note.textContent = off ? 'You are still signed in. This page will open by itself when the connection returns.' : '';
-      note.hidden = !off;
+      title.textContent = off ? 'No internet connection' : 'This page is taking longer than usual to load';
+      note.textContent = off ? 'You are still signed in. This page will open by itself when the connection returns.' : 'Your internet connection may be slow.';
       signIn.hidden = off;
     }
     show();
@@ -59,5 +71,11 @@
       observer.disconnect();
       cover.remove();
     }).observe(root, { attributes: true, attributeFilter: ['style'] });
-  }, 8000);
+  }
+
+  waitFor(NEVER_LOADED_MS);
+  window.addEventListener('load', filesDone);
+  // no connection: a file may never answer, and the offline message does not wait for the long limit
+  window.addEventListener('offline', filesDone);
+  if (navigator.onLine === false) filesDone();
 })();

@@ -1,7 +1,7 @@
 // js/components/navbar.js
 // White-label grouped-dropdown navbar — runs on every protected page.
 
-import { getCurrentProfile, getCurrentTenant, getCurrentRole, getCurrentSecondaryRole, getCurrentHasMonitoringAccess, logout, hasModule, isPageDeniedForDesignation } from '../core/auth.js';
+import { getCurrentProfile, getCurrentTenant, getCurrentRole, getCurrentSecondaryRole, getCurrentHasMonitoringAccess, logout, hasModule, isPageDeniedForDesignation, isPageClosedForDoctor, isReceptionClosedForDoctor } from '../core/auth.js';
 import { logoutChecked } from './shiftLogout.js';
 import { DESIG_MAP, ROLE_DUTY_FALLBACK } from '../config/designations.js';
 import '../utils/versionCheck.js';   // Session 357c (TODO §108 (c)): "AyurXpert has been updated — Reload" on every app page
@@ -44,7 +44,8 @@ function _buildGroups(role, type, secondaryRole, hasMonitoringAccess, isDeptScop
     {
       label: 'OPD', icon: '🩺',
       items: [
-        { href:'reception.html',     label:'Reception',     roles:FRONT_DESK,                    types:null, module:'opd'        },
+        // 378b: + doctor at a clinic, PK centre or dispensary, who works the front desk there (deskClosed = the same rule as reception.html, isReceptionClosedForDoctor)
+        { href:'reception.html',     label:'Reception',     roles:FRONT_DESK.concat(['doctor']), types:null, module:'opd', deskClosed:true },
         // Session 363 (owner B3): the cashier collects lab bills on reception.html (Lab Bills only -- reception.js _labBillsOnly)
         { href:'reception.html',     label:'Lab Bills',     roles:['cashier'],                   types:null, module:'lab'        },
         // Session 205 real bug fix, live-confirmed on SDM: CLINICAL includes 'nurse', but
@@ -191,7 +192,7 @@ function _buildGroups(role, type, secondaryRole, hasMonitoringAccess, isDeptScop
         { href:'ncism-compliance.html',  label:'NCISM Compliance', roles:ADMIN_ROLES,                                          types:NCISM,module:'ncism', monitoringSafe:true },
         { href:'quality.html',           label:'Quality',          roles:ADMIN_ROLES,                                          types:null, module:'quality'  },
         { href:'pharmacovigilance.html', label:'Pharmacovigilance',roles:ADMIN_ROLES,                                          types:NCISM,module:'quality'  },
-        { href:'iqac.html',              label:'IQAC',             roles:ADMIN_ROLES,                                          types:NCISM,module:'quality'  },
+        { href:'iqac.html',              label:'IQAC',             roles:ADMIN_ROLES,                                          types:NCISM,module:'quality', designations:['iqac_coordinator','deputy_medical_superintendent'] },
         { href:'bmw.html',               label:'BMW Waste',        roles:ADMIN_ROLES.concat(['nurse']),                        types:HOSP, module:'quality'  },
         { href:'sterilisation.html',     label:'CSSD / Steril.',   roles:ADMIN_ROLES.concat(['nurse']),                        types:HOSP, module:'quality'  },
         { href:'sop-library.html',       label:'SOP Library',      roles:ADMIN_ROLES,                                          types:null, module:'quality'  },
@@ -225,7 +226,9 @@ function _buildGroups(role, type, secondaryRole, hasMonitoringAccess, isDeptScop
       (item.types === null || item.types.includes(type)) &&
       (!item.platformOnly || isPlatformAdmin) &&
       (!item.module || hasModule(item.module)) &&
-      !isPageDeniedForDesignation(getCurrentProfile(), item.href)   // Session 354b: e.g. no Therapy Sessions for the yoga instructor
+      !isPageDeniedForDesignation(getCurrentProfile(), item.href) &&   // Session 354b: e.g. no Therapy Sessions for the yoga instructor
+      !(item.deskClosed && isReceptionClosedForDoctor(getCurrentProfile(), getCurrentTenant())) &&   // §432
+      !isPageClosedForDoctor(getCurrentProfile(), getCurrentTenant(), item.href)   // §435
     // §253: the yoga instructor works on Yoga Sessions -- list it first in its group
     ).sort((a, b) => designation === 'yoga_instructor' ? (b.href === 'yoga.html') - (a.href === 'yoga.html') : 0)
   })).filter(g => g.items.length > 0);

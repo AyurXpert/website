@@ -159,14 +159,17 @@ window.savePrep = async () => {
   };
 
   const id = document.getElementById('p-id').value;
-  const {error} = id
-    ? await supabase.from('aushadha_nirman_register').update(payload).eq('id',id).eq('tenant_id',tenantId)
-    : await supabase.from('aushadha_nirman_register').insert(payload);
-  if (error){showToast(safeErrorMessage(error, 'Could not save record.'),'error');return;}
+  const {data: saved, error} = id
+    ? await supabase.from('aushadha_nirman_register').update(payload).eq('id',id).eq('tenant_id',tenantId).select('id')
+    : await supabase.from('aushadha_nirman_register').insert(payload).select('id');
+  if (error){showToast(error.code === '42501' ? AUSHADHA_REFUSED : safeErrorMessage(error, 'Could not save record.'),'error');return;}
+  if (!saved?.length){showToast(AUSHADHA_REFUSED,'error');return;}   // 353A: never "saved" unless the server confirms the write
   closeModal('prep-modal');
   showToast('Saved successfully','success');
   loadRegister(); loadKPIs();
 };
+
+const AUSHADHA_REFUSED = 'This register is written by the pharmacy, the Rasashastra department and administrators.';
 
 window.viewDetail = (id) => {
   const r = _records.find(x=>x.id===id);
@@ -197,7 +200,8 @@ window.viewDetail = (id) => {
 
 window.recall = async (id) => {
   if (!confirm('Mark this batch as recalled?')) return;
-  await supabase.from('aushadha_nirman_register').update({status:'recalled'}).eq('id',id).eq('tenant_id',tenantId);
+  const {data: recalled, error} = await supabase.from('aushadha_nirman_register').update({status:'recalled'}).eq('id',id).eq('tenant_id',tenantId).select('id');
+  if (error || !recalled?.length){showToast(!error || error.code === '42501' ? AUSHADHA_REFUSED : safeErrorMessage(error, 'Could not recall the batch.'),'error');return;}
   showToast('Batch recalled','success');
   loadRegister(); loadKPIs();
 };

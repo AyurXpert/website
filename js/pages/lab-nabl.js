@@ -1176,6 +1176,9 @@ window.openPRModal = function() {
 };
 window.closePRModal = function() { document.getElementById('pr-modal').classList.remove('show'); };
 
+const REQUISITION_RAISE_REFUSED = 'Purchase requisitions are raised by the lab, the pharmacy, accounts and administrators.';
+const REQUISITION_APPROVE_REFUSED = 'Purchase requisitions are approved by accounts and administrators.';
+
 window.savePR = async function() {
   const item = document.getElementById('prm-item').value.trim();
   const qty  = parseFloat(document.getElementById('prm-qty').value);
@@ -1192,7 +1195,7 @@ window.savePR = async function() {
     expected_date: document.getElementById('prm-expected').value || null,
     notes: document.getElementById('prm-notes').value.trim() || null,
   });
-  if (error) { _toast(safeErrorMessage(error), 'error'); return; }
+  if (error) { _toast(error.code === '42501' ? REQUISITION_RAISE_REFUSED : safeErrorMessage(error), 'error'); return; }
   _toast('Requisition submitted', 'success');
   closePRModal();
   loadRequisitions();
@@ -1206,8 +1209,9 @@ window.updatePRStatus = async function(id, status) {
   }
   if (status === 'ordered')  updates.order_date     = today;
   if (status === 'received') updates.received_date  = today;
-  const { error } = await supabase.from('purchase_requisitions').update(updates).eq('id', id);
-  if (error) { _toast(safeErrorMessage(error), 'error'); return; }
+  const { data: changed, error } = await supabase.from('purchase_requisitions').update(updates).eq('id', id).select('id');
+  if (error) { _toast(error.code === '42501' ? REQUISITION_APPROVE_REFUSED : safeErrorMessage(error), 'error'); return; }
+  if (!changed?.length) { _toast(REQUISITION_APPROVE_REFUSED, 'error'); return; }   // 353A: never "saved" unless the server confirms the write
   _toast(`Requisition marked as ${status}`, 'success');
   loadRequisitions();
 };

@@ -1,4 +1,4 @@
-import { requireAuth, getCurrentProfile } from '../core/auth.js';
+import { requireAuth, getCurrentProfile, getCurrentTenant, isPageClosedForDoctor } from '../core/auth.js';
 import { initNavbar }  from '../components/navbar.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 
@@ -145,6 +145,7 @@ const DEPTS = [
 // link) is never gated. super_admin bypasses every gate here too, matching requireAuth()'s own
 // platform-wide convention.
 function _moduleVisible(m) {
+  if (isPageClosedForDoctor(getCurrentProfile(), getCurrentTenant(), m.href)) return false;   // §435: the same list as requireAuth and the menu
   return !m.roles || _role === 'super_admin' || m.roles.includes(_role);
 }
 

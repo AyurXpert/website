@@ -564,7 +564,7 @@ p:last-child{margin-bottom:0}
        ══════════════════════════════════════════════ -->
   <div class="section" id="setup-fees">
     <div class="section-title">4. Fee Structures</div>
-    <p>Page: <strong>fee-admin.html</strong> &nbsp;|&nbsp; Access: accountant and Dept Admin (create fees), the head of a department, the Medical Superintendent, the Finance Manager, the Super Admin</p>
+    <p>Page: <strong>fee-admin.html</strong> &nbsp;|&nbsp; Access: accountant and Dept Admin (create fees), the head of a department, the Medical Superintendent, the Finance Manager, the Super Admin.</p>
     <p>A new fee is always <strong>Pending</strong>. It needs two approvals: the <strong>head of the fee's department</strong>, then the <strong>Medical Superintendent, the Finance Manager or the Super Admin</strong>. A fee with no department needs only the second approval. The Medical Director and the Principal do not approve fees.</p>
 
     <div class="steps">
@@ -1200,13 +1200,20 @@ p:last-child{margin-bottom:0}
         <tr><td>register.html</td><td>Everyone (creates new org)</td></tr>
         <tr><td>signup.html</td><td>Staff with an invite link</td></tr>
         <tr><td>admin.html</td><td>All roles (role-filtered content)</td></tr>
-        <tr><td>reception.html</td><td>receptionist, nurse, dept_admin, super_admin</td></tr>
+        <tr><td>reception.html</td><td>receptionist, nurse, dept_admin, super_admin; a cashier sees only 💰 Lab Bills; doctors only at a clinic, PK centre or dispensary</td></tr>
+        <tr><td>shift-close.html</td><td>Staff who take cash at a counter. Doctors only at a clinic, PK centre or dispensary</td></tr>
+        <tr><td>lab-nabl.html</td><td>lab_tech, nurse, dept_admin, super_admin, the pathologist, the lab in-charge. At a hospital, teaching hospital or college, doctors only as head of a department, MS, Deputy MS or RMO. Purchase requisitions are raised by the lab, the pharmacy, accounts and administrators, and approved by accounts and administrators</td></tr>
+        <tr><td>aushadha-nirman.html</td><td>pharmacist, dept_admin, super_admin. At a hospital, teaching hospital or college, doctors only as head of a department, MS, Deputy MS or RMO. The register is written by the pharmacy, the Rasashastra department and administrators</td></tr>
+        <tr><td>sterilisation.html</td><td>nurse, receptionist, dept_admin, super_admin, the CSSD in-charge. At a hospital, teaching hospital or college, doctors only as head of a department, MS, Deputy MS or RMO</td></tr>
+        <tr><td>bmw.html</td><td>nurse, receptionist, dept_admin, super_admin, the Biomedical Waste Officer. At a hospital, teaching hospital or college, doctors only as head of a department, MS, Deputy MS or RMO</td></tr>
+        <tr><td>iqac.html</td><td>receptionist, dept_admin, super_admin, the IQAC Coordinator. At a hospital, teaching hospital or college, doctors only as head of a department, MS, Deputy MS or RMO. Meetings are recorded by the MS, the Deputy MS, the IQAC Coordinator and administrators</td></tr>
+        <tr><td>pk-protocol-admin.html</td><td>At a hospital, teaching hospital or college, doctors only in a position that writes protocols (PK In-charge, Medical Director, Principal, Medical Superintendent, Deputy Medical Superintendent)</td></tr>
         <tr><td>doctor.html</td><td>doctor, nurse, dept_admin, super_admin</td></tr>
         <tr><td>dispensaryPOS.html</td><td>pharmacist, dept_admin, super_admin</td></tr>
         <tr><td>inventory.html</td><td>pharmacist, dept_admin, super_admin</td></tr>
         <tr><td>purchase.html</td><td>pharmacist, accountant, dept_admin, super_admin</td></tr>
         <tr><td>purchase-order.html</td><td>pharmacist, accountant, dept_admin, super_admin</td></tr>
-        <tr><td>fee-admin.html</td><td>accountant, dept_admin, super_admin</td></tr>
+        <tr><td>fee-admin.html</td><td>accountant, finance_manager, dept_admin, super_admin, the head of a department</td></tr>
         <tr><td>opd-admin.html</td><td>dept_admin, super_admin</td></tr>
         <tr><td>reports.html</td><td>accountant, dept_admin, super_admin</td></tr>
         <tr><td>bed-admin.html</td><td>dept_admin, super_admin</td></tr>
@@ -1228,8 +1235,9 @@ p:last-child{margin-bottom:0}
         <tr><td>Session data not saving</td><td>Logged out due to inactivity. Log in again — data from the current form will need to be re-entered.</td></tr>
         <tr><td>Logged out after a break</td><td>After 15 minutes with no mouse movement, key press, scroll or touch in any tab of this browser, you are logged out; a warning shows at 13 minutes. If the computer slept or the browser was closed for longer, you are asked to log in again on the next page.</td></tr>
         <tr><td>Sign-in page after closing the laptop</td><td>If the laptop was closed, or the computer asleep, for more than 15 minutes, the sign-in page opens when you come back. This is normal and protects patient records. Log in again; anything you had saved is safe, but text not yet saved may be lost, so save before closing the laptop.</td></tr>
+        <tr><td>A doctor opening a page goes to the Doctor page</td><td>At a hospital, teaching hospital or college, some pages are for the staff who run them: Shift Close, NABL Quality, Aushadha Nirman, CSSD, BMW, IQAC and Custom PK Protocols. The server decides who writes there. If your work needs one of them, ask your Super Admin.</td></tr>
         <tr><td>A doctor opening Reception goes to the Doctor page</td><td>At a hospital, teaching hospital or college, patients are registered and billed by the reception staff, so Reception is not open to doctors. At a clinic, PK centre or dispensary it stays open.</td></tr>
-        <tr><td>"Checking your sign-in is taking longer than usual"</td><td>The page could not confirm your sign-in, usually because of a slow connection. You have not been signed out. Check the connection and press <strong>Retry</strong>. <strong>Go to sign-in</strong> opens the sign-in page.</td></tr>
+        <tr><td>"This page is taking longer than usual to load"</td><td>The page needed longer than usual to open, usually because of a slow connection. You have not been signed out. Check the connection and press <strong>Retry</strong>. <strong>Go to sign-in</strong> opens the sign-in page.</td></tr>
         <tr><td>"No internet connection. You are still signed in."</td><td>The page could not reach the server because this device has no connection. You have not been signed out. Check the Wi-Fi or cable; the page opens by itself when the connection returns.</td></tr>
         <tr><td>"No Internet Connection" or "Could not reach AyurXpert"</td><td>"No Internet Connection" means this computer is offline. "Could not reach AyurXpert" means the computer is online but the system did not answer. Check the connection, then press <strong>Try Again</strong>.</td></tr>
         <tr><td>Page looks out of date</td><td>Press <strong>Ctrl + F5</strong> to reload it. Always open the system through your hospital's link on ayurxpert.com.</td></tr>

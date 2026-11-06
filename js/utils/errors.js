@@ -102,7 +102,7 @@ export function safeErrorMessage(error, fallback = 'Something went wrong. Please
   }
 
   // Session 378a (§58, §432): the doctor's Escalate to Emergency + an account that is not active, whatever the page
-  const ACCESS_378A_MSGS = ['Your account is not active', 'You cannot escalate this visit', 'This visit is not in your organisation', 'This OPD is not in your organisation',
+  const ACCESS_378A_MSGS = ['Your account is not active', 'In this organisation doctors do not hold a cash shift', 'You cannot escalate this visit', 'This visit is not in your organisation', 'This OPD is not in your organisation',
     'That is not the Emergency OPD', 'This visit is already closed', 'Give the reason for the escalation'];
   if (['42501', '22023'].includes(error?.code) && ACCESS_378A_MSGS.some(m => error?.message?.startsWith(m))) {
     return error.message;
