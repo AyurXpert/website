@@ -1130,7 +1130,9 @@ window.renderPRs = function() {
   if (!rows.length) { tbody.innerHTML = '<tr><td colspan="9" class="empty">No requisitions found.</td></tr>'; return; }
 
   tbody.innerHTML = rows.map(r => {
-    const canApprove = isAdmin && r.status === 'pending';
+    // Session 380a (§447): nobody approves their own. A Super Admin keeps the button: only the server knows whether they are the organisation's only one.
+    const mine = r.requested_by === sess.id;
+    const canApprove = isAdmin && r.status === 'pending' && (!mine || sess.role === 'super_admin');
     const canOrder   = isAdmin && r.status === 'approved';
     const canReceive = isAdmin && r.status === 'ordered';
     return `<tr>
@@ -1149,7 +1151,8 @@ window.renderPRs = function() {
                         <button class="btn btn-danger btn-sm" data-onclick="updatePRStatus" data-onclick-a0="${r.id}" data-onclick-a1="cancelled">Cancel</button>` : ''}
         ${canOrder   ? `<button class="btn btn-outline btn-sm" data-onclick="updatePRStatus" data-onclick-a0="${r.id}" data-onclick-a1="ordered">Mark Ordered</button>` : ''}
         ${canReceive ? `<button class="btn btn-primary btn-sm" data-onclick="updatePRStatus" data-onclick-a0="${r.id}" data-onclick-a1="received">Mark Received</button>` : ''}
-        ${r.status === 'pending' && r.requested_by === sess.id ? `<button class="btn btn-danger btn-sm" data-onclick="updatePRStatus" data-onclick-a0="${r.id}" data-onclick-a1="cancelled">Cancel</button>` : ''}
+        ${r.status === 'pending' && mine && !canApprove ? `<button class="btn btn-danger btn-sm" data-onclick="updatePRStatus" data-onclick-a0="${r.id}" data-onclick-a1="cancelled">Cancel</button>` : ''}
+        ${r.status === 'pending' && mine && isAdmin && !canApprove ? `<div style="font-size:10px;color:var(--text-muted);margin-top:3px">Needs another approver</div>` : ''}
       </td>
     </tr>`;
   }).join('');
@@ -1178,6 +1181,7 @@ window.closePRModal = function() { document.getElementById('pr-modal').classList
 
 const REQUISITION_RAISE_REFUSED = 'Purchase requisitions are raised by the lab, the pharmacy, accounts and administrators.';
 const REQUISITION_APPROVE_REFUSED = 'Purchase requisitions are approved by accounts and administrators.';
+const REQUISITION_CANCEL_REFUSED = 'A requisition can be cancelled only by accounts, administrators, or the person who raised it, while it is Pending.';   // Session 380a (D6)
 
 window.savePR = async function() {
   const item = document.getElementById('prm-item').value.trim();
@@ -1201,17 +1205,30 @@ window.savePR = async function() {
   loadRequisitions();
 };
 
-window.updatePRStatus = async function(id, status) {
-  const updates = { status };
-  if (status === 'approved') {
-    updates.approved_by  = sess.id;
-    updates.approved_at  = new Date().toISOString();
+// Session 380a (owner, rehearsal step 2): a cancel cannot be undone, so it asks first, in the page
+let _cancelPRId = null;
+window.closePRCancel = function() { _cancelPRId = null; document.getElementById('pr-cancel-modal').classList.remove('show'); };
+window.confirmPRCancel = async function() {
+  const id = _cancelPRId;
+  window.closePRCancel();
+  if (id) await window.updatePRStatus(id, 'cancelled', true);
+};
+
+window.updatePRStatus = async function(id, status, confirmed = false) {
+  if (status === 'cancelled' && !confirmed) {
+    _cancelPRId = id;
+    document.getElementById('prc-item').textContent = (_requisitions.find(r => r.id === id) || {}).item_name || '';
+    document.getElementById('pr-cancel-modal').classList.add('show');
+    document.getElementById('prc-yes').focus();
+    return;
   }
+  const updates = { status };   // Session 380a (§447): the server names the approver and the time
   if (status === 'ordered')  updates.order_date     = today;
   if (status === 'received') updates.received_date  = today;
   const { data: changed, error } = await supabase.from('purchase_requisitions').update(updates).eq('id', id).select('id');
-  if (error) { _toast(error.code === '42501' ? REQUISITION_APPROVE_REFUSED : safeErrorMessage(error), 'error'); return; }
-  if (!changed?.length) { _toast(REQUISITION_APPROVE_REFUSED, 'error'); return; }   // 353A: never "saved" unless the server confirms the write
+  const refused = status === 'cancelled' ? REQUISITION_CANCEL_REFUSED : REQUISITION_APPROVE_REFUSED;
+  if (error) { _toast(error.code === '42501' ? refused : safeErrorMessage(error), 'error'); return; }
+  if (!changed?.length) { _toast(refused, 'error'); return; }   // 353A: never "saved" unless the server confirms the write
   _toast(`Requisition marked as ${status}`, 'success');
   loadRequisitions();
 };

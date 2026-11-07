@@ -229,6 +229,14 @@
     </ol>
     <p>Every submission, verification, rejection, correction and licence change is recorded in the audit log (who, when, old → new value).</p>
 
+    <h4 style="margin-top:14px">Who reads the audit log, and who approves what</h4>
+    <ul>
+      <li><strong>Audit log</strong> — only the active <span class="badge badge-super_admin">super_admin</span> can read it. Staff still see their own shift start on the shift slip.</li>
+      <li><strong>Purchase requisitions</strong> — nobody approves one they raised. Once it leaves Pending, its item and quantity are frozen and it cannot be deleted. Whoever raised it may cancel it while it is Pending.</li>
+      <li><strong>SOP documents</strong> — the person who drafted or submitted a document does not decide it.</li>
+      <li><strong>The one exception</strong> for both: your organisation's only active <span class="badge badge-super_admin">super_admin</span> may decide their own, and that is recorded as "self-approved (sole administrator)". With two Super Admins, the other one decides.</li>
+    </ul>
+
     <h4 style="margin-top:14px">Your hospital's own links (set up before go-live)</h4>
     <ul style="margin: 8px 0 14px 20px; line-height: 1.9;">
       <li><strong>Admin → 🏢 Organisation Profile → 🔗 Public links</strong> shows two links, each with a <strong>Copy</strong> button: your own <strong>sign-in page</strong> (<code>login.html?t=&lt;your code&gt;</code>) and the patients' <strong>teleconsultation timetable</strong> (<code>consultant-availability.html?tenant=&lt;your code&gt;</code>, it shows your logo when one is set).</li>

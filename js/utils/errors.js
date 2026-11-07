@@ -39,6 +39,13 @@ export function safeErrorMessage(error, fallback = 'Something went wrong. Please
     return error.message;
   }
 
+  // Session 380a: the approval rules on requisitions and SOP documents -- plain, schema-free, written to be shown
+  const APPROVAL_MSGS = ['You cannot approve your own requisition', 'You cannot decide your own document', 'The requester of a requisition', 'The approver of a requisition',
+    'The item cannot be changed', 'A requisition cannot', 'A new requisition starts', 'The drafter of a document', 'Choose approve or send back'];
+  if (['P0001', '22023'].includes(error?.code) && APPROVAL_MSGS.some(m => error?.message?.startsWith(m))) {
+    return error.message;
+  }
+
   // Session 306 statutory-register guards (sql/session306_statutory_registers_lockdown.sql) —
   // plain, schema-free messages written to be shown to staff as-is.
   const REGISTER_MSGS = ['NDPS balance', 'An NDPS entry', 'An opening balance', 'Quantity must',

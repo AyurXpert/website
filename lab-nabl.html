@@ -1047,6 +1047,21 @@ textarea{resize:vertical;min-height:60px}
   </div>
 </div>
 
+<!-- Session 380a (owner, rehearsal step 2): Cancel asks first -- an in-page panel, not the browser's confirm() -->
+<div class="modal-bg" id="pr-cancel-modal" role="dialog" aria-modal="true" aria-labelledby="prc-title">
+  <div class="modal" style="width:420px">
+    <div class="modal-hdr">
+      <span class="modal-title" id="prc-title">Cancel requisition</span>
+      <button class="modal-close" data-onclick="closePRCancel" aria-label="Close">&times;</button>
+    </div>
+    <div class="modal-body"><p style="margin:0">Cancel this requisition? This cannot be undone.</p><p id="prc-item" style="margin:8px 0 0;font-weight:600"></p></div>
+    <div class="modal-foot">
+      <button class="btn btn-outline" data-onclick="closePRCancel">Keep it</button>
+      <button class="btn btn-danger" id="prc-yes" data-onclick="confirmPRCancel">Cancel requisition</button>
+    </div>
+  </div>
+</div>
+
 <!-- Purchase Requisition modal -->
 <div class="modal-bg" id="pr-modal">
   <div class="modal" style="width:540px">

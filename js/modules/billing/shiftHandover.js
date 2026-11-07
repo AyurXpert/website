@@ -54,7 +54,7 @@ function diffText(d) {
 //           handover's closed_at ("first login" / "previous handover"); with no login record that day: the first
 //           receipt's time ("first receipt").
 //   end   = closed_at.   receipts = first live receipt -> last live receipt (all of them when every one is void).
-// Reads cash_handover_items / cash_handovers / audit_logs (action 'login') through the normal row-level rules; if a read is
+// Reads cash_handover_items / cash_handovers through the normal row-level rules + handover_login_times() (380a); if a read is
 // refused or empty the line simply degrades to "first receipt". One batch of three queries per screen, not one per card.
 // ---------------------------------------------------------------------------------------------------------------------
 export async function loadShiftInfo(supabase, handovers) {
@@ -63,15 +63,13 @@ export async function loadShiftInfo(supabase, handovers) {
   if (!hs.length) return out
   const ids = hs.map(h => h.id)
   const users = [...new Set(hs.map(h => h.user_id))]
-  const firstDay = istDateStr(new Date(Math.min(...hs.map(h => new Date(h.period_from || h.closed_at).getTime()))))
   const lastClose = new Date(Math.max(...hs.map(h => new Date(h.closed_at).getTime()))).toISOString()
   const [itemsQ, prevQ, loginQ] = await Promise.all([
     supabase.from('cash_handover_items').select('handover_id, receipt_no, received_at, is_void').in('handover_id', ids).limit(5000),
     supabase.from('cash_handovers').select('id, user_id, closed_at').in('user_id', users).lte('closed_at', lastClose).order('closed_at', { ascending: false }).limit(2000),
-    supabase.from('audit_logs').select('user_id, created_at').eq('action', 'login').in('user_id', users)
-      .gte('created_at', istDayStartUTC(firstDay)).lte('created_at', lastClose).order('created_at', { ascending: true }).limit(5000)
+    supabase.rpc('handover_login_times', { p_ids: ids })   // Session 380a (§116): the login times only; audit_logs is the Super Admin's
   ])
-  const items = itemsQ.data || [], closes = prevQ.data || [], logins = loginQ.data || []
+  const items = itemsQ.data || [], closes = prevQ.data || [], logins = (loginQ.data || []).map(l => ({ user_id: l.user_id, created_at: l.login_at }))
   for (const h of hs) {
     const mine = items.filter(i => i.handover_id === h.id).sort((a, b) => new Date(a.received_at) - new Date(b.received_at))
     const live = mine.filter(i => !i.is_void)

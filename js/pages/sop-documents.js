@@ -207,7 +207,9 @@ window.submitForReview = async function(docId) {
 };
 
 function _renderPendingReview(card, doc) {
-  const canDecide = _canFinalize();
+  // Session 380a (§417): the drafter and the submitter do not decide. A Super Admin keeps the buttons: only the server knows whether they are the organisation's only one.
+  const mine = doc.drafted_by === profile?.id || doc.submitted_by === profile?.id;
+  const canDecide = _canFinalize() && (!mine || role === 'super_admin');
   card.innerHTML = `
     <div class="card-title">${_esc(doc.display_name)} — <span class="status-tag status-pending_review">Pending Review</span></div>
     ${_renderReadonlyContent(doc)}
@@ -215,7 +217,7 @@ function _renderPendingReview(card, doc) {
       <div class="field"><label>Review Notes (optional)</label><textarea id="review-notes" placeholder="Notes for the drafting author, especially if sending back"></textarea></div>
       <button class="btn btn-primary" data-onclick="decideDoc" data-onclick-a0="${_esc(doc.id)}" data-onclick-a1="@true" style="margin-right:8px">Approve &amp; Finalize</button>
       <button class="btn btn-danger" data-onclick="decideDoc" data-onclick-a0="${_esc(doc.id)}" data-onclick-a1="@false">Send Back to Draft</button>
-    ` : `<div class="empty">Awaiting review by your Medical Director/Principal/Medical Superintendent.</div>`}
+    ` : `<div class="empty">${mine ? 'Awaiting review by another approver.' : 'Awaiting review by your Medical Director/Principal/Medical Superintendent.'}</div>`}
   `;
 }
 
