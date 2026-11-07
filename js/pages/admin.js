@@ -32,6 +32,7 @@ import { mountAlertBell } from '../components/alertBell.js';   // Session 357 (T
 import { mountBulkInvite } from '../modules/staff/bulkInvite.js';
 import { renderSelfSignupSetting } from '../modules/staff/selfSignupSetting.js';
 import { renderAbdmShareSetting } from '../modules/abdm/abdmShareSetting.js';
+import { abdmOn, closeAbdmPanel } from '../modules/abdm/comingSoon.js';   // Session 379a
 import { renderDeptTargetsSetting } from '../modules/screening/deptTargetsSetting.js';   // Session 374B
 import { renderOverflowSetting } from '../modules/screening/overflowSetting.js';   // Session 375 (§407)
 import { inviteLink, inviteMessage, whatsAppButton, emailInvites, fmtDate, loadLoginEmails, mountPhoneEditor, mountEmailChanger, BTN_OUT } from '../modules/staff/staffContacts.js';
@@ -163,7 +164,10 @@ function _showSection(target, sub) {
   if (target==='packages')       window.loadPackages();
   if (target==='modules')        window.loadModules();
   if (target==='accounts')           window.loadAccounts();
-  if (target==='abdm-bridge')        { window.loadAbdmCallbacks(); window.loadFacilityRegistration(); }
+  if (target==='abdm-bridge') {
+    if (abdmOn()) { window.loadAbdmCallbacks(); window.loadFacilityRegistration(); }
+    else closeAbdmPanel(document.getElementById('section-abdm-bridge'), { keep: '.sec-hd' });   // Session 379a
+  }
   if (target==='org-profile')        window.loadOrgProfile();
   if (target==='compliance-reports') {
     const today = istMonthStr();
@@ -7050,7 +7054,6 @@ const _MODULE_META = [
   { key:'hr',          label:'Human Resources',          icon:'👥', desc:'Staff directory, duty roster, leave management, training records'     },
   { key:'mrd',         label:'Medical Records (MRD)',    icon:'🗂️', desc:'Patient file browser, statistics, diagnosis burden reports'           },
   { key:'quality',     label:'Quality Management',       icon:'⭐', desc:'Pharmacovigilance, IQAC, BMW waste, sterilisation, incident reports'  },
-  { key:'abdm',        label:'ABDM / ABHA',              icon:'🏛️', desc:'ABHA enrolment, Scan & Share, health record linking'                 },
 ];
 
 window.loadModules = async function() {

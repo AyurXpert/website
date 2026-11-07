@@ -31,6 +31,14 @@ export function safeErrorMessage(error, fallback = 'Something went wrong. Please
     return error.message;
   }
 
+  // Session 379a: the platform screens + the ABDM refusal -- plain, schema-free, written to be shown
+  const PLATFORM_MSGS = ['ABDM — coming soon', 'Only an active platform', 'Enter the', 'Enter a 10-digit', 'Choose the', 'Choose on or off', 'The UHID prefix', 'This UHID prefix',
+    'Another organisation already uses', 'This email already has', 'The PG seats', 'UG intake and PG', 'Give a reason (5 to', 'This organisation already has', 'This organisation was not created',
+    'Organisation not found', 'UG intake'];
+  if (['P0001', 'P0002', '22023', '42501'].includes(error?.code) && PLATFORM_MSGS.some(m => error?.message?.startsWith(m))) {
+    return error.message;
+  }
+
   // Session 306 statutory-register guards (sql/session306_statutory_registers_lockdown.sql) —
   // plain, schema-free messages written to be shown to staff as-is.
   const REGISTER_MSGS = ['NDPS balance', 'An NDPS entry', 'An opening balance', 'Quantity must',

@@ -78,7 +78,7 @@ async function _doPatientSearch() {
   if (q.length < 3) { resultsEl.innerHTML = ''; return; }
 
   const isPhone = /^\d{7,}$/.test(q);
-  const isUHID  = /^AYX[\s\-\/]*\d/i.test(q);
+  const isUHID  = /^AYX[\s\-\/]*\d/i.test(q) || /^[A-Z][A-Z0-9]{1,4}\s*\/\s*\d/i.test(q);   // Session 379a: any organisation's prefix
 
   let query = supabase.from('patients')
     .select('id,uhid,name,phone,age,gender,date_of_birth,blood_group,prakriti_data,prakriti_assessed_at,created_at')

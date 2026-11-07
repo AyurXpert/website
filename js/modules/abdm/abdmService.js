@@ -1,4 +1,5 @@
 import { supabase } from '../../core/db/supabaseClient.js';
+import { abdmOn, ABDM_SOON } from './comingSoon.js';   // Session 379a
 
 const EDGE_FN = 'https://xvlvifiebafvgzlixdee.supabase.co/functions/v1/abdm-auth';
 
@@ -35,6 +36,7 @@ function normalizeAbdmError(errorData) {
 }
 
 async function callABDM(action, params = {}) {
+  if (!abdmOn()) throw new Error(ABDM_SOON);   // Session 379a: the server refuses it too
   const { data: { session } } = await supabase.auth.getSession();
   if (!session) throw new Error('Not authenticated');
 

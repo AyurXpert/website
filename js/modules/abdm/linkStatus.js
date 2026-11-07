@@ -4,6 +4,8 @@
 // retry: true -- abdm-hip refuses a retry of the same care contexts within 60 s.
 // DOM nodes + textContent only (no HTML strings).
 
+import { abdmOn, ABDM_SOON } from './comingSoon.js';   // Session 379a
+
 export const ABDM_HIP_FN = 'https://xvlvifiebafvgzlixdee.supabase.co/functions/v1/abdm-hip';
 const PENDING_STALE_MS = 15 * 60 * 1000;   // "sent" with no answer for 15 minutes = not confirmed -> offer Retry
 
@@ -16,6 +18,7 @@ export function formatAbhaNumber(n) {
 
 // "ABHA: 91-1234-5678-9012 · name@sbx" / "ABHA: name@sbx" / "No ABHA"
 export function abhaText(patient) {
+  if (!abdmOn()) return ABDM_SOON;   // Session 379a
   const num = formatAbhaNumber(patient?.abha_number);
   const addr = patient?.abha_address || null;
   if (!num && !addr) return 'No ABHA';
@@ -24,7 +27,7 @@ export function abhaText(patient) {
 
 // the patient's care contexts whose last link attempt failed (or was sent and never confirmed), not linked
 export async function loadLinkProblems(supabase, tenantId, patientId) {
-  if (!patientId) return [];
+  if (!patientId || !abdmOn()) return [];   // Session 379a: abdmOn
   const { data, error } = await supabase.from('care_contexts')
     .select('care_context_ref, display, hi_types, link_status, link_error, link_attempted_at, linked')
     .eq('tenant_id', tenantId).eq('patient_id', patientId).eq('linked', false).not('link_status', 'is', null);

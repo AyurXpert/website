@@ -29,6 +29,7 @@ import { openWalkinPanel, canBookWalkin, walkinBadgeText } from '../modules/lab/
 import { stageChip, awaitingRows, buildCounterPanel, canWaiveDeposit, SCHEMES } from '../modules/ipd/admissionCounter.js';
 // Session 371B (plan session 370): the new layout, the NCISM strip / date range, the form checks, gender M / F / O
 import { genderCode, genderLabel } from '../utils/gender.js';
+import { abdmOn, soonBox, closeAbdmPanel } from '../modules/abdm/comingSoon.js';   // Session 379a
 import { abhaText, loadLinkProblems, renderLinkProblems } from '../modules/abdm/linkStatus.js';   // Session 375 (§410 / §411)
 import { wireAadhaarBox, aadhaarDigits, aadhaarLengthError, maskAadhaar } from '../utils/aadhaar.js';
 import { NO_MOBILE_REASONS, NO_MOBILE_EMERGENCY, normaliseMobile, searchKind, validateRegistration, showFieldErrors, clearFieldError, addressParts } from '../modules/reception/patientForm.js';
@@ -1531,6 +1532,7 @@ async function _selectPatient(patient, chosenCombo) {
 // there's no way around it for an already-known patient) — this picker only
 // covers re-choosing among addresses that already exist.
 async function _loadAbhaAddressPicker(patient) {
+  if (!abdmOn()) return;   // Session 379a
   const row  = document.getElementById('abha-addr-row');
   const sel  = document.getElementById('abha-addr-select');
   const hint = document.getElementById('abha-addr-hint');
@@ -4865,6 +4867,7 @@ const _abdmLinkedVisits = new Set(); // dedup — one notification per visit
 // abhaNumToAddr()/Number() parsing there, so the two are kept distinct all the
 // way through instead of being conflated into one "abha" value like before.
 async function _abdmLinkTokenAfterVerify(patientId, { abhaNumber, abhaAddress } = {}, visitId) {
+  if (!abdmOn()) return;   // Session 379a
   if (!visitId || _abdmLinkedVisits.has(visitId)) return;
   if (!abhaNumber && !abhaAddress) return;
   _abdmLinkedVisits.add(visitId);
@@ -4912,6 +4915,7 @@ async function _showLinkProblems(patient) {
 // V3 spec: sms/notify2 only needs { notification: { hip, phoneNo } }.
 // ABDM sends SMS; PHR app guides patient to create ABHA + discover records.
 async function _abdmSmsNotifyNoAbha(patientId, phone, patientName, visitId, { skipVisitRecord = false } = {}) {
+  if (!abdmOn()) return;   // Session 379a
   if (!visitId || !phone) return;
   try {
     const { data: { session } } = await supabase.auth.getSession();
@@ -4968,6 +4972,7 @@ async function _abdmSmsNotifyNoAbha(patientId, phone, patientName, visitId, { sk
 // Session 197 fixed everywhere else. Its own call site already computes
 // _abhaAddrForCC but was never passing it through.
 async function _abdmCareContextInvoice(billId, patientId, visitId, { abhaNumber, abhaAddress } = {}) {
+  if (!abdmOn()) return;   // Session 379a
   if (!billId) return;
   try {
     const { data: { session } } = await supabase.auth.getSession();
@@ -6121,6 +6126,7 @@ let _regQueueRowsById = new Map();  // sessionId -> row, refreshed each loadRegQ
 let _activeScanSessionId = null;    // which scan session (if any) the open form came from
 
 async function loadRegQueue() {
+  if (!abdmOn()) { document.getElementById('reg-queue-list').replaceChildren(soonBox()); return; }   // Session 379a
   const [{ data, error }, duty] = await Promise.all([
     supabase.from('abdm_scan_sessions')
       .select('id, token_number, patient_profile, created_at, assigned_profile_id, opd_id')
@@ -6245,6 +6251,7 @@ function _initRegistrationQueue() {
 
   document.getElementById('tab-regqueue').style.display = '';
   loadRegQueue();
+  if (!abdmOn()) return;   // Session 379a: the tab says coming soon, nothing is listened to
   // No filter — the tenant-scoped SELECT RLS on abdm_scan_sessions already restricts
   // which rows this connection's postgres_changes events can ever contain (verified),
   // and loadRegQueue()'s own query decides what's actually rendered. Listens for both a
@@ -6528,6 +6535,7 @@ window.checkIn = checkIn;
 // ── Boot ──────────────────────────────────────────
 _initDetailsForm();
 await _initLayout();
+if (!abdmOn()) closeAbdmPanel(document.getElementById('rx-tab-abha'));   // Session 379a: the ABHA section, Scan & Share and the Aadhaar box are all inside this tab
 _mountStrip();
 setInterval(_mountStrip, 5 * 60_000);
 await loadOPDs();

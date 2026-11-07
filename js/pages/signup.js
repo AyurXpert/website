@@ -115,6 +115,7 @@ const DESIG_LABELS = {
 };
 
 let _positionInviteValid = false;
+let _firstAdminInvite = false;   // Session 379a: a new organisation's first Super Admin
 
 async function _loadPositionInvite() {
   const errBox = document.getElementById('position-invite-error');
@@ -144,6 +145,7 @@ async function _loadPositionInvite() {
   _pinvDeptId       = row.department_id || null;
   _pinvDesignation  = row.designation || null;
   _positionInviteValid = true;
+  _firstAdminInvite = row.role === 'super_admin';
 
   // Hide the generic role/department pickers entirely — this join is pre-scoped
   document.getElementById('staff-role').closest('.field').style.display = 'none';
@@ -168,12 +170,13 @@ async function _loadPositionInvite() {
 
   const banner = document.getElementById('position-invite-banner');
   const bannerTx = document.getElementById('position-invite-banner-text');
-  const desigLabel = DESIG_LABELS[_pinvDesignation] || _pinvDesignation;
+  const desigLabel = _firstAdminInvite ? 'its first Super Admin' : (DESIG_LABELS[_pinvDesignation] || _pinvDesignation);
   banner.style.display = '';
   // nosemgrep: javascript.browser.security.raw-html-concat.raw-html-concat -- every interpolated value (tenant_name/tenant_code, desigLabel, department_name) is passed through _esc() before concatenation
   bannerTx.innerHTML = `You're joining <strong>${_esc(row.tenant_name || row.tenant_code)}</strong> as <strong>${_esc(desigLabel)}</strong>`
     + (row.department_name ? ` in the <strong>${_esc(row.department_name)}</strong> department` : '')
-    + `.<br/>Fill in your details below to set up your account — your admin will be notified for final approval.`
+    + (_firstAdminInvite ? '.<br/>Fill in your details below. Your account is ready as soon as you finish.'
+                         : `.<br/>Fill in your details below to set up your account — your admin will be notified for final approval.`)
     + (prefilledContact ? `<br/><span style="opacity:.85">We've pre-filled your name/phone/email below from what your admin entered — please check them and correct anything that's wrong.</span>` : '');
 }
 
@@ -335,6 +338,10 @@ window.handleSignup = async function() {
 
   // NCISM position invite: the server marked it joined (used once) when it created the profile -- Session 349
 
+  if (_firstAdminInvite) {   // Session 379a: no one approves the first Super Admin
+    document.querySelector('#success-screen .success-title').textContent = 'Your account is ready';
+    document.querySelector('#success-screen .success-body').textContent = 'You are the first Super Admin of this organisation. Sign in to set it up.';
+  }
   document.getElementById('form-view').style.display = 'none';
   document.getElementById('success-screen').style.display = 'block';
   window.scrollTo({ top: 0, behavior: 'smooth' });

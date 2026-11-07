@@ -31,6 +31,7 @@ import { initAlertBell } from '../components/alertBell.js';
 import { loadAwaitingDeposit, loadDepositWaivers } from '../modules/ipd/admissionCounter.js';
 import { findingsLines, vitalsPrefill, queueOrder, payState, triageLabel } from '../modules/screening/findings.js';   // Session 374B
 import { abhaText, loadLinkProblems, renderLinkProblems } from '../modules/abdm/linkStatus.js';   // Session 375 (§410 / §411)
+import { abdmOn, soonBox, closeAbdmPanel } from '../modules/abdm/comingSoon.js';   // Session 379a
 
 // Auth + navbar first — page must always be visible and navigable even if proforma module is absent
 await requireAuth(['doctor', 'trainee_doctor', 'super_admin', 'dept_admin']);
@@ -532,6 +533,11 @@ let _abdmReqCache  = [];
 async function _loadAbdmRequests(filter = _abdmReqFilter, silent = false) {
   _abdmReqFilter = filter;
   const list = document.getElementById('q-list');
+  if (!abdmOn()) {   // Session 379a
+    if (_abdmReqTimer) { clearInterval(_abdmReqTimer); _abdmReqTimer = null; }
+    if (_queueTab === 'abdm') list.replaceChildren(soonBox());
+    return;
+  }
   if (!silent) list.innerHTML = '<div class="q-empty"><div class="q-empty-icon">⏳</div>Loading…</div>';
 
   const stopAuto = () => { if (_abdmReqTimer) { clearInterval(_abdmReqTimer); _abdmReqTimer = null; } };
@@ -6349,6 +6355,7 @@ async function submitForReview() {
 const ABDM_HIP_FN = 'https://xvlvifiebafvgzlixdee.supabase.co/functions/v1/abdm-hip';
 
 async function _abdmCreateCareContext(visitId, patient, notes, disposition, hasRx) {
+  if (!abdmOn()) return;   // Session 379a
   try {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session?.access_token) return;
@@ -6488,6 +6495,7 @@ window.toggleCareContextList = function(count) {
 };
 
 async function _loadAbdmTab() {
+  if (!abdmOn()) { closeAbdmPanel(document.getElementById('tab-abdm')); return; }   // Session 379a
   if (!_activePatient) return;
   _loadCareContextStatus(_activePatient.id);
 
@@ -7491,6 +7499,7 @@ window.saveImmunization = async function() {
 // standing per-patient ref matches its own scope, same reasoning as WellnessRecord being
 // visit-scoped because buildWellness() is.
 async function _abdmCareContextImmunization(patient) {
+  if (!abdmOn()) return;   // Session 379a
   try {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session?.access_token) return;
@@ -9359,6 +9368,7 @@ window.uploadClinicalMedia = async function() {
 // buildHealthDocument()'s own patient-wide scope (all consented images, not one visit's) and
 // NRCES's own definition of this record type as historical/patient-level, not per-visit.
 async function _abdmCareContextHealthDocument(patient) {
+  if (!abdmOn()) return;   // Session 379a
   try {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session?.access_token) return;

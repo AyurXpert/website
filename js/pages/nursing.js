@@ -28,6 +28,7 @@ import { computeNurseBedSlice } from '../modules/roster/realBedSlicing.js';
 import { todayLocalStr } from '../utils/dateUtils.js';
 import { notify } from '../components/notify.js';
 import { printDocument, docHeader } from '../utils/printDocument.js';
+import { abdmOn } from '../modules/abdm/comingSoon.js';   // Session 379a
 
 // Session 255: trainee_doctor (posted PG/intern) added -- Dr. Venkatesh confirmed
 // posted interns/PGs need real IPD case-sheet access, not just Snehapana sign-recording
@@ -1238,6 +1239,7 @@ window.lockChargesAndFreeBed = async function() {
 // matches this codebase's existing convention of one copy per push call site
 // rather than a shared module (see Invoice/Prescription/WellnessRecord elsewhere).
 async function _abdmCareContextDischarge(adm, admId) {
+  if (!abdmOn()) return;   // Session 379a
   try {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session?.access_token) return;

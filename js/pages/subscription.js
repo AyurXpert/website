@@ -7,6 +7,8 @@ import { safeErrorMessage } from '../utils/errors.js';
 import { NCISM_DEPTS } from '../config/ncism.js';
 import { notify } from '../components/notify.js';
 import { renderAbdmPushHosts } from '../modules/abdm/abdmPushHosts.js';
+import { renderAbdmAccess } from '../modules/abdm/abdmAccess.js';   // Session 379a
+import { renderNewOrganisation, renderOrgTools } from '../modules/platform/newOrganisation.js';   // Session 379a
 
 await requireAuth(['platform_admin','super_admin','dept_admin'], 'login.html');
 initNavbar();
@@ -29,6 +31,8 @@ window.showSubtab = function(tab) {
   document.getElementById(`pane-${tab}`)?.classList.add('active');
   if (tab === 'ncism')   loadNcismRequests();
   if (tab === 'pricing') loadPricing();
+  if (tab === 'neworg') renderNewOrganisation(document.getElementById('new-org-box'), { supabase, onCreated: () => init() });
+  if (tab === 'abdmaccess') renderAbdmAccess(document.getElementById('abdm-access-box'), { supabase });
   if (tab === 'abdmhosts') renderAbdmPushHosts(document.getElementById('abdm-hosts-box'), { supabase, toast: m => _toast(m, 'success') });   // Session 367
 };
 
@@ -40,7 +44,7 @@ let _tenants = [];
 async function init() {
   const { data } = await supabase
     .from('tenants')
-    .select('id, name, type, tenant_code, is_active, plan_type, subscription_status, max_users, subscription_expiry, trial_ends_at, billing_cycle, hfr_id, abdm_hiu_id, is_demo')
+    .select('id, name, type, tenant_code, is_active, plan_type, subscription_status, max_users, subscription_expiry, trial_ends_at, billing_cycle, hfr_id, abdm_hiu_id, is_demo, uhid_prefix')
     .order('name');
 
   _tenants = (data || []).map(t => {
@@ -159,6 +163,7 @@ window.openEdit = function(tenantId) {
   document.getElementById('e-expiry').value             = t.subscription_expiry || '';
   document.getElementById('e-trial-ends').value         = t.trial_ends_at || '';
   document.getElementById('e-billing-cycle').value      = t.billing_cycle || '';
+  renderOrgTools(document.getElementById('e-org-tools'), { supabase, tenant: t, onChanged: () => {} });   // Session 379a
 
   // Session 158: surfaced here so suspending/terminating a tenant doesn't
   // silently leave their ABDM Bridge registration untouched — a real gap until
@@ -178,6 +183,7 @@ window.openEdit = function(tenantId) {
   }
 
   document.getElementById('edit-modal').classList.add('open');
+  document.getElementById('edit-modal-body').scrollTop = 0;
 };
 
 // Session 158: withdraws a tenant's Facility ID from ABDM's Bridge and clears

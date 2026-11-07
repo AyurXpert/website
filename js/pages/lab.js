@@ -15,6 +15,7 @@ import { AWAITING_SIGNOFF, PROVISIONAL_REPORT, anyAwaitingSignOff, isAwaitingSig
 import { loadLabCatalogue, findTest, SECTION_LABELS } from '../modules/lab/catalogue.js';
 import { flagFor, itemFlag, itemRangeText, FLAG_TEXT, NOTE_TEXT } from '../modules/lab/ranges.js';
 import { initCatalogueTab } from '../modules/lab/catalogueTab.js';
+import { abdmOn } from '../modules/abdm/comingSoon.js';   // Session 379a
 
 // Session 113 -- receptionist added so front-desk staff can check whether a patient's
 // report is ready when they call in (Dr. Venkatesh's ask). Deliberately read-only and
@@ -630,6 +631,7 @@ window.saveResults = async function(status) {
 // repeat calls already use safely — is what actually gets DiagnosticReport announced
 // to ABDM for the first time.
 async function _abdmCareContextLabReport(order) {
+  if (!abdmOn()) return;   // Session 379a
   try {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session?.access_token) return;

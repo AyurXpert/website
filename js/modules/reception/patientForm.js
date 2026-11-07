@@ -19,7 +19,7 @@ export function isValidPin(p) { return /^[1-9]\d{5}$/.test(String(p ?? '').trim(
 export function searchKind(text) {
   const v = String(text ?? '').trim();
   if (!v) return { kind: 'empty' };
-  if (/^AYX[\s\-/]*\d/i.test(v)) return { kind: 'uhid', value: v };
+  if (/^AYX[\s\-/]*\d/i.test(v) || /^[A-Z][A-Z0-9]{1,4}\s*\/\s*\d/i.test(v)) return { kind: 'uhid', value: v };   // Session 379a: any organisation's prefix, with its slash
   const digits = v.replace(/\D/g, '');
   if (/^[+\d\s\-()]+$/.test(v) && digits.length >= 6) {
     return digits.length >= 10 ? { kind: 'mobile', value: digits.slice(-10) } : { kind: 'partial', value: digits };

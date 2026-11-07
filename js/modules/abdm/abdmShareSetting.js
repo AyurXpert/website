@@ -4,6 +4,7 @@
 // Only this organisation's own ACTIVE Super Admin changes it, with a reason (set_abdm_share_records re-checks and audits);
 // everyone else reads. Saved at once, never by the Feature Modules grid. DOM nodes + textContent only.
 import { safeErrorMessage } from '../../utils/errors.js';
+import { abdmOn, soonBox } from './comingSoon.js';   // Session 379a
 
 const mk = (tag, style, text) => { const e = document.createElement(tag); if (style) e.style.cssText = style; if (text != null) e.textContent = text; return e; };
 const btnCss = on => "min-height:44px;padding:0 16px;border-radius:8px;font:600 13px 'DM Sans',sans-serif;cursor:pointer;"
@@ -12,6 +13,7 @@ const btnCss = on => "min-height:44px;padding:0 16px;border-radius:8px;font:600 
 /** renderAbdmShareSetting(box, { supabase, role, tenantId, toast }) */
 export async function renderAbdmShareSetting(box, { supabase, role, tenantId, toast }) {
   if (!box) return;
+  if (!abdmOn()) { box.hidden = false; box.replaceChildren(soonBox()); return; }   // Session 379a
   const { data: t, error } = await supabase.from('tenants').select('modules').eq('id', tenantId).single();
   box.hidden = false;
   if (error || !t) {

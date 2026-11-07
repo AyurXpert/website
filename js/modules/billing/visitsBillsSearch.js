@@ -201,8 +201,8 @@ export function mountVisitsBillsSearch(root, { supabase, onReturn = null, onCred
     el('div', { style: 'padding:12px' },
       el('div', { style: 'font-size:12px;color:var(--text-muted);margin-bottom:8px' },
         (showCerts
-          ? 'Open and completed visits with their OPD / lab bills, receipts, prescriptions and medical certificates. A UHID (AYX/…), any bill or invoice no. of this organisation (B/…, Tax Invoice TI/…, Bill of Supply BS/…), receipt no. (RCPT/…), pharmacy return no. (RTN/…) or certificate no. (MC/…) is searched across ALL dates. '
-          : 'Open and completed visits with their bills, receipts, pharmacy returns and prescriptions. A UHID (AYX/…), any bill or invoice no. of this organisation (B/…, Tax Invoice TI/…, Bill of Supply BS/…), receipt no. (RCPT/…) or pharmacy return no. (RTN/…) is searched across ALL dates. ')
+          ? 'Open and completed visits with their OPD / lab bills, receipts, prescriptions and medical certificates. A UHID, any bill or invoice no. of this organisation (B/…, Tax Invoice TI/…, Bill of Supply BS/…), receipt no. (RCPT/…), pharmacy return no. (RTN/…) or certificate no. (MC/…) is searched across ALL dates. '
+          : 'Open and completed visits with their bills, receipts, pharmacy returns and prescriptions. A UHID, any bill or invoice no. of this organisation (B/…, Tax Invoice TI/…, Bill of Supply BS/…), receipt no. (RCPT/…) or pharmacy return no. (RTN/…) is searched across ALL dates. ')
         + 'A name or phone uses the date range (at most 31 days) unless you tick “All dates”. Newest first, at most 100 shown. '
         + 'Every reprint is marked with its copy number — “REPRINT · … No. N” on a Tax Invoice, “DUPLICATE COPY · No. N” on other documents.'),
       el('div', { style: 'display:flex;gap:8px;flex-wrap:wrap;align-items:center' }, q, from, el('span', null, 'to'), to, allLabel, go, clear),

@@ -18,6 +18,7 @@ import { notify } from '../components/notify.js';
 import { canAskCreditNote, openCreditNoteAsk, canStillCredit } from '../modules/billing/creditNoteAsk.js';
 import { creditNoteLinks, creditNotesForBills, payoutBox, PAYOUT_ROLES } from '../modules/billing/creditNoteList.js';
 import { canOfferCancel, renderCancelBill, renderCancelledBills } from '../modules/ipd/ipdBillCancel.js';
+import { abdmOn } from '../modules/abdm/comingSoon.js';   // Session 379a
 
 /*
   SQL to run in Supabase (one time) before using this page:
@@ -2673,6 +2674,7 @@ window.printFinalBillBtn = function() {
 
 // ── ABDM M2 — Care context: DischargeSummary (fire-and-forget) ───────
 async function _abdmCareContextDischarge(adm, admId) {
+  if (!abdmOn()) return;   // Session 379a
   try {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session?.access_token) return;
@@ -2727,6 +2729,7 @@ async function _abdmCareContextDischarge(adm, admId) {
 // real ABDM sandbox the same session (memory
 // session197_hip_initiated_linking_resolved.md).
 async function _abdmCareContextInvoice(billId, patientId, admId, { abhaNumber, abhaAddress } = {}) {
+  if (!abdmOn()) return;   // Session 379a
   if (!billId) return;
   try {
     const { data: { session } } = await supabase.auth.getSession();

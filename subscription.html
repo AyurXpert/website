@@ -73,9 +73,10 @@ tr.row-expired:hover td{background:#ffe9e9}
 .btn-danger{background:var(--red-light);color:var(--red);border:1.5px solid #fca5a5}
 
 /* Edit modal */
-.modal-backdrop{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:200;align-items:center;justify-content:center}
+.modal-backdrop{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:200;align-items:center;justify-content:center;padding:16px;box-sizing:border-box}
 .modal-backdrop.open{display:flex}
-.modal{background:var(--white);border-radius:var(--radius);padding:24px;width:100%;max-width:460px;box-shadow:0 8px 40px rgba(0,0,0,.18)}
+.modal{background:var(--white);border-radius:var(--radius);padding:24px;width:100%;max-width:460px;box-sizing:border-box;box-shadow:0 8px 40px rgba(0,0,0,.18);display:flex;flex-direction:column;max-height:100%}
+.modal-body{flex:1 1 auto;min-height:0;overflow-y:auto;padding-right:6px;outline-offset:2px}
 .modal-title{font-family:'Cormorant Garamond',serif;font-size:22px;font-weight:600;color:var(--green-deep);margin-bottom:18px}
 .field{margin-bottom:14px}
 .field label{display:block;font-size:11px;font-weight:600;color:var(--text-mid);text-transform:uppercase;letter-spacing:.6px;margin-bottom:6px}
@@ -97,7 +98,7 @@ tr.row-expired:hover td{background:#ffe9e9}
 .access-denied{text-align:center;padding:60px 20px;max-width:400px;margin:60px auto}
 .access-denied-icon{font-size:48px;margin-bottom:16px}
 
-.subtab-bar{display:flex;gap:8px;margin-bottom:16px}
+.subtab-bar{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px}
 .subtab{background:var(--white);color:var(--text-dark);border:1.5px solid var(--border);border-radius:8px;padding:8px 16px;font-size:13px;font-weight:500;cursor:pointer;font-family:'DM Sans',sans-serif}
 .subtab.active{background:var(--green-deep);color:#fff;border-color:var(--green-deep)}
 .pane{display:none}
@@ -134,6 +135,8 @@ tr.row-expired:hover td{background:#ffe9e9}
     <button class="subtab" id="subtab-ncism" data-onclick="showSubtab" data-onclick-a0="ncism">🎓 NCISM Requests</button>
     <button class="subtab" id="subtab-pricing" data-onclick="showSubtab" data-onclick-a0="pricing">💰 Pricing</button>
     <button class="subtab" id="subtab-abdmhosts" data-onclick="showSubtab" data-onclick-a0="abdmhosts">🔗 ABDM push hosts</button>
+    <button class="subtab" id="subtab-neworg" data-onclick="showSubtab" data-onclick-a0="neworg">➕ New organisation</button>
+    <button class="subtab" id="subtab-abdmaccess" data-onclick="showSubtab" data-onclick-a0="abdmaccess">🏛️ ABDM access</button>
   </div>
 
   <div class="pane active" id="pane-tenants">
@@ -274,6 +277,20 @@ tr.row-expired:hover td{background:#ffe9e9}
       <div id="abdm-hosts-box" style="padding:16px 20px"></div>
     </div>
   </div>
+
+  <div class="pane" id="pane-neworg">
+    <div class="cc">
+      <div class="cc-hd"><span class="cc-title">New organisation</span></div>
+      <div id="new-org-box" style="padding:16px 20px"></div>
+    </div>
+  </div>
+
+  <div class="pane" id="pane-abdmaccess">
+    <div class="cc">
+      <div class="cc-hd"><span class="cc-title">ABDM access</span></div>
+      <div id="abdm-access-box" style="padding:16px 20px"></div>
+    </div>
+  </div>
 </div>
 
 <!-- Access denied (shown if not platform admin) -->
@@ -289,6 +306,7 @@ tr.row-expired:hover td{background:#ffe9e9}
     <div class="modal-title">Edit Subscription</div>
     <input type="hidden" id="e-tenant-id"/>
     <div id="e-tenant-name" style="font-size:13px;color:var(--text-muted);margin-top:-12px;margin-bottom:16px"></div>
+    <div class="modal-body" id="edit-modal-body" tabindex="0" aria-label="Edit subscription fields">
     <div class="field">
       <label>Plan</label>
       <select id="e-plan">
@@ -334,6 +352,8 @@ tr.row-expired:hover td{background:#ffe9e9}
         <span id="e-abdm-status" style="font-size:13px"></span>
         <button id="e-abdm-deactivate-btn" class="btn btn-outline" style="display:none;color:#c0392b;border-color:#e0b0b0;font-size:12px;padding:4px 10px" data-onclick="deactivatePlatformAbdmFacility">🚫 Deactivate</button>
       </div>
+    </div>
+    <div class="field" id="e-org-tools"></div>
     </div>
     <div class="modal-actions">
       <button class="btn btn-primary" style="flex:1" data-onclick="saveSubscription">💾 Save</button>

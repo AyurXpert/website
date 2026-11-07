@@ -13,6 +13,7 @@ import { aggregateByMedicine } from '../modules/inventory/stockByMedicine.js';
 import { mountVisitsBillsSearch } from '../modules/billing/visitsBillsSearch.js';
 import { mountReturnPanel } from '../modules/pharmacy/returnPanel.js';
 import { mountReturnsQueue } from '../modules/pharmacy/returnsQueue.js';
+import { abdmOn } from '../modules/abdm/comingSoon.js';   // Session 379a
 
 // Session 341: + cashier -- counter (walk-in) sales only (owner decision 1, 5 Oct 2026); the server re-checks every role
 await requireAuth(['pharmacist', 'cashier', 'super_admin', 'dept_admin']);
@@ -847,6 +848,7 @@ async function _showDone(sale, { isIpd, payMethod, payRef, billId, patient, coun
 // display") — harmless before since display was never sent to ABDM directly by
 // create_care_context, but generate_link_token forwards it verbatim.
 async function _abdmCareContextPrescription(rx, rxId) {
+  if (!abdmOn()) return;   // Session 379a
   try {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session?.access_token) return;
@@ -907,6 +909,7 @@ async function _abdmCareContextPrescription(rx, rxId) {
 // _abdmLinkTokenAfterVerify — sending an address string into abdm-hip's
 // number-typed field would silently break Number()/abhaNumToAddr() parsing there.
 async function _abdmCareContextInvoice(billId, patientId, visitId, { abhaNumber, abhaAddress } = {}) {
+  if (!abdmOn()) return;   // Session 379a
   if (!billId) return;
   try {
     const { data: { session } } = await supabase.auth.getSession();
