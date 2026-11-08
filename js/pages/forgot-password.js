@@ -2,6 +2,7 @@ import { supabase } from '../core/db/supabaseClient.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { validatePassword } from '../utils/validators.js';
 import { scorePasswordStrength, checkPasswordPwned, isObviouslyWeak } from '../utils/passwordSecurity.js';
+import { safeErrorMessage } from '../utils/errors.js';
 
 wireDelegatedEvents();
 
@@ -90,7 +91,10 @@ window.updatePassword = async function() {
   btn.disabled = false; btn.textContent = 'Update Password';
 
   if (error) {
-    showAlert(alertEl, 'error', 'Could not update password. The reset link may have expired. Please request a new one.');
+    // Session 382 (§359): the server refused the password itself -> say so; anything else -> the expired-link message as before
+    showAlert(alertEl, 'error', error.code === 'weak_password'
+      ? safeErrorMessage(error)
+      : 'Could not update password. The reset link may have expired. Please request a new one.');
   } else {
     showAlert(alertEl, 'success', '✓ Password updated successfully! Redirecting to sign in…');
     setTimeout(() => { window.location.href = 'login.html'; }, 2000);

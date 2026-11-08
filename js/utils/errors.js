@@ -18,6 +18,16 @@ export function safeErrorMessage(error, fallback = 'Something went wrong. Please
   // already-open admin tab starts sending requests as the newly-logged-in account instead.
   // Naming that directly here (instead of the generic fallback) saves a support round-trip
   // for every admin who hits this while onboarding staff.
+  // Session 382 (TODO §359): Supabase Auth's server-side password checks (sign-up, reset, change). With "Prevent use of leaked
+  // passwords" ON the refusal is code 'weak_password' with reason 'pwned' (AuthWeakPasswordError.reasons). Plain words, no Auth detail.
+  if (error?.code === 'weak_password') {
+    const reasons = Array.isArray(error?.reasons) ? error.reasons : [];
+    if (reasons.includes('pwned') || /pwned|leaked|breach|known to be weak/i.test(error?.message || '')) {
+      return 'This password appears in known data breaches. Please choose a different one.';
+    }
+    return 'This password is too weak. Please choose a longer password with letters, numbers and symbols.';
+  }
+
   if (error?.code === 'P0001' && error?.message === 'Not authorized') {
     return "You're logged in as a different account in another tab (or your session changed) — log out, log back in as an admin, and try again.";
   }
