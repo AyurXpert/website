@@ -111,6 +111,7 @@ tr:hover td{background:#fafff8}
 .alert.show{display:flex;align-items:flex-start;gap:10px}
 .alert.success{background:var(--green-light);color:var(--green-deep);border:1px solid #b2d8bf}
 .alert.error{background:var(--red-light);color:#8b1a1a;border:1px solid var(--red-border)}
+.alert.warn{background:var(--gold-light);color:var(--text-dark);border:1px solid var(--gold)}
 
 /* Empty */
 .empty{text-align:center;padding:40px 20px;color:var(--text-muted)}
@@ -132,6 +133,9 @@ tr:hover td{background:#fafff8}
 <body>
 <div id="navbar-placeholder"></div>
 <div class="page-wrap">
+
+<!-- Session 380b: shown only when this organisation has no Emergency department and this account cannot create it (js/pages/emergency.js _resolveEmergencyDept) -->
+<div class="alert warn" id="dept-alert" role="status"></div>
 
 <div class="page-header">
   <div>

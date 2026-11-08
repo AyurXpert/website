@@ -80,7 +80,8 @@ export function isFeeStep1Approver(p, departmentId) {
   if (!departmentId || !isActive(p)) return false;
   if (p.role === 'super_admin') return true;
   if (FEE_NO_STEP1_DESIGS.includes(norm(p.designation))) return false;
-  if (p.role === 'dept_admin' || p.secondary_role === 'dept_admin') return !p.scope_department_id || p.scope_department_id === departmentId;
+  // Session 380b (Rule D, owner 7 Nov 2026): a Dept Admin heads ONLY its scoped department (= the server's _hod_dept_ok) -- an unscoped one heads none
+  if (p.role === 'dept_admin' || p.secondary_role === 'dept_admin') return !!p.scope_department_id && p.scope_department_id === departmentId;
   return isRuleDHod(p) && p.role === 'doctor' && p.scope_department_id === departmentId;
 }
 // which approval buttons a fee row shows (the server decides; the maker never decides their own fee -- the sole-Super-Admin exception

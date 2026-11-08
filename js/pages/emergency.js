@@ -78,8 +78,27 @@ async function _resolveEmergencyDept() {
   const { data: created, error } = await supabase.from('departments')
     .insert({ tenant_id: tenantId, name: 'Atyayika / Emergency', category: 'ATYAYIKA', is_active: true })
     .select('id').single();
-  if (error) { console.error('[emergency.js] auto-seed of Atyayika department failed, continuing without department linkage:', error.message); _emergencyDeptId = null; return; }
+  if (error) {
+    // Session 380b (§460): only an active Super Admin / Dept Admin may create a department now, so for everyone else this insert is refused.
+    // The page goes on (a case is still saved, without a department), and says so plainly instead of failing silently (owner, 8 Nov 2026).
+    console.error('[emergency.js] auto-seed of Atyayika department failed, continuing without department linkage:', error.message);
+    _emergencyDeptId = null;
+    _showDeptMissing();
+    return;
+  }
   _emergencyDeptId = created?.id || null;
+}
+function _showDeptMissing() {
+  const box = document.getElementById('dept-alert');
+  if (!box) return;
+  const t = document.createElement('div');
+  const b = document.createElement('strong');
+  b.textContent = '⚠ The Emergency department is not set up for this hospital yet.';
+  t.appendChild(b);
+  t.appendChild(document.createElement('br'));
+  t.appendChild(document.createTextNode('You can still register cases. Ask your administrator to set up the Emergency department (Admin → Human Resources → Seed HR Org Structure).'));
+  box.replaceChildren(t);
+  box.classList.add('show');
 }
 
 // Default date = today

@@ -288,6 +288,12 @@ export function safeErrorMessage(error, fallback = 'Something went wrong. Please
     return error.message;
   }
 
+  // Session 380b (TODO §208): a write-off larger than what is still owed, or on a cancelled / draft bill -- the server says which and the amount
+  const WRITE_OFF_MSGS = ['The write-off (Rs', 'This write-off (Rs', 'A cancelled or draft bill cannot be written off'];
+  if (['22023', 'P0002'].includes(error?.code) && WRITE_OFF_MSGS.some(m => error?.message?.startsWith(m))) {
+    return error.message;
+  }
+
   // Session 345o (TODO §191): cancelling an IPD bill (cancel_bill) and the cancelled bill's reprint -- the server's plain refusals; which
   // one it is (a payment, a credit note, the insurance stage, a filed month) decides what the person does next
   const IPD_CANCEL_MSGS = ['Give a cancellation reason', 'Only a finalised GST bill can be cancelled', 'Only IPD bills can be cancelled',

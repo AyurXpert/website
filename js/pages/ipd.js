@@ -1479,7 +1479,7 @@ window.saveDischarge = async function() {
     _alert('error', safeErrorMessage(error, 'Could not record exit. Please try again.')); return;
   }
 
-  if (bedId) await supabase.from('beds').update({ status: 'vacant' }).eq('id', bedId);
+  // Session 380b (§460): the server frees the bed when the admission closes (_ipd_bed_stay_sync); staff below Dept Admin no longer write beds.
 
   // ABDM M2 — create care context for DischargeSummary FHIR type (fire-and-forget)
   // 7 Sep 2026 (Session 199) — this used to require abha_number/abha_address before

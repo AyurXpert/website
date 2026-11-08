@@ -15,6 +15,7 @@ let currentUser   = null;
 let currentRole   = null;
 let allClaims     = [];    // all non-self-pay open bills loaded once
 let agingClaims   = [];    // same data used in aging tab
+let _woNames     = {};    // Session 380b: write-off requester / approver id -> name (loadWriteoffs)
 let writeoffs     = [];
 let writeoffTableExists = true;
 let selectedPmjayCat = '';
@@ -73,6 +74,18 @@ function statusBadge(s) {
   };
   return `<span class="cs-badge ${s||'not_applicable'}">${label[s]||s||'—'}</span>`;
 }
+// Session 380b (owner, rehearsal steps 8-9, 8 Nov 2026): what the patient still owes = patient due (bill minus approved write-offs / insurance) minus what was
+// received, never below 0 (the same as the server's write-off limit); and the BILL's own status beside the claim status (they are two different things)
+function owedOf(b) {
+  if (!b || b.status === 'paid' || b.status === 'cancelled') return 0;
+  return Math.max(0, Number(b.patient_due ?? b.final_amount ?? 0) - Number(b.amount_paid || 0));
+}
+function billStatusText(s) {
+  return { paid:'Paid', partial:'Partly paid', unpaid:'Unpaid', pending:'Unpaid', cancelled:'Cancelled' }[s] || (s || '—');
+}
+function claimAndBill(b) {
+  return `${statusBadge(b.insurance_claim_status)} <span style="font-size:.8rem;color:var(--text-mid);white-space:nowrap;">· Bill: ${_esc(billStatusText(b.status))}</span>`;
+}
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 (async () => {
@@ -109,7 +122,7 @@ async function loadActiveClaims() {
   const { data, error } = await supabase
     .from('bills')
     .select(`
-      id, visit_id, patient_id, created_at, final_amount, patient_due,
+      id, visit_id, patient_id, created_at, final_amount, patient_due, amount_paid,
       payer_type, insurance_provider, tpa_name, policy_number,
       pre_auth_number, pre_auth_status, pre_auth_amount,
       insurance_approved_amount, insurance_settled_amount,
@@ -131,7 +144,7 @@ async function loadActiveClaims() {
     return;
   }
   allClaims  = data || [];
-  agingClaims = [...allClaims];
+  agingClaims = allClaims.filter(b => owedOf(b) > 0);   // Session 380b: a bill with nothing left to collect drops out of the aging
   renderKpiCards();
   renderClaimsTable(allClaims);
 }
@@ -175,7 +188,7 @@ function renderClaimsTable(list) {
       <td>${fmt(b.insurance_approved_amount)}</td>
       <td>${fmt(b.patient_due)}</td>
       <td><strong style="color:${d>60?'var(--red)':d>30?'#f97316':'inherit'}">${d}d</strong></td>
-      <td>${statusBadge(b.insurance_claim_status)}</td>
+      <td>${claimAndBill(b)}</td>
       <td><button class="btn-sm btn-outline" data-onclick="openEditModal" data-onclick-a0="${b.id}">Edit</button></td>
     </tr>`;
   }).join('');
@@ -335,7 +348,7 @@ window.showProviderDetail = function(providerName) {
     <td>${fmt(b.pre_auth_amount)}</td>
     <td>${fmt(b.insurance_approved_amount)}</td>
     <td>${fmtD(b.insurance_settlement_date)}</td>
-    <td>${statusBadge(b.insurance_claim_status)}</td>
+    <td>${claimAndBill(b)}</td>
   </tr>`).join('') || `<tr><td colspan="7" class="no-data">No claims.</td></tr>`;
 
   const totalBilled    = bills.reduce((s,b) => s + Number(b.final_amount || 0), 0);
@@ -454,7 +467,7 @@ function renderAgingDetail() {
   const b60 = agingClaims.filter(b => { const d=days(b.created_at); return d>60 && d<=90; });
   const b90 = agingClaims.filter(b => days(b.created_at) > 90);
 
-  const sum = arr => arr.reduce((s,b) => s + Number(b.patient_due || 0), 0);
+  const sum = arr => arr.reduce((s,b) => s + owedOf(b), 0);   // Session 380b: still owed, not the patient due
 
   document.getElementById('ak-0-count').textContent  = b0.length;
   document.getElementById('ak-0-amt').textContent    = fmt(sum(b0));
@@ -482,7 +495,7 @@ function renderAgingDetail() {
       <td style="font-size:.82rem;">${_esc(prov)}</td>
       <td>${fmt(b.final_amount)}</td>
       <td><strong style="color:${d>60?'var(--red)':d>30?'#f97316':'inherit'}">${d} days</strong></td>
-      <td>${statusBadge(b.insurance_claim_status)}</td>
+      <td>${claimAndBill(b)}</td>
       <td>${canRequestWriteOff(currentUser) ? `<button class="btn-sm btn-outline" data-onclick="prefillWriteoff" data-onclick-a0="${b.id}">Request Write-off</button>` : ''}</td>
     </tr>`;
   }).join('');
@@ -522,9 +535,18 @@ async function loadWriteoffs() {
     return;
   }
   writeoffs = data || [];
+  // Session 380b (owner, rehearsal step 8): show who asked / decided by NAME -- one separate profiles read (own organisation), never two embeds of profiles
+  const ids = [...new Set(writeoffs.flatMap(w => [w.requested_by, w.approved_by]).filter(Boolean))];
+  _woNames = {};
+  if (ids.length) {
+    const { data: ppl, error: pe } = await supabase.from('profiles').select('id, full_name').eq('tenant_id', tenantId).in('id', ids);
+    if (pe) console.error('loadWriteoffs names:', pe);
+    (ppl || []).forEach(p => { _woNames[p.id] = p.full_name; });
+  }
   renderWriteoffTables();
 }
 
+const woName = id => (id ? (_woNames[id] || 'a former staff member') : '—');
 function renderWriteoffTables() {
   renderWriteoffTable('pending');
   renderWriteoffTable('approved');
@@ -547,7 +569,7 @@ function renderWriteoffTable(status) {
       <td>${fmt(w.bills?.final_amount)}</td>
       <td>${fmt(w.amount)}</td>
       <td>${_esc(w.reason || '—')}</td>
-      <td style="font-size:.82rem;">${_esc(w.requested_by || '—')}</td>
+      <td style="font-size:.82rem;">${_esc(woName(w.requested_by))}</td>
       <td>${fmtD(w.requested_at)}</td>
       <td style="white-space:nowrap;">
         ${isSA && w.requested_by !== currentUser?.id
@@ -569,7 +591,7 @@ function renderWriteoffTable(status) {
       <td>${fmt(w.bills?.final_amount)}</td>
       <td>${fmt(w.amount)}</td>
       <td>${_esc(w.reason || '—')}</td>
-      <td style="font-size:.82rem;">${_esc(w.approved_by || '—')}</td>
+      <td style="font-size:.82rem;">${_esc(woName(w.approved_by))}</td>
       <td>${fmtD(w.approved_at)}</td>
     </tr>`).join('');
   }
@@ -585,7 +607,7 @@ function renderWriteoffTable(status) {
       <td>${fmt(w.bills?.final_amount)}</td>
       <td>${fmt(w.amount)}</td>
       <td>${_esc(w.reason || '—')}</td>
-      <td style="font-size:.82rem;">${_esc(w.approved_by || '—')}</td>
+      <td style="font-size:.82rem;">${_esc(woName(w.approved_by))}</td>
       <td>${fmtD(w.approved_at)}</td>
     </tr>`).join('');
   }
@@ -652,6 +674,12 @@ window.rejectWriteoff = async function(woId) {
 };
 
 // ── Request Write-off Modal ───────────────────────────────────────────────────
+// Session 380b: the selected bill's line built from DOM nodes + text (never innerHTML with data)
+function _woInfo(el, name, rest) {
+  const s = document.createElement('span');
+  s.textContent = name;
+  el.replaceChildren(s, document.createTextNode(rest));
+}
 window.openWriteoffModal = function(prefillBillId) {
   if (!writeoffTableExists) {
     alert('Write-off table not yet created. Run Phase 3 SQL migration first.');
@@ -672,11 +700,12 @@ window.openWriteoffModal = function(prefillBillId) {
     if (b) {
       document.getElementById('wo-selected-bill-id').value = prefillBillId;
       const info = document.getElementById('wo-selected-info');
-      info.innerHTML = `<span>${_esc(b.patients?.name || '—')}</span> — Bill Amt: ${fmt(b.final_amount)} | Outstanding: ${fmt(b.patient_due)} | ${payerLabel(b.payer_type)}`;
+      _woInfo(info, b.patients?.name || '—', ` — Bill Amt: ${fmt(b.final_amount)} | Outstanding: ${fmt(owedOf(b))} | ${payerLabel(b.payer_type)}`);
       info.style.display = '';
       document.getElementById('wo-amount-row').style.display = '';
       document.getElementById('wo-notes-row').style.display  = '';
-      document.getElementById('wo-amount').max = b.final_amount;
+      // Session 380b (§208): the server refuses a write-off larger than what is still owed; the box offers at most the patient's due
+      document.getElementById('wo-amount').max = owedOf(b);
     }
   }
   document.getElementById('modal-writeoff-bg').classList.add('open');
@@ -687,7 +716,7 @@ window.searchWoBills = async function() {
   if (q.length < 2) { document.getElementById('wo-bill-results').innerHTML = ''; return; }
   const { data } = await supabase
     .from('bills')
-    .select('id, final_amount, patient_due, payer_type, patients(name)')
+    .select('id, final_amount, patient_due, amount_paid, status, payer_type, patients(name)')
     .eq('tenant_id', tenantId)
     .ilike('patients.name', `%${q}%`)
     .limit(8);
@@ -696,8 +725,8 @@ window.searchWoBills = async function() {
   if (!results.length) { div.innerHTML = '<div style="font-size:.85rem;color:var(--text-mid);">No bills found.</div>'; return; }
   div.innerHTML = results.map(b =>
     `<div style="padding:8px;border:1px solid var(--border);border-radius:6px;margin-bottom:6px;cursor:pointer;background:var(--white);"
-      data-onclick="selectWoBill" data-onclick-a0="${b.id}" data-onclick-a1="${_esc(b.patients?.name||'')}" data-onclick-a2="${b.final_amount}" data-onclick-a3="${b.patient_due}" data-onclick-a4="${b.payer_type}">
-      <strong>${_esc(b.patients?.name)}</strong> — Bill: ${fmt(b.final_amount)} | Due: ${fmt(b.patient_due)} — ${payerLabel(b.payer_type)}
+      data-onclick="selectWoBill" data-onclick-a0="${b.id}" data-onclick-a1="${_esc(b.patients?.name||'')}" data-onclick-a2="${b.final_amount}" data-onclick-a3="${owedOf(b)}" data-onclick-a4="${b.payer_type}">
+      <strong>${_esc(b.patients?.name)}</strong> — Bill: ${fmt(b.final_amount)} | Still owed: ${fmt(owedOf(b))} — ${payerLabel(b.payer_type)}
     </div>`
   ).join('');
 };
@@ -705,10 +734,10 @@ window.searchWoBills = async function() {
 window.selectWoBill = function(id, patient, amt, due, payer) {
   document.getElementById('wo-selected-bill-id').value = id;
   const info = document.getElementById('wo-selected-info');
-  info.innerHTML = `<span>${_esc(patient)}</span> — Bill Amt: ${fmt(amt)} | Outstanding: ${fmt(due)} | ${payerLabel(payer)}`;
+  _woInfo(info, patient, ` — Bill Amt: ${fmt(amt)} | Outstanding: ${fmt(due)} | ${payerLabel(payer)}`);
   info.style.display = '';
   document.getElementById('wo-bill-results').innerHTML = '';
-  document.getElementById('wo-amount').max = parseFloat(amt);
+  document.getElementById('wo-amount').max = Number(due) || 0;   // Session 380b (§208): at most what is still owed (owedOf)
   document.getElementById('wo-amount-row').style.display = '';
   document.getElementById('wo-notes-row').style.display  = '';
 };
