@@ -30,7 +30,7 @@ window.sendReset = async function() {
   const btn    = document.getElementById('btn-send');
   const alertEl = document.getElementById('alert-request');
 
-  alertEl.className = 'alert'; alertEl.style.display = 'none'; alertEl.textContent = '';
+  alertEl.className = 'alert'; alertEl.textContent = '';  // class only: an inline display:none hid every message (found 8 Nov 2026, session 382)
 
   if (!email) { showAlert(alertEl, 'error', 'Please enter your email address.'); return; }
 
@@ -58,7 +58,7 @@ window.updatePassword = async function() {
   const btn     = document.getElementById('btn-update');
   const alertEl = document.getElementById('alert-reset');
 
-  alertEl.className = 'alert'; alertEl.style.display = 'none'; alertEl.textContent = '';
+  alertEl.className = 'alert'; alertEl.textContent = '';  // class only: an inline display:none hid every message (found 8 Nov 2026, session 382)
 
   const pwCheck = validatePassword(pw);
   if (!pwCheck.valid) {
