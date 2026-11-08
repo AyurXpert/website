@@ -1,4 +1,5 @@
 import { supabase } from '../core/db/supabaseClient.js';
+import { exitMoment, exitDateIST } from '../modules/ipd/ipdExit.js';   // Session 381 (§471)
 import { getOpdWorkflow, screeningOpdId } from '../modules/opd/screeningOpd.js';   // Session 374B (B7)
 import { requireAuth, hasModule, getCurrentProfile, getCurrentTenantId } from '../core/auth.js';
 import { initNavbar } from '../components/navbar.js';
@@ -127,7 +128,7 @@ window.openPatientFile = async function(patientId) {
     supabase.from('patients').select('*').eq('id', patientId).single(),
     supabase.from('visits').select('id,created_at,status,chief_complaint,opds(name),profiles!doctor_id(full_name)').eq('patient_id',patientId).order('created_at',{ascending:false}),
     supabase.from('bills').select('id,created_at,final_amount,status,payment_mode').eq('patient_id',patientId).eq('tenant_id',tenantId).order('created_at',{ascending:false}),
-    supabase.from('ipd_admissions').select('id,admission_date,discharged_at,charges_locked_at,status,disposition,diagnosis_primary,departments(name)').eq('patient_id',patientId).order('admission_date',{ascending:false}),
+    supabase.from('ipd_admissions').select('id,admission_date,discharged_at,charges_locked_at,status,disposition,diagnosis_primary,departments(name),ipd_exit_records(exit_at)').eq('patient_id',patientId).order('admission_date',{ascending:false}),
   ]);
 
   const initials = (pat.name||'?').split(' ').map(w=>w[0]).slice(0,2).join('').toUpperCase();
@@ -190,7 +191,7 @@ window.openPatientFile = async function(patientId) {
                 <strong>${_esc(a.departments?.name||'IPD')}</strong>
                 ${_ipdBadge(a)}
               </div>
-              <div style="color:var(--text-muted)">Admitted: ${_fmtD(a.admission_date)} ${a.charges_locked_at ? '→ Discharged: '+_fmtD(a.charges_locked_at.slice(0,10)) : '(current)'}</div>
+              <div style="color:var(--text-muted)">Admitted: ${_fmtD(a.admission_date)} ${exitMoment(a) ? '→ Discharged: '+_fmtD(exitDateIST(a)) : '(current)'}</div>
               ${a.diagnosis_primary ? `<div style="margin-top:3px;color:var(--text-dark)">${_esc(a.diagnosis_primary)}</div>` : ''}
             </div>`).join('')}
           ` : ''}
@@ -437,6 +438,9 @@ function _ipdBadge(a) {
   if (a.status !== 'discharged') {
     // charges_locked / bill_generated / paid_cleared -- bed already vacated,
     // billing/payment in progress, MRD hasn't released the record yet.
+    // Session 381 (owner, rehearsal step 6): a LAMA / transfer / death shows its exit type next to the stage
+    const exitLabel = { lama: 'LAMA', transferred: 'Transferred', deceased: 'Deceased' }[a.disposition];
+    if (exitLabel) return `<span class="badge b-${a.disposition}">${_esc((IPD_STAGE_LABELS[a.status] || a.status) + ' · ' + exitLabel)}</span>`;
     return `<span class="badge b-inprogress">${_esc(IPD_STAGE_LABELS[a.status] || a.status)}</span>`;
   }
   const key = a.disposition || 'discharged';
@@ -448,7 +452,7 @@ function _ipdBadge(a) {
 async function loadIPD() {
   const { data, error } = await supabase
     .from('ipd_admissions')
-    .select('id,admission_date,admitted_at,discharged_at,charges_locked_at,status,disposition,diagnosis_primary,discharge_diagnosis_ayurveda,patients(name,age,gender),departments(name),profiles!admitting_doctor_id(full_name)')
+    .select('id,admission_date,admitted_at,discharged_at,charges_locked_at,status,disposition,diagnosis_primary,discharge_diagnosis_ayurveda,patients(name,age,gender),departments(name),profiles!admitting_doctor_id(full_name),ipd_exit_records(exit_at)')
     .eq('tenant_id', tenantId)
     .order('admission_date', { ascending: false });
   if (error) { document.getElementById('ipd-tbody').innerHTML = '<tr><td colspan="10" class="empty">IPD module not available</td></tr>'; return; }
@@ -476,7 +480,8 @@ window.filterIPD = function() {
     // charges_locked_at -- the real bed-vacate moment -- not discharged_at
     // (now stamped at MRD's final release, which can trail actual ward
     // departure by hours or days).
-    const exitDate = a.charges_locked_at?.slice(0,10);
+    // Session 381 (§471): a LAMA / transfer / death uses the exit time entered (ipd_exit_records)
+    const exitDate = exitDateIST(a) || null;
     const los = admDate && exitDate
       ? Math.max(1, Math.round((new Date(exitDate)-new Date(admDate))/86400000))
       : (['admitted','clinically_discharged'].includes(a.status) ? Math.round((new Date()-new Date(admDate))/86400000)+' (ongoing)' : '—');
@@ -526,7 +531,7 @@ window.exportIPDCSV = function() {
     AdmissionDate: a.admission_date, Patient: a.patients?.name,
     Age: a.patients?.age, Gender: genderLabel(a.patients?.gender, ''),
     Department: a.departments?.name, Doctor: a.profiles?.full_name,
-    Diagnosis: a.diagnosis_primary, DischargeDate: a.charges_locked_at?.slice(0,10),
+    Diagnosis: a.diagnosis_primary, DischargeDate: exitDateIST(a),
     Status: a.status, Disposition: a.disposition || '',
   })), 'ipd_registry');
 };

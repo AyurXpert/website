@@ -517,6 +517,8 @@ function _renderPreview(deptStatus) {
 
   el.innerHTML = html;
   document.getElementById('btn-confirm-rotation').style.display = moves.length ? '' : 'none';
+  document.getElementById('btn-confirm-rotation').disabled = false;   // Session 381: usable again after a run that stopped half-way
+  document.getElementById('btn-confirm-rotation').textContent = '✅ Confirm & Apply Rotation';
 }
 
 window.closeRotationPreviewModal = function() {

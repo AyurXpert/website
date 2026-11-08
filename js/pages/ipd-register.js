@@ -6,6 +6,7 @@ import { safeErrorMessage } from '../utils/errors.js';
 import { localDateStr, todayLocalStr } from '../utils/dateUtils.js';
 import { notify } from '../components/notify.js';
 import { printDocument } from '../utils/printDocument.js';
+import { exitMoment, exitDateIST } from '../modules/ipd/ipdExit.js';   // Session 381 (§471)
 
 await requireAuth(['super_admin','dept_admin','doctor','nurse','receptionist']);
 initNavbar();
@@ -80,7 +81,7 @@ window.loadRegister = async function() {
   let q = supabase.from('ipd_admissions')
     .select(`
       id, admission_date, admitted_at, discharged_at, charges_locked_at, status, disposition,
-      diagnosis_primary, diet_type,
+      diagnosis_primary, diet_type, ipd_exit_records(exit_at),
       patients(id, name, age, gender, phone),
       profiles!admitting_doctor_id(full_name),
       departments(name, ncism_code),
@@ -125,7 +126,8 @@ function _los(row) {
   // not discharged_at (now stamped at MRD's final record release, which can
   // trail the patient's actual ward departure by hours or days).
   const start = row.admitted_at || row.admission_date;
-  const end   = row.charges_locked_at || null;
+  // Session 381 (§471): a LAMA / transfer / death ends at the exit time entered (ipd_exit_records), else at the charges lock
+  const end   = exitMoment(row);
   if (!start) return '—';
   const s = new Date(start);
   const e = end ? new Date(end) : new Date();
@@ -170,7 +172,7 @@ function _renderTable() {
       <td style="font-size:11px">${doc.full_name ? 'Dr. '+_esc(doc.full_name) : '—'}</td>
       <td style="font-size:11px;max-width:150px">${_esc(r.diagnosis_primary||'—')}</td>
       <td>${_statusBadge(r)}</td>
-      <td style="font-size:11px;white-space:nowrap">${r.charges_locked_at ? _fmtDate(r.charges_locked_at.slice(0,10)) : '—'}</td>
+      <td style="font-size:11px;white-space:nowrap">${exitMoment(r) ? _fmtDate(exitDateIST(r)) : '—'}</td>
       <td style="text-align:center;font-size:12px;font-weight:500">${_los(r)}</td>
     </tr>`;
   }).join('');

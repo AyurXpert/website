@@ -19,6 +19,7 @@ import { canAskCreditNote, openCreditNoteAsk, canStillCredit } from '../modules/
 import { creditNoteLinks, creditNotesForBills, payoutBox, PAYOUT_ROLES } from '../modules/billing/creditNoteList.js';
 import { canOfferCancel, renderCancelBill, renderCancelledBills } from '../modules/ipd/ipdBillCancel.js';
 import { abdmOn } from '../modules/abdm/comingSoon.js';   // Session 379a
+import { exitPowers, exitOpen, exitTimeBounds, exitTimeProblem } from '../modules/ipd/ipdExit.js';   // Session 381 (§471)
 
 /*
   SQL to run in Supabase (one time) before using this page:
@@ -106,6 +107,8 @@ document.getElementById('adm-date').addEventListener('change', _admDateRule);
 // the later billing step), but the discharge TRIGGER is doctor/nurse/admin
 // only -- closes the "any receptionist can discharge with zero checks" gap.
 const DISCHARGE_ROLES = ['doctor','nurse','super_admin','dept_admin'];
+// Session 381 (§471): who may record a LAMA / transfer / death (display copy of record_ipd_exit; the server also checks the duty roster)
+const _exitPowers = exitPowers(myProfile, getCurrentSecondaryRole());
 // Session 114 -- who may generate the final IPD bill. Matches finance.js's
 // own ALLOWED list (billing-clerk designation is a receptionist role) --
 // not doctor/nurse, whose job ends once charges are locked.
@@ -559,6 +562,8 @@ function renderTable(rows) {
     const canPrintDischarge = DISCHARGE_PRINT_ROLES.includes(myRole);
     const canDischarge = a.status === 'admitted';
     const canOrderDischarge = canDischarge && DISCHARGE_ROLES.includes(myRole);
+    // Session 381 (§471): an exit can also be recorded after discharge was advised and until MRD's release
+    const canRecordExit = exitOpen(a) && (_exitPowers.lamaTransfer || _exitPowers.deceased);
     const canGenerateBill = a.status === 'charges_locked' && BILLING_ROLES.includes(myRole);
     const admittedHrsAgo = a.admitted_at ? (Date.now() - new Date(a.admitted_at)) / 3600000 : 999;
     const needsCarePlan  = canDischarge && !_carePlanAdmIds.has(a.id) && admittedHrsAgo < 48;
@@ -575,7 +580,7 @@ function renderTable(rows) {
         ${_preAuthNotRequested.has(a.id) && a.status === 'admitted' ? `<div style="font-size:10px;font-weight:700;margin-top:3px;color:var(--orange)">⚠ Pre-auth not requested</div>` : ''}
       </td>
       <td>
-        <span class="bed-chip">${_esc(bed.bed_number || '—')}</span>
+        <span class="bed-chip">${_esc(bed.bed_number || '—')}</span>${['admitted', 'clinically_discharged'].includes(a.status) ? '' : ' <span class="pt-meta">(vacated)</span>'}
         ${bed.ward_name ? `<div class="pt-meta" style="margin-top:4px">${_esc(bed.ward_name)}</div>` : ''}
       </td>
       <td>${_esc(dept.name || '—')}</td>
@@ -595,7 +600,8 @@ function renderTable(rows) {
           ${canPrintDischarge ? `<button class="icon-btn" data-onclick="printDischargeSummary" data-onclick-a0="${a.id}" title="Print Discharge Summary" style="font-size:11px">🖨</button>` : ''}
           ${canDischarge && canClinicalWrite ? `<button class="icon-btn" data-onclick="openOtDrawer" data-onclick-a0="${a.id}" title="OT Procedures" style="font-size:10px;font-weight:700;color:#1a4080;border-color:#a8c8f0;background:#e3f0ff">OT</button>` : ''}
           ${pkPlan ? `<button class="icon-btn" data-onclick="openPkTrackerDrawer" data-onclick-a0="${a.id}" title="Panchakarma Treatment Tracker — ${_esc(pkPlan.labels)}" style="font-size:11px;font-weight:700;color:#1a6b3a;border-color:#a8d8b8;background:#e8f5ee">🌸</button>` : ''}
-          ${canOrderDischarge ? `<button class="icon-btn danger" data-onclick="openDischargeDrawer" data-onclick-a0="${a.id}" title="Order Discharge / Exit">&#10006;</button>` : ''}
+          ${canOrderDischarge || (canDischarge && canRecordExit) ? `<button class="icon-btn danger" data-onclick="openDischargeDrawer" data-onclick-a0="${a.id}" title="Order Discharge / Exit" aria-label="Order discharge or record an exit">&#10006;</button>` : ''}
+          ${!canDischarge && canRecordExit ? `<button class="icon-btn danger" data-onclick="openDischargeDrawer" data-onclick-a0="${a.id}" title="Record LAMA / transfer / death" aria-label="Record LAMA, transfer or death" style="font-size:10px;font-weight:700">Exit</button>` : ''}
           ${canGenerateBill ? `<button class="icon-btn" data-onclick="openGenerateBillDrawer" data-onclick-a0="${a.id}" title="Generate IPD Bill" style="font-size:10px;font-weight:700;color:#1a4a2e;border-color:#b8ddc6;background:#e8f5ee">💰</button>` : ''}
           ${BILLING_ROLES.includes(myRole) ? `<button class="icon-btn" data-onclick="openAccountDrawer" data-onclick-a0="${a.id}" title="Account — deposits, payments, receipts" style="font-size:11px">💳</button>` : ''}
           ${BILLING_ROLES.includes(myRole) && a.payer_type && a.payer_type !== 'self_pay' ? `<button class="icon-btn" data-onclick="openInsuranceDrawer" data-onclick-a0="${a.id}" title="Insurance — pre-auth, enhancements, final approval (${_esc(a.payer_type)})" style="font-size:11px">🏥</button>` : ''}
@@ -629,6 +635,7 @@ window.openAdmitDrawer = async function(mode = 'advice') {
   document.getElementById('adm-dept').disabled = false;
   document.getElementById('adm-doctor').disabled = false;
   document.getElementById('btn-admit-save').textContent = _admitMode === 'emergency' ? 'Admit (emergency)' : 'Admit Patient';
+  document.getElementById('btn-admit-save').disabled = false;   // Session 381 (owner, rehearsal step 3): a drawer opens with its save button usable, even after an earlier save or a dropped connection
   _selectedPatient = null;
   _selectedVisitId = null;
   _resetErQuick(_admitMode === 'emergency' && _isCasualtyRegistrar);   // Session 358 (§274)
@@ -929,6 +936,7 @@ function _resetErQuick(show) {
   document.getElementById('erq-m0').checked = false;
   window.toggleErqUnid(false); window.toggleErqMlc(false); window.toggleErqPoliceTime('');
   document.getElementById('erq-status').textContent = '';
+  const erqBtn = document.getElementById('btn-erq-save'); erqBtn.disabled = false; erqBtn.textContent = 'Register → UHID';   // Session 381 (owner, rehearsal step 3): a drawer opens with its save button usable, even after an earlier save or a dropped connection
   _setEmergencyCase(null);
 }
 window.toggleErQuick = function() {
@@ -1380,27 +1388,46 @@ window.openDischargeDrawer = function(admId) {
   document.getElementById('dis-adm-id').value    = admId;
   document.getElementById('dis-bed-id').value    = adm.beds?.id || '';
   document.getElementById('dis-patient-id').value = adm.patients?.id || '';
-  document.getElementById('dis-date').value      = todayLocalStr();
   document.getElementById('dis-summary').value   = '';
   document.getElementById('dis-condition').value = '';
   document.getElementById('dis-transfer-to').value = '';
-  document.getElementById('dis-type').value      = 'discharged';
+  document.getElementById('dis-referral-reason').value = '';
   document.getElementById('dis-transfer-field').style.display = 'none';
+  // Session 381 (rehearsal step 3, reproduced): a successful save leaves the button disabled; a new drawer starts enabled
+  document.getElementById('btn-discharge-save').disabled = false;
 
-  document.querySelectorAll('.discharge-opt').forEach(o => {
-    o.classList.toggle('selected', o.dataset.val === 'discharged');
-  });
-  _updateDischargeSaveLabel('discharged');
+  // Session 381 (§471): offer only what this account may record (display copy; the server decides)
+  const canOrder = adm.status === 'admitted' && DISCHARGE_ROLES.includes(myRole);
+  const open = exitOpen(adm);
+  const show = { discharged: canOrder, lama: open && _exitPowers.lamaTransfer, transferred: open && _exitPowers.lamaTransfer, deceased: open && _exitPowers.deceased };
+  document.querySelectorAll('.discharge-opt').forEach(o => { o.hidden = !show[o.dataset.val]; });
+  const first = ['discharged', 'lama', 'transferred', 'deceased'].find(v => show[v]);
+  if (!first) return;
+  document.getElementById('dis-type').value = first;
+  document.querySelectorAll('.discharge-opt').forEach(o => o.classList.toggle('selected', o.dataset.val === first));
+
+  // the exit time box: default now; the allowed window is the last 48 hours, never before the admission (D4)
+  const timeEl = document.getElementById('dis-exit-at');
+  const b = exitTimeBounds(adm.admitted_at);
+  timeEl.min = b.min; timeEl.max = b.max; timeEl.value = b.max;
+  timeEl.dataset.admittedAt = adm.admitted_at || '';
+  timeEl.oninput = _exitLockWarning;   // the element's only input handler (no data-oninput on it)
+  _updateDischargeSaveLabel(first);
 
   const pt   = adm.patients || {};
   const bed  = adm.beds || {};
   const dept = adm.departments || {};
   const days = _daysSince(adm.admitted_at);
+  const stage = adm.status === 'admitted' ? '' : `<div class="adm-detail-row"><span>Stage</span><strong>${_esc(_statusLabel(adm.status))}</strong></div>`;
+  const lockedAt = adm.charges_locked_at && !['admitted', 'clinically_discharged'].includes(adm.status)
+    ? `<div class="adm-detail-row"><span>Charges locked</span><strong>${_esc(new Date(adm.charges_locked_at).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }))}</strong></div>` : '';
   document.getElementById('dis-detail-card').innerHTML = `
     <div class="adm-detail-row"><span>Patient</span><strong>${_esc(pt.name||'—')}</strong></div>
     <div class="adm-detail-row"><span>Bed</span><strong>${_esc(bed.bed_number||'—')}</strong></div>
     <div class="adm-detail-row"><span>Department</span><strong>${_esc(dept.name||'—')}</strong></div>
     <div class="adm-detail-row"><span>Admitted</span><strong>${_fmt(adm.admission_date)} (${days} days)</strong></div>
+    ${stage}
+    ${lockedAt}
     ${adm.diagnosis_primary ? `<div class="adm-detail-row"><span>Diagnosis</span><strong>${_esc(adm.diagnosis_primary)}</strong></div>` : ''}
   `;
 
@@ -1412,47 +1439,70 @@ window.closeDischargeDrawer = function() {
 
 const DISCHARGE_TYPE_NOTES = {
   discharged: "Orders discharge — the nurse reconciles stay charges and the bed is freed once that's locked.",
-  lama: 'Fast-track exit — bed is freed immediately. Billing clerk will get a chance to add any charges before the bill is generated.',
-  transferred: 'Fast-track exit — bed is freed immediately. Billing clerk will get a chance to add any charges before the bill is generated.',
-  deceased: 'Fast-track exit — bed is freed immediately. Billing clerk will get a chance to add any charges before the bill is generated.',
+  lama: 'Records a LAMA exit at the time you enter. If the patient is still on a bed, the bed is freed and room charges stop at that time; the billing clerk can still add charges before the bill.',
+  transferred: 'Records a transfer at the time you enter. If the patient is still on a bed, the bed is freed and room charges stop at that time; the billing clerk can still add charges before the bill.',
+  deceased: 'Records the death at the time you enter (a doctor only). If the patient is still on a bed, the bed is freed and room charges stop at that time. The death register entry is separate.',
 };
+// Session 381 (R1, owner 8 Nov 2026): after the charges are locked an exit never changes the bill; when the exit time entered is EARLIER
+// than the lock, say so (page only). Returns true when the warning applies.
+const EXIT_LOCK_WARNING = 'Exit is earlier than the charges lock — review the bill (credit note if needed).';
+function _exitEarlierThanLock() {
+  const adm = _admissions.find(a => a.id === document.getElementById('dis-adm-id').value);
+  const v = document.getElementById('dis-exit-at').value;
+  const isExit = document.getElementById('dis-type').value !== 'discharged';
+  if (!isExit || !adm || !adm.charges_locked_at || !v || ['admitted', 'clinically_discharged'].includes(adm.status)) return false;
+  return new Date(v).getTime() < new Date(adm.charges_locked_at).getTime();
+}
+function _exitLockWarning() {
+  document.getElementById('dis-exit-lock-warning').hidden = !_exitEarlierThanLock();
+}
 function _updateDischargeSaveLabel(disType) {
   const note = document.getElementById('dis-type-note');
-  if (note) note.textContent = DISCHARGE_TYPE_NOTES[disType] || '';
+  const adm = _admissions.find(a => a.id === document.getElementById('dis-adm-id').value);
+  const isExit = disType !== 'discharged';
+  const locked = !!adm && adm.status !== 'admitted' && adm.status !== 'clinically_discharged';
+  if (note) {
+    note.textContent = (DISCHARGE_TYPE_NOTES[disType] || '')
+      + (isExit && locked ? ' The charges of this admission are already locked: the bill does not change.' : '')
+      + (isExit && _exitPowers.nurseInCharge ? " A nurse in-charge can record this only while on today's duty roster." : '');
+  }
+  document.getElementById('dis-exit-time-field').hidden = !isExit;
+  document.getElementById('dis-condition-row').style.display = isExit ? 'none' : '';   // a grid row: the hidden attribute alone does not hide it
+  document.getElementById('dis-summary-label').textContent = isExit ? 'Exit note' : 'Discharge Summary';
+  document.getElementById('dis-transfer-field').style.display = disType === 'transferred' ? '' : 'none';
   const btn = document.getElementById('btn-discharge-save');
-  if (btn) btn.textContent = disType === 'discharged' ? 'Order Discharge' : 'Confirm Exit';
+  if (btn) btn.textContent = isExit ? 'Confirm Exit' : 'Order Discharge';
+  _exitLockWarning();
 }
 
 window.selectDischargeType = function(el) {
+  if (el.hidden) return;
   document.querySelectorAll('.discharge-opt').forEach(o => o.classList.remove('selected'));
   el.classList.add('selected');
   document.getElementById('dis-type').value = el.dataset.val;
-  document.getElementById('dis-transfer-field').style.display =
-    el.dataset.val === 'transferred' ? '' : 'none';
   _updateDischargeSaveLabel(el.dataset.val);
 };
 
 window.saveDischarge = async function() {
   const admId   = document.getElementById('dis-adm-id').value;
-  const bedId   = document.getElementById('dis-bed-id').value;
   const disType = document.getElementById('dis-type').value; // 'discharged' | 'lama' | 'transferred' | 'deceased'
-  const disDate = document.getElementById('dis-date').value;
   const summary = document.getElementById('dis-summary').value.trim();
-
-  if (!disDate) { _alert('error','Enter discharge date.'); return; }
-
+  const adm = _admissions.find(a => a.id === admId);
   const btn = document.getElementById('btn-discharge-save');
-  btn.disabled = true; btn.textContent = disType === 'discharged' ? 'Ordering…' : 'Processing…';
 
   if (disType === 'discharged') {
-    const { error } = await supabase.from('ipd_admissions').update({
+    btn.disabled = true; btn.textContent = 'Ordering…';
+    // Session 381: a write that changes no row is an error, never "ordered" (the 353A no-false-saved rule)
+    const { data, error } = await supabase.from('ipd_admissions').update({
       status: 'clinically_discharged', disposition: 'discharged',
       clinically_discharged_at: new Date().toISOString(),
       discharge_ordered_by: myProfile.id, discharge_order_notes: summary || null,
-    }).eq('id', admId);
-    if (error) {
+    }).eq('id', admId).select('id');
+    if (error || !data || data.length !== 1) {
       btn.disabled = false; _updateDischargeSaveLabel(disType);
-      _alert('error', safeErrorMessage(error, 'Could not order discharge. Please try again.')); return;
+      _alert('error', error ? safeErrorMessage(error, 'Could not order discharge. Please try again.')
+        : 'Not saved: this admission could not be changed (it may have changed meanwhile, or you have no access). Reload the page.');
+      return;
     }
     await logAudit('ipd_order_discharge', 'ipd_admissions', admId, { by: myProfile.full_name }, _ctx);
     closeDischargeDrawer();
@@ -1461,43 +1511,39 @@ window.saveDischarge = async function() {
     return;
   }
 
-  // Fast path -- LAMA / transferred / deceased. Urgent/exceptional exits
-  // shouldn't wait on the full gate sequence: jump straight to
-  // charges_locked and free the bed now (same immediate-bed-free behavior
-  // as before), but the billing clerk still gets a manual-add-charge pass
-  // before a bill is generated (plan decision #6).
-  const { error } = await supabase.from('ipd_admissions').update({
-    status: 'charges_locked', disposition: disType,
-    clinically_discharged_at: new Date().toISOString(),
-    charges_locked_at: new Date().toISOString(),
-    discharge_ordered_by: myProfile.id, discharge_order_notes: summary || null,
-    notes: summary || null,
-  }).eq('id', admId);
+  // Session 381 (§471): LAMA / transferred / deceased go through the server only (record_ipd_exit), which audits them
+  const timeEl = document.getElementById('dis-exit-at');
+  const problem = exitTimeProblem(timeEl.value, timeEl.dataset.admittedAt || null);
+  if (problem) { _alert('error', problem); return; }
+  const hosp = document.getElementById('dis-transfer-to').value.trim();
+  const reason = document.getElementById('dis-referral-reason').value.trim();
+  if (disType === 'transferred' && (!hosp || !reason)) { _alert('error', 'For a transfer enter the receiving hospital and the reason for referral.'); return; }
 
-  if (error) {
+  const earlierThanLock = _exitEarlierThanLock();
+  btn.disabled = true; btn.textContent = 'Processing…';
+  const { data, error } = await supabase.rpc('record_ipd_exit', {
+    p_admission_id: admId, p_disposition: disType, p_exit_at: new Date(timeEl.value).toISOString(),
+    p_receiving_hospital: disType === 'transferred' ? hosp : null,
+    p_referral_reason: disType === 'transferred' ? reason : null,
+    p_note: summary || null,
+  });
+  if (error || !data || !data.exit_record_id) {
     btn.disabled = false; _updateDischargeSaveLabel(disType);
-    _alert('error', safeErrorMessage(error, 'Could not record exit. Please try again.')); return;
+    _alert('error', error ? safeErrorMessage(error, 'Could not record the exit. Please try again.')
+      : 'Not saved: the server did not confirm the exit. Reload the page and check.');
+    return;
   }
 
-  // Session 380b (§460): the server frees the bed when the admission closes (_ipd_bed_stay_sync); staff below Dept Admin no longer write beds.
-
-  // ABDM M2 — create care context for DischargeSummary FHIR type (fire-and-forget)
-  // 7 Sep 2026 (Session 199) — this used to require abha_number/abha_address before
-  // even attempting create_care_context, the same stale gate Session 197 already
-  // removed from _abdmCareContextInvoice's call site just below (create_care_context
-  // itself needs no ABHA — only generate_link_token genuinely does, and it's given
-  // whatever identifier the patient has, possibly neither). A demographic-only
-  // patient's DischargeSummary care context was silently never created — found live
-  // testing a fresh demographic-only IPD discharge (Uma K R). Now matches Invoice's
-  // pattern: create unconditionally, guarded only on having a patient id.
-  const adm = _admissions.find(a => a.id === admId);
-  if (adm?.patients?.id) {
+  // ABDM M2 — the DischargeSummary care context, only when this exit closed the stay (fire-and-forget; see Session 199)
+  if (!data.charges_already_locked && adm?.patients?.id) {
     _abdmCareContextDischarge(adm, admId).catch(() => {});
   }
 
-  await logAudit('ipd_fast_track_exit', 'ipd_admissions', admId, { disposition: disType, by: myProfile.full_name }, _ctx);
   closeDischargeDrawer();
-  _alert('success', 'Patient exit recorded and bed freed.');
+  _alert('success', data.charges_already_locked
+    ? 'Exit recorded. The charges were already locked, so the bill is unchanged.'
+    : 'Patient exit recorded and bed freed.');
+  if (data.charges_already_locked && earlierThanLock) _alert('warning', EXIT_LOCK_WARNING);
   await loadAll();
 };
 
@@ -2886,6 +2932,10 @@ function _statusBadgeHtml(a) {
     return `<span class="status-badge status-${a.status==='admitted'?'admitted':'inprogress'}">${_esc(_statusLabel(a.status))}</span>`;
   }
   if (a.status !== 'discharged') {
+    // Session 381 (owner, rehearsal step 6): a LAMA / transfer / death shows its exit type next to the stage, in that exit's colour
+    if (['lama', 'transferred', 'deceased'].includes(a.disposition)) {
+      return `<span class="status-badge status-${a.disposition}">${_esc(_statusLabel(a.status) + ' · ' + _statusLabel(a.disposition))}</span>`;
+    }
     return `<span class="status-badge status-inprogress">${_esc(_statusLabel(a.status))}</span>`;
   }
   const raw = a.disposition || 'discharged';
@@ -2913,6 +2963,7 @@ let _otPatientId = null;
 window.openOtDrawer = async function(admId) {
   const adm = _admissions.find(a => a.id === admId);
   if (!adm) return;
+  const otBtn = document.getElementById('btn-ot-save'); otBtn.disabled = false; otBtn.textContent = 'Save Procedure';   // Session 381 (owner, rehearsal step 3): a drawer opens with its save button usable, even after an earlier save or a dropped connection
   _otAdmId     = admId;
   _otPatientId = adm.patients?.id;
   const pt   = adm.patients || {};

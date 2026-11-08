@@ -707,13 +707,18 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
         </div>
       </div>
 
-      <div class="field-row">
+      <!-- Session 381 (§471, D4): the exit's real date and time; default now, up to 48 hours back, never in the future (the server checks) -->
+      <div class="field" id="dis-exit-time-field" hidden>
+        <label for="dis-exit-at">Exit date &amp; time <span class="req">*</span></label>
+        <input id="dis-exit-at" type="datetime-local"/>
+        <div id="dis-exit-time-note" style="font-size:11.5px;color:var(--text-muted);margin-top:4px">When the patient actually left (or died). Default now; if entered late, up to 48 hours back. Never in the future.</div>
+        <!-- Session 381 (R1, owner 8 Nov 2026): page-only warning; the bill is never changed by an exit -->
+        <div id="dis-exit-lock-warning" role="status" hidden style="font-size:12px;font-weight:600;color:var(--orange);margin-top:6px">⚠ Exit is earlier than the charges lock — review the bill (credit note if needed).</div>
+      </div>
+
+      <div class="field-row" id="dis-condition-row">
         <div class="field">
-          <label>Discharge Date <span class="req">*</span></label>
-          <input id="dis-date" type="date"/>
-        </div>
-        <div class="field">
-          <label>Condition at Discharge</label>
+          <label for="dis-condition">Condition at Discharge</label>
           <select id="dis-condition">
             <option value="">— Select —</option>
             <option value="improved">Improved</option>
@@ -725,14 +730,16 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
         </div>
       </div>
 
-      <div class="field">
-        <label>Discharge Summary</label>
-        <textarea id="dis-summary" placeholder="Treatment given, response, follow-up instructions…" style="height:100px"></textarea>
+      <div class="field" id="dis-transfer-field" style="display:none">
+        <label for="dis-transfer-to">Receiving hospital <span class="req">*</span></label>
+        <input id="dis-transfer-to" type="text" maxlength="200" placeholder="Name of receiving facility"/>
+        <label for="dis-referral-reason" style="margin-top:10px">Reason for referral <span class="req">*</span></label>
+        <input id="dis-referral-reason" type="text" maxlength="500" placeholder="e.g. needs ICU care"/>
       </div>
 
-      <div class="field" id="dis-transfer-field" style="display:none">
-        <label>Transfer To (Hospital Name)</label>
-        <input id="dis-transfer-to" type="text" placeholder="Name of receiving facility"/>
+      <div class="field">
+        <label for="dis-summary" id="dis-summary-label">Discharge Summary</label>
+        <textarea id="dis-summary" maxlength="2000" placeholder="Treatment given, response, follow-up instructions…" style="height:100px"></textarea>
       </div>
     </div>
 

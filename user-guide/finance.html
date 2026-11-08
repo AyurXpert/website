@@ -835,8 +835,8 @@
     <ol class="steps">
       <li><span class="step-num">1</span><div class="step-body"><strong>Open ipd.html</strong> — the admission list shows all currently admitted patients. Find the patient being discharged.</div></li>
       <li><span class="step-num">2</span><div class="step-body"><strong>Click "Discharge"</strong> next to the patient's name — a discharge drawer slides in from the right.</div></li>
-      <li><span class="step-num">3</span><div class="step-body"><strong>Select discharge type</strong>: Discharged (normal) / LAMA (Left Against Medical Advice) / Transferred (to another facility) / Deceased. Each type is recorded in the <code>ipd_admissions.status</code> column.</div></li>
-      <li><span class="step-num">4</span><div class="step-body"><strong>Enter discharge date and time</strong> — defaults to now. Can be backdated if the documentation is being completed retrospectively.</div></li>
+      <li><span class="step-num">3</span><div class="step-body"><strong>Select discharge type</strong>: Discharged (normal) / LAMA (Left Against Medical Advice) / Transferred (to another facility) / Deceased. A death is recorded only by a doctor (or the RMO / Medical Superintendent); LAMA and transfer by a doctor or the nurse in-charge on duty.</div></li>
+      <li><span class="step-num">4</span><div class="step-body"><strong>For LAMA / Transferred / Deceased, enter the exit date and time</strong> — defaults to now; up to 48 hours back if entered late, never in the future. Room charges stop at that time. If the charges were already locked, the exit is recorded and the bill does not change.</div></li>
       <li><span class="step-num">5</span><div class="step-body"><strong>Complete the discharge summary</strong> — diagnosis at discharge, condition at discharge, follow-up instructions, and diet advice are filled in.</div></li>
       <li><span class="step-num">6</span><div class="step-body">If the patient is <em>self-pay</em>, proceed directly to Confirm Discharge. The bed status changes to Vacant automatically.</div></li>
     </ol>
