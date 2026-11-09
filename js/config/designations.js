@@ -41,6 +41,7 @@ export const DESIGS = [
   {v:'receptionist',                l:'Receptionist',                    cat:'Admin Staff',    lv:1, d:'Front-desk registration and telephone enquiries (Sch XX/14).'},
   {v:'registration_clerk',          l:'Registration Clerk',              cat:'Admin Staff',    lv:2, d:'Patient registration and record entry at the OPD desk (Sch XX/15).'},
   {v:'billing_clerk',               l:'Billing Clerk',                   cat:'Admin Staff',    lv:2, d:'Generates and collects OPD/IPD/pharmacy bills (Sch XX/15).'},
+  {v:'cashier',                     l:'Cashier',                         cat:'Admin Staff',    lv:2, d:'Receives payments and issues receipts at the cash counter; hands the cash over at the end of the shift (Finance & Accounts; login role Cashier). Owner, 9 Nov 2026 (session 383).'},
   {v:'medical_record_officer',      l:'Medical Record Officer',          cat:'Admin Staff',    lv:2, d:'Owns the Medical Records Department — filing, retrieval, MLC register upkeep (Sch XX/16).'},
   {v:'medical_record_technician',   l:'Medical Record Technician',       cat:'Admin Staff',    lv:3, d:'Maintains and retrieves patient case records (Sch XX/16).'},
   {v:'public_relations_officer',    l:'Public Relations Officer',        cat:'Admin Staff',    lv:3, d:'Handles patient grievances, feedback and external communications.'},

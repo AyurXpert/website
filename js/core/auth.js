@@ -222,7 +222,9 @@ export async function registerStaff({
       throw new Error('This organisation\'s account is suspended. Please contact your administrator.');
     if (info.subscription_status === 'expired')
       throw new Error('This organisation\'s subscription has expired. Please ask your admin to renew.');
-    if (info.max_users && info.current_user_count >= info.max_users)
+    // Session 383 (D10): with an invite link the staff limit was already checked when the invite was made (an intern / PG scholar invite
+    // uses no staff place) -- this signed-out pre-check is only for a self sign-up; the count is staff only (the server)
+    if (!inviteToken && info.max_users && info.current_user_count >= info.max_users)
       throw new Error(`Organisation has reached its staff limit (${info.max_users} users). Ask your admin to upgrade the plan.`);
 
     const tenant = { id: info.tenant_id, name: info.tenant_name, type: info.tenant_type };

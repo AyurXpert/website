@@ -583,6 +583,8 @@ tr:hover td{background:#fafff8}
           <button class="btn-outline hr-tab" data-sub="leave" id="hr-tab-leave-btn" style="display:none">📅 Leave &amp; Holidays</button>
           <!-- Session 337 (TODO §132): Reg. No. / qualification verification lives on hr.html, not in these tabs -->
           <a class="btn-outline" id="hr-credentials-link" href="hr.html#credentials" style="text-decoration:none;display:inline-flex;align-items:center">🏅 Credentials (Reg. No.) ↗</a>
+          <!-- Session 383 (D11): one invite form for every organisation type, any department, any position -->
+          <button class="btn-primary" type="button" data-onclick="openInviteOne" id="hr-invite-one-btn" style="min-height:44px">＋ Invite one person</button>
         </div>
       </div>
       <div id="hr-seed-bar" style="display:none;background:#fef9ec;border:1px solid #f5c842;border-radius:8px;padding:8px 14px;margin-bottom:14px;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
@@ -1206,9 +1208,9 @@ tr:hover td{background:#fafff8}
 </div>
 
 <div id="position-invite-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1000;align-items:center;justify-content:center">
-  <div style="background:#fff;border-radius:14px;padding:24px;max-width:420px;width:100%;margin:16px">
+  <div style="background:#fff;border-radius:14px;padding:24px;max-width:420px;width:100%;margin:16px;max-height:92vh;overflow-y:auto">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
-      <span style="font-weight:600;font-size:15px">Invite Staff to This Position</span>
+      <span style="font-weight:600;font-size:15px" id="pinv-title">Invite Staff to This Position</span>
       <button data-onclick="closePositionInviteModal" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--text-muted)">&times;</button>
     </div>
     <div style="font-size:12.5px;color:var(--text-muted);margin-bottom:16px">
@@ -1217,8 +1219,12 @@ tr:hover td{background:#fafff8}
     <input type="hidden" id="pinv-dept-id"/>
 
     <div id="pinv-form-fields" style="display:grid;gap:12px">
-      <div><label style="font-size:11px;font-weight:600;color:var(--text-mid);display:block;margin-bottom:5px;text-transform:uppercase;letter-spacing:.5px">Designation</label>
-        <select id="pinv-desig-select" data-onchange="onPinvDesigChange" style="width:100%;height:40px;border:1.5px solid var(--border);border-radius:8px;padding:0 10px;font-size:14px"></select></div>
+      <!-- Session 383 (D11): "Invite one person" from anywhere -- the department and the position are chosen here -->
+      <div id="pinv-dept-row" hidden><label for="pinv-dept-select" style="font-size:11px;font-weight:600;color:var(--text-mid);display:block;margin-bottom:5px;text-transform:uppercase;letter-spacing:.5px">Department</label>
+        <select id="pinv-dept-select" data-onchange="onPinvDeptChange" style="width:100%;height:44px;border:1.5px solid var(--border);border-radius:8px;padding:0 10px;font-size:14px"></select></div>
+      <div><label for="pinv-desig-select" style="font-size:11px;font-weight:600;color:var(--text-mid);display:block;margin-bottom:5px;text-transform:uppercase;letter-spacing:.5px">Designation</label>
+        <select id="pinv-desig-select" data-onchange="onPinvDesigChange" style="width:100%;height:40px;border:1.5px solid var(--border);border-radius:8px;padding:0 10px;font-size:14px"></select>
+        <div id="pinv-desig-filter-row" hidden style="font-size:12px;color:var(--text-muted);margin-top:4px"><span id="pinv-desig-filter-note"></span> <button type="button" id="pinv-desig-all" data-onclick="togglePinvAllPositions" style="background:none;border:none;padding:0 2px;min-height:32px;color:var(--green-mid);text-decoration:underline;cursor:pointer;font:inherit">Show all positions</button></div></div>
       <div><label style="font-size:11px;font-weight:600;color:var(--text-mid);display:block;margin-bottom:5px;text-transform:uppercase;letter-spacing:.5px">HMS Login Role</label>
         <select id="pinv-role-select" style="width:100%;height:40px;border:1.5px solid var(--border);border-radius:8px;padding:0 10px;font-size:14px"></select></div>
       <div><label style="font-size:11px;font-weight:600;color:var(--text-mid);display:block;margin-bottom:5px;text-transform:uppercase;letter-spacing:.5px">Secondary Role <span style="font-weight:400;text-transform:none">(optional — e.g. a Deputy MS or HOD who also needs admin access)</span></label>
@@ -1231,11 +1237,12 @@ tr:hover td{background:#fafff8}
         <input type="checkbox" id="pinv-deptscope-check" style="width:16px;height:16px">
         <label for="pinv-deptscope-check" style="font-size:12.5px;color:var(--text-mid)">Scope to this department only <span style="color:var(--text-muted)">(HOD/Professor — gets a department dashboard + roster editing for this department alone, e.g. Kayachikitsa HOD)</span></label>
       </div>
-      <div><label style="font-size:11px;font-weight:600;color:var(--text-mid);display:block;margin-bottom:5px;text-transform:uppercase;letter-spacing:.5px">Candidate Name <span style="font-weight:400;text-transform:none">(optional, for your reference)</span></label>
-        <input id="pinv-name" type="text" placeholder="Dr. Priya Nair" style="width:100%;height:40px;border:1.5px solid var(--border);border-radius:8px;padding:0 12px;font-size:14px"></div>
-      <div><label style="font-size:11px;font-weight:600;color:var(--text-mid);display:block;margin-bottom:5px;text-transform:uppercase;letter-spacing:.5px">Phone</label>
+      <div><label for="pinv-name" style="font-size:11px;font-weight:600;color:var(--text-mid);display:block;margin-bottom:5px;text-transform:uppercase;letter-spacing:.5px">Full name <span style="font-weight:400;text-transform:none">(required — the join request is compared with it)</span></label>
+        <input id="pinv-name" type="text" required aria-required="true" autocomplete="off" placeholder="Dr. Priya Nair" style="width:100%;height:40px;border:1.5px solid var(--border);border-radius:8px;padding:0 12px;font-size:14px"></div>
+      <div style="font-size:12px;color:var(--text-mid);background:#f5faf7;border:1px solid var(--border);border-radius:8px;padding:8px 10px">Enter a phone and / or an email (at least one). <strong>Email recommended:</strong> only an invite with an email can be approved together with others ("Approve selected"); a phone-only invite is approved one by one.</div>
+      <div><label for="pinv-phone" style="font-size:11px;font-weight:600;color:var(--text-mid);display:block;margin-bottom:5px;text-transform:uppercase;letter-spacing:.5px">Phone</label>
         <input id="pinv-phone" type="tel" placeholder="+91 98765 43210" style="width:100%;height:40px;border:1.5px solid var(--border);border-radius:8px;padding:0 12px;font-size:14px"></div>
-      <div><label style="font-size:11px;font-weight:600;color:var(--text-mid);display:block;margin-bottom:5px;text-transform:uppercase;letter-spacing:.5px">Email</label>
+      <div><label for="pinv-email" style="font-size:11px;font-weight:600;color:var(--text-mid);display:block;margin-bottom:5px;text-transform:uppercase;letter-spacing:.5px">Email <span style="font-weight:400;text-transform:none">(recommended)</span></label>
         <input id="pinv-email" type="email" placeholder="candidate@example.com" style="width:100%;height:40px;border:1.5px solid var(--border);border-radius:8px;padding:0 12px;font-size:14px"></div>
     </div>
 

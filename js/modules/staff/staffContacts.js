@@ -10,8 +10,17 @@ import { SUPABASE_URL } from '../../config/constants.js';
 import { safeErrorMessage } from '../../utils/errors.js';
 
 const mk = (tag, style, text) => { const e = document.createElement(tag); if (style) e.style.cssText = style; if (text != null) e.textContent = text; return e; };
-export const BTN = "min-height:44px;padding:0 16px;border-radius:8px;font:600 13px 'DM Sans',sans-serif;cursor:pointer;background:var(--green-deep);color:#fff;border:1.5px solid var(--green-deep)";
-export const BTN_OUT = "min-height:44px;padding:0 14px;border-radius:8px;font:600 13px 'DM Sans',sans-serif;cursor:pointer;background:#fff;color:var(--green-deep);border:1.5px solid var(--green-deep)";
+// Session 383 (§366): the --ax-btn marker lets one style rule give EVERY disabled BTN / BTN_OUT a visible disabled look (greyed,
+// not-allowed cursor) -- an inline style alone has no :disabled state, so a disabled button looked clickable
+export const BTN = "--ax-btn:1;min-height:44px;padding:0 16px;border-radius:8px;font:600 13px 'DM Sans',sans-serif;cursor:pointer;background:var(--green-deep);color:#fff;border:1.5px solid var(--green-deep)";
+export const BTN_OUT = "--ax-btn:1;min-height:44px;padding:0 14px;border-radius:8px;font:600 13px 'DM Sans',sans-serif;cursor:pointer;background:#fff;color:var(--green-deep);border:1.5px solid var(--green-deep)";
+(function axBtnDisabledLook() {
+  if (typeof document === 'undefined' || document.getElementById('ax-btn-disabled-style')) return;
+  const st = document.createElement('style');
+  st.id = 'ax-btn-disabled-style';
+  st.textContent = 'button[style*="--ax-btn"]:disabled{opacity:.45!important;cursor:not-allowed!important;filter:grayscale(.6)!important}';
+  document.head.append(st);
+})();
 const FIELD = "min-height:44px;border:1.5px solid var(--border);border-radius:8px;padding:0 10px;font:14px 'DM Sans',sans-serif";
 
 export function inviteLink(token) { return `${window.location.origin}/signup.html?pinv=${encodeURIComponent(token)}`; }

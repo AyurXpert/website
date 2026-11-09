@@ -40,6 +40,7 @@ function linkCard(res, title) {
   c.append(mk('div', 'font-weight:600;font-size:14px;color:var(--green-deep);margin-bottom:8px', title));
   if (res.tenant_code) c.append(mk('div', 'font-size:13px;margin-bottom:4px', `Organisation code: ${res.tenant_code}`));
   if (res.uhid_example) c.append(mk('div', 'font-size:13px;margin-bottom:4px', `First UHID will be: ${res.uhid_example}`));
+  if (res.max_users) c.append(mk('div', 'font-size:13px;margin-bottom:4px', `Staff limit: ${res.max_users} (interns and PG scholars not counted)`));
   if (res.screening_opd) c.append(mk('div', 'font-size:13px;margin-bottom:4px', `Screening OPD: ${res.screening_opd}`));
   c.append(mk('div', 'font-size:13px;margin:8px 0 4px', `Send this link to ${res.first_admin_email}. It works once, for that email only, until ${fmt(res.invite_expires_at)}.`));
   const box = mk('input', inputCss); box.id = 'org-link'; box.readOnly = true; box.value = link;
@@ -72,6 +73,9 @@ export async function renderNewOrganisation(box, { supabase, onCreated }) {
   example.id = 'org-prefix-example';
   const adminName = textInput('org-admin-name', 200);
   const adminEmail = textInput('org-admin-email', 200, 'email');
+  // Session 383 (D9 / D10): the staff limit is required and set on create; interns and PG scholars are not counted
+  const maxUsers = textInput('org-max-users', 3, 'number'); maxUsers.min = '1'; maxUsers.max = '998'; maxUsers.required = true;
+  const maxHelp = mk('div', 'font-size:12px;color:var(--text-muted);margin-top:4px', 'Staff only (expected staff + about 20 %). Interns and PG scholars do not count.');
 
   const r1 = mk('div', rowCss); r1.append(field('Organisation type', type), field('Organisation name', name));
   const r2 = mk('div', rowCss); r2.append(field('Address', addr));
@@ -96,10 +100,12 @@ export async function renderNewOrganisation(box, { supabase, onCreated }) {
   ncism.append(pgGrid);
 
   const r6 = mk('div', rowCss); r6.append(field('First Super Admin: full name', adminName), field('First Super Admin: email', adminEmail));
+  const mf = field('Staff limit (required, 1 to 998)', maxUsers); mf.append(maxHelp);
+  const r7 = mk('div', rowCss); r7.append(mf);
   const go = mk('button', btnCss, '➕ Create organisation'); go.type = 'button'; go.id = 'org-create';
   const status = mk('div', 'font-size:12.5px;min-height:1em;margin-top:8px'); status.setAttribute('role', 'status'); status.id = 'org-status';
   const result = mk('div');
-  form.append(r1, r2, r3, r4, ncism, r6, go, status, result);
+  form.append(r1, r2, r3, r4, ncism, r6, r7, go, status, result);
   box.replaceChildren(intro, form);
 
   const { data: tiers } = await supabase.from('ncism_intake_tiers').select('ug_intake').eq('is_active', true).order('sort_order');
@@ -118,13 +124,14 @@ export async function renderNewOrganisation(box, { supabase, onCreated }) {
     const { data, error } = await supabase.rpc('platform_create_organisation', {
       p_name: name.value, p_type: type.value, p_address: addr.value, p_city: city.value, p_state: state.value, p_pin: pin.value, p_phone: phone.value || null,
       p_uhid_prefix: prefix.value, p_admin_name: adminName.value, p_admin_email: adminEmail.value,
+      p_max_users: maxUsers.value === '' ? null : Number(maxUsers.value),   // the server refuses empty / out of range
       p_ug_intake: isNcism && ug.value ? Number(ug.value) : null, p_pg: pg,
     });
     go.disabled = false;
     if (error) { status.style.color = 'var(--red,#c0392b)'; status.textContent = safeErrorMessage(error, 'Could not create the organisation.'); return; }
     status.textContent = '';
     result.replaceChildren(linkCard(data, `✅ ${data.name} created`));
-    for (const i of [name, addr, city, pin, phone, prefix, adminName, adminEmail, ...Object.values(pgInputs)]) i.value = '';
+    for (const i of [name, addr, city, pin, phone, prefix, adminName, adminEmail, maxUsers, ...Object.values(pgInputs)]) i.value = '';
     type.value = ''; state.value = ''; ug.value = ''; ncism.hidden = true;
     example.textContent = 'UHID will look like: PREFIX/2627/000001';
     onCreated?.();

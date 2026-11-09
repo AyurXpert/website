@@ -816,7 +816,7 @@ export function _renderComplianceSummaryBanner({grandReq, grandMet, extraList, t
     +(extraTotal>0
       ? '<div style="padding:10px 16px;background:#fff8ec;border-bottom:1px solid var(--border);font-size:12.5px;line-height:1.6">'
         +'<strong>➕ '+extraTotal+' staff recruited above the NCISM minimum</strong> — not a compliance problem, just staff to be aware of when planning transfers, budget, or new invites: '
-        +extra.map(r=>_esc(r.label)+' in '+_esc(r.deptName)+' (required '+r.required+', have '+r.actual+', <strong>+'+r.extra+'</strong>)').join('; ')
+        +extra.map(r=>_esc(r.label)+(r.deptName&&r.deptName!=='—'?' in '+_esc(r.deptName):' with no department')+' (required '+r.required+', have '+r.actual+', <strong>+'+r.extra+'</strong>)').join('; ')
         +'</div>'
       : '')
     +'<div style="padding:9px 16px;background:#f5faf7;font-size:12.5px;color:var(--text-muted)">'
@@ -832,7 +832,7 @@ export function _renderComplianceSummaryBanner({grandReq, grandMet, extraList, t
           +untracked.map(u=>'<div style="background:#fff;border:1px solid var(--border);border-radius:6px;padding:6px 10px">'
             +'<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">'
             +'<span><strong style="color:var(--text-dark)">'+_esc(u.full_name||'—')+'</strong>'
-            +(u.designation?' <span style="color:var(--text-muted)">('+_esc(u.designation.replace(/_/g,' '))+')</span>':'')
+            +(u.designation?' <span style="color:var(--text-muted)">('+_esc(DESIG_MAP[u.designation]?.l||u.designation.replace(/_/g,' '))+')</span>':'')
             +' — '+_esc(u.deptName)+'</span>'
             // Session 161: only when there's actually somewhere better to send them (a real,
             // currently-short department, per _collectUntrackedStaff's gapsByKey computation)

@@ -616,6 +616,9 @@ function _roleLabel(role) {
 // snake_case -> Title Case covers every designation value in use without needing one.
 function _formatDesignation(designation) {
   if (!designation) return '';
+  // Session 383 (§371): the designation's NAME from the one list ("Office Superintendent", not "Opd Incharge"); Title Case only as a fallback
+  const label = DESIG_MAP[designation]?.l;
+  if (label) return label;
   return designation.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 }
 function _userRoleLine(profile, role) {

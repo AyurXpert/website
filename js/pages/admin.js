@@ -37,6 +37,7 @@ import { renderDeptTargetsSetting } from '../modules/screening/deptTargetsSettin
 import { renderOverflowSetting } from '../modules/screening/overflowSetting.js';   // Session 375 (§407)
 import { inviteLink, inviteMessage, whatsAppButton, emailInvites, fmtDate, loadLoginEmails, mountPhoneEditor, mountEmailChanger, BTN_OUT } from '../modules/staff/staffContacts.js';
 import { loadDepositWaivers, isAdmissionOverseer } from '../modules/ipd/admissionCounter.js';   // Session 357 (owner addition 8)
+import { positionsForDept } from '../config/deptPositions.js';   // Session 383 (owner, rehearsal 9 Nov)
 
 await requireAuth(['super_admin','dept_admin']);
 initNavbar();
@@ -144,6 +145,10 @@ function _bootMasterControl() {
         _hrSub('hierarchy');
         if (window._staffAll) renderHierarchy(window._staffAll);
         else window.loadHR('hierarchy');
+      } else if (sub === 'staff') {
+        // Session 383 (owner, rehearsal 9 Nov): All Staff was only shown, never re-drawn -- after an approval on Login Access it kept the
+        // old rows ("pending_approval" for an account the server had approved). It now re-reads and re-draws every time it is opened.
+        window.loadHR('staff');
       } else {
         _hrSub(sub);
       }
@@ -801,19 +806,38 @@ window.loadStaffAccess = async function() {
   // Session 366 (Q6): what the person typed at signup side by side with the invite -- a difference is highlighted
   const invOf = id => (invRows || []).find(i => i.joined_profile_id === id);
   const emails = (await loadLoginEmails(supabase)).map;
+  // Session 383 (D1-D5, §367): the SERVER says which waiting accounts are clean invite matches (staff_join_review); only those can be
+  // ticked and approved together; every other row shows why and is approved one by one (a ⚠️ difference asks first, D4)
+  const { data: review, error: reviewErr } = await supabase.rpc('staff_join_review', { p_ids: ids });
+  const rev = new Map((review || []).map(x => [x.id, x]));
+  const cleanOf = r => !!rev.get(r.id)?.clean;
+  const reasonsOf = r => rev.get(r.id)?.reasons || [];
   const norm = v => String(v || '').trim().toLowerCase();
+  const normName = v => norm(v).replace(/\s+/g, ' ').replace(/^dr(\.\s*|\s+)/, '');   // the server's rule (D1): case, extra spaces, a leading "Dr."
   const normPh = v => String(v || '').replace(/\D/g, '').slice(-10);
-  const cmp = (label, signed, invited, same) => {
+  // Session 383 (owner, rehearsal 9 Nov): red ⚠️ ONLY for a difference that makes the row approve-one-by-one -- the SERVER decides
+  // (staff_join_review's reasons; it compares the real login email, which this viewer may not be allowed to read: staff_login_emails is
+  // empty for an unscoped Dept Admin). A difference the D1 rule accepts is grey information. If the server check failed, the page's own
+  // comparison is shown as before.
+  const FIELD_REASON = { Name: 'Name differs from the invite', Phone: 'Phone differs from the invite', 'Login email': 'Login email differs from the invite' };
+  const ACCEPTED = { Name: 'accepted (capital letters, extra spaces and “Dr.” ignored)', Phone: 'accepted (the same last 10 digits)', 'Login email': 'accepted (capital letters ignored)' };
+  const grey = t => `<div style="font-size:11.5px;margin-top:3px;color:var(--text-mid)">${t}</div>`;
+  const red = t => `<div style="font-size:11.5px;margin-top:3px;color:#8b1a1a;font-weight:700">⚠️ ${t}</div>`;
+  const cmp = (r, label, signed, invited, same) => {
     if (!invited) return '';
-    const diff = !same(signed, invited);
-    return `<div style="font-size:11.5px;margin-top:3px;${diff ? 'color:#8b1a1a;font-weight:700' : 'color:var(--text-mid)'}">${diff ? '⚠️ ' : ''}${label}: signed up ${_esc(signed || '—')} · invite ${_esc(invited)}</div>`;
+    const known = !reviewErr && rev.has(r.id);
+    const diff = known ? reasonsOf(r).includes(FIELD_REASON[label]) : (signed ? !same(signed, invited) : false);
+    if (diff) return red(`${label}: ${signed ? 'signed up ' + _esc(signed) : 'signed up with a different one'} · invite ${_esc(invited)}`);
+    if (!signed) return grey(known ? `${label}: the same as the invite (${_esc(invited)})` : `${label}: invite ${_esc(invited)} (the login email is not shown to you)`);
+    if (String(signed).trim() === String(invited).trim()) return grey(`${label}: the same as the invite (${_esc(invited)})`);
+    return grey(`${label}: signed up ${_esc(signed)} · invite ${_esc(invited)} — ${ACCEPTED[label]}`);
   };
   const inviteCompare = r => {
     const inv = invOf(r.id);
     if (!inv) return '';
-    return cmp('Name', r.full_name, inv.candidate_name, (a, b) => norm(a) === norm(b))
-      + cmp('Phone', r.phone, inv.phone, (a, b) => normPh(a) === normPh(b))
-      + cmp('Login email', emails.get(r.id)?.email, inv.email, (a, b) => norm(a) === norm(b));
+    return cmp(r, 'Name', r.full_name, inv.candidate_name, (a, b) => normName(a) === normName(b))
+      + cmp(r, 'Phone', r.phone, inv.phone, (a, b) => normPh(a) === normPh(b))
+      + cmp(r, 'Login email', emails.get(r.id)?.email, inv.email, (a, b) => norm(a) === norm(b));
   };
   const viewerIsSuper = profile?.role === 'super_admin';
   // Session 350 (TODO §214 + owner addition A): also a powerful position (the server's single list) or a department scope
@@ -827,19 +851,31 @@ window.loadStaffAccess = async function() {
     r.scope_department_id ? `<strong>Department admin of: ${_esc(deptName(r.scope_department_id))}</strong>` : '',
     viaInvite.has(r.id) ? 'From an invite link' + (invOf(r.id)?.batch_id ? ' (bulk invite)' : '') : 'Self sign-up (no invite)',
   ].filter(Boolean).map(t => `<div style="font-size:11.5px;color:var(--text-mid);margin-top:3px">${t}</div>`).join('') + inviteCompare(r);
-  const invitedIds = approvals.filter(r => viaInvite.has(r.id)).map(r => r.id);
-  wrap.innerHTML=(viewerIsSuper && invitedIds.length ? `<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px">
-      <button class="btn-primary" id="btn-approve-invited" style="min-height:44px">✅ Approve all joined by invite (${invitedIds.length})</button>
-      <span style="font-size:12px;color:var(--text-muted)">Each one is checked by the server as a single approval; check the ⚠️ differences first.</span></div>` : '')
+  const diffOf = r => reasonsOf(r).filter(t => /differs|changed|no name/i.test(t));   // a real difference ("approve anyway?")
+  const phoneOnlyOf = r => reasonsOf(r).some(t => /no email \(phone only\)/i.test(t));   // owner, rehearsal 9 Nov: its own wording
+  const cleanIds = viewerIsSuper ? approvals.filter(cleanOf).map(r => r.id) : [];
+  const reviewLine = r => {
+    if (reviewErr) return '';
+    if (cleanOf(r)) return '<div style="font-size:11.5px;color:var(--green-deep);margin-top:3px">✅ Clean invite match' + (viewerIsSuper ? ' — can be approved with "Approve selected"' : '') + '</div>';
+    const rs = reasonsOf(r);
+    return rs.length ? `<div style="font-size:11.5px;color:#8b1a1a;margin-top:3px">Approve one by one: ${rs.map(_esc).join(' · ')}</div>` : '';
+  };
+  const nameOf = id => approvals.find(r => r.id === id)?.full_name || '—';
+  wrap.innerHTML=(reviewErr ? `<div role="alert" style="font-size:12.5px;color:#8b1a1a;margin-bottom:10px">Could not check the invite matches (${_esc(safeErrorMessage(reviewErr, 'server error'))}) — approve one by one.</div>` : '')
+    + (cleanIds.length ? `<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px">
+      <button class="btn-primary" id="btn-approve-selected" type="button" style="min-height:44px">✅ Approve selected (<span id="appr-sel-n">${cleanIds.length}</span>)</button>
+      <span style="font-size:12px;color:var(--text-muted)">Only clean invite matches can be ticked. The server checks each one again.</span></div>` : '')
+    + `<div id="appr-confirm" role="region" aria-live="polite" hidden style="background:var(--cream);border:1.5px solid var(--gold);border-radius:10px;padding:12px 14px;margin-bottom:12px"></div>`
     + `<div class="tw"><table>
-    <thead><tr><th>Name</th><th>Requested</th><th>Phone</th><th>Applied</th><th>Actions</th></tr></thead>
+    <thead><tr>${viewerIsSuper ? '<th style="width:56px">Select</th>' : ''}<th>Name</th><th>Requested</th><th>Phone</th><th>Applied</th><th>Actions</th></tr></thead>
     <tbody>${approvals.map(r=>`<tr id="arow-${r.id}"${isElevated(r)?' style="background:#fff0f0"':''}>
+      ${viewerIsSuper ? `<td>${cleanOf(r) ? `<input type="checkbox" class="appr-sel" data-id="${r.id}" checked aria-label="Select ${_esc(r.full_name||'')}" style="width:22px;height:22px">` : ''}</td>` : ''}
       <td><strong>${_esc(r.full_name||'—')}</strong></td>
       <td>${r.role==='dept_admin'
         ?'<span class="chip" style="background:#fdecea;color:#8b1a1a;border:1px solid #f5c6c6;font-weight:700">⚠️ Dept. Admin — Full Access Requested</span>'
         :r.role==='super_admin'
         ?'<span class="chip" style="background:#fdecea;color:#8b1a1a;border:1px solid #f5c6c6;font-weight:700">⚠️ Super Admin Requested</span>'
-        :`<span class="chip g">${_esc(_roleLabel(r.role))}</span>`}${requested(r)}</td>
+        :`<span class="chip g">${_esc(_roleLabel(r.role))}</span>`}${requested(r)}${reviewLine(r)}</td>
       <td>${_esc(r.phone||'—')}</td>
       <td>${_relDate(r.created_at)}</td>
       <td>
@@ -851,22 +887,68 @@ window.loadStaffAccess = async function() {
     </tr>`).join('')}</tbody>
   </table></div>`;
 
-  // Session 366 (Q6): "Approve all joined by invite" -- approve_invited_staff (the active Super Admin; each through dept_admin_approve_staff)
-  document.getElementById('btn-approve-invited')?.addEventListener('click', async ev => {
-    const b = ev.currentTarget; b.disabled = true;
-    const { data, error } = await supabase.rpc('approve_invited_staff', { p_ids: invitedIds });
-    if (error) { b.disabled = false; _toast(safeErrorMessage(error, 'Could not approve.'), true); return; }
-    _toast(`${data.approved} approved` + (data.failed?.length ? ` · ${data.failed.length} not approved (see the list)` : ''), !!data.failed?.length);
-    window.loadStaffAccess(); loadStats();
+  // the in-page confirmation panel (no native confirm(), D4) -- built from DOM nodes + textContent
+  const confirmBox = document.getElementById('appr-confirm');
+  const askFirst = (title, lines, okLabel, onOk) => {
+    const h = document.createElement('div'); h.style.cssText = 'font-weight:700;font-size:13.5px;margin-bottom:6px'; h.textContent = title;
+    const ul = document.createElement('ul'); ul.style.cssText = 'margin:0 0 10px 18px;font-size:12.5px';
+    lines.forEach(t => { const li = document.createElement('li'); li.textContent = t; ul.append(li); });
+    const ok = document.createElement('button'); ok.type = 'button'; ok.className = 'btn-primary'; ok.style.minHeight = '44px'; ok.textContent = okLabel;
+    const no = document.createElement('button'); no.type = 'button'; no.className = 'btn-outline'; no.style.cssText = 'min-height:44px;margin-left:8px'; no.textContent = 'Cancel';
+    no.addEventListener('click', () => { confirmBox.hidden = true; confirmBox.replaceChildren(); });
+    // closed BEFORE onOk runs, so a next question (onOk -> askFirst) can open in the same panel
+    ok.addEventListener('click', async () => { ok.disabled = true; no.disabled = true; confirmBox.hidden = true; confirmBox.replaceChildren(); await onOk(); });
+    if (!lines.length) h.style.marginBottom = '10px';
+    confirmBox.replaceChildren(...(lines.length ? [h, ul] : [h]), ok, no); confirmBox.hidden = false; ok.focus();
+  };
+  const selected = () => [...document.querySelectorAll('.appr-sel:checked')].map(c => c.dataset.id);
+  document.querySelectorAll('.appr-sel').forEach(c => c.addEventListener('change', () => {
+    const n = selected().length; const el = document.getElementById('appr-sel-n'); if (el) el.textContent = String(n);
+    const b = document.getElementById('btn-approve-selected'); if (b) { b.disabled = n === 0; b.setAttribute('aria-disabled', String(n === 0)); }
+  }));
+  document.getElementById('btn-approve-selected')?.addEventListener('click', () => {
+    const pick = selected();
+    if (!pick.length) return;
+    askFirst(`Approve these ${pick.length} people?`, pick.map(nameOf), `Approve ${pick.length}`, async () => {
+      const { data, error } = await supabase.rpc('approve_invited_staff', { p_ids: pick });
+      if (error) { _toast(safeErrorMessage(error, 'Could not approve.'), true); return; }
+      const skipped = data.skipped?.length || 0, failed = data.failed?.length || 0;
+      _toast(`${data.approved} approved` + (skipped ? ` · ${skipped} not approved (the server found a difference — approve one by one)` : '')
+        + (failed ? ` · ${failed} could not be approved` : ''), !!(skipped || failed));
+      window.loadHR('access'); loadStats();   // §368: All Staff reloads too
+    });
   });
+  const approveOne = async (id, btn) => {
+    const{error}=await supabase.rpc('dept_admin_approve_staff', {p_staff_id:id});
+    if(error){_toast(safeErrorMessage(error,'Failed to approve staff.'),true);if(btn)btn.disabled=false;return;}
+    _toast('Staff approved.');window.loadHR('access');loadStats();   // §368: All Staff reloads too
+  };
   document.querySelectorAll('.btn-approve[data-id]').forEach(btn=>{
     btn.addEventListener('click',async()=>{
-      const id=btn.dataset.id; btn.disabled=true;
-      // Session 120 -- was a direct profiles.update(), same silent-no-op RLS gap as
-      // saveDesig for any non-super_admin dept_admin. Routed through a matching RPC.
-      const{error}=await supabase.rpc('dept_admin_approve_staff', {p_staff_id:id});
-      if(error){_toast(safeErrorMessage(error,'Failed to approve staff.'),true);btn.disabled=false;}
-      else{document.getElementById('arow-'+id)?.remove();_toast('Staff approved.');window.loadStaffAccess();loadStats();}
+      const id=btn.dataset.id;
+      // Session 120 -- was a direct profiles.update(); routed through a matching RPC. Session 383 (D4): a row whose signup differs from its
+      // invite asks first
+      // Session 383 (owner, rehearsal 9 Nov): a phone-only invite and a powerful role / position ask first too, each in its own words;
+      // when several apply they come one after the other (difference -> phone only -> powers), Cancel at any one stops
+      const r = approvals.find(x => x.id === id);
+      const who = (r && r.full_name) || 'This account';
+      const steps = [];
+      const diffs = r ? diffOf(r) : [];
+      if (diffs.length) steps.push(next => askFirst(`${who}: the signup differs from the invite — approve anyway?`, diffs, 'Approve anyway', next));
+      if (r && phoneOnlyOf(r)) steps.push(next => askFirst(`${who}: this invite had no email (phone only). Confirm this is the right person before approving.`, [], 'Approve', next));
+      if (r && isElevated(r)) {
+        const powers = [_roleLabel(r.role), r.designation ? (DESIG_MAP[r.designation]?.l || r.designation) : ''].filter(Boolean).join(' · ');
+        const extra = [r.secondary_role ? `Second role: ${_roleLabel(r.secondary_role)}` : '', r.has_monitoring_access ? 'Monitoring access' : '',
+          r.scope_department_id ? `Department admin of: ${deptName(r.scope_department_id)}` : ''].filter(Boolean);
+        steps.push(next => askFirst(`You are giving ${who} ${powers} powers. Confirm?`, extra, 'Confirm', next));
+      }
+      if (steps.length) {
+        const run = i => (i < steps.length ? steps[i](() => run(i + 1)) : approveOne(id, null));
+        run(0);
+        return;
+      }
+      btn.disabled=true;
+      await approveOne(id, btn);
     });
   });
   document.querySelectorAll('.btn-reject[data-id]').forEach(btn=>{
@@ -883,7 +965,7 @@ window.loadStaffAccess = async function() {
       }
       const{error}=await _rejectAndDeleteStaff(id);
       if(error){_toast(error,true);btn.disabled=false;}
-      else{document.getElementById('arow-'+id)?.remove();_toast('Request rejected and removed.');window.loadStaffAccess();loadStats();}
+      else{document.getElementById('arow-'+id)?.remove();_toast('Request rejected and removed.');window.loadHR('access');loadStats();}
     });
   });
 };
@@ -966,7 +1048,7 @@ const DESIG_ROLE_DEFAULT = {
   // keys instead of all sharing 'accountant' -- before that, this row's key was never
   // actually reachable via any real Schedule XX row.
   accountant:'accountant', finance_manager:'finance_manager', store_keeper:'accountant',
-  receptionist:'receptionist', registration_clerk:'receptionist', billing_clerk:'receptionist',
+  receptionist:'receptionist', registration_clerk:'receptionist', billing_clerk:'receptionist', cashier:'cashier',   // cashier: session 383 (owner, 9 Nov)
   medical_record_officer:'mrd_staff', medical_record_technician:'mrd_staff',
   pharmacist:'pharmacist', chief_pharmacist:'pharmacist', pharmacy_assistant:'pharmacist',
   lab_technician:'lab_tech', blood_bank_technician:'lab_tech', lab_attendant:'lab_tech', radiographer:'lab_tech', microbiologist:'lab_tech',
@@ -1089,9 +1171,12 @@ function _hrSub(sub){
 if (role === 'super_admin') { const b = document.getElementById('hr-tab-bulk-btn'); if (b) b.hidden = false; }
 async function _renderBulkInvite() {
   const box = document.getElementById('hr-bulk-panel');
-  const { data: depts } = await supabase.from('departments').select('id,name,ncism_code').eq('tenant_id', tenantId);
+  const { data: depts } = await supabase.from('departments').select('id,name,ncism_code,category').eq('tenant_id', tenantId);
   mountBulkInvite(box, {
     supabase, tenantName: tenant?.name || '', isNcism: isNCISMType(tenant?.type), depts: depts || [],
+    // Session 383 (D8): the roles offered (readable names; the module leaves out powerful / trainee roles) + the position's usual role
+    roles: INVITE_ROLES.map(r => ({ key: r, label: _roleLabel(r) })),
+    defaultRole: desig => (DESIG_NO_DEFAULT_ROLE.includes(desig) ? '' : (DESIG_ROLE_DEFAULT[desig] || '')),
     toast: (m, err) => _toast(m, !!err),
     templateRows: async () => { if (!_ladderGapRows.length) await _renderNcismStaffing(); return _ladderGapRows; },
   });
@@ -1944,7 +2029,10 @@ async function _renderNcismStaffing() {
   const clinDepts=facTotal.count;
   const FAC_UG={p:facTotal.p, a:facTotal.a, b:facTotal.b};
   const facReq=FAC_UG.p+FAC_UG.a+FAC_UG.b;
-  const facAct=cntD(['professor','hod','associate_professor','assistant_professor']);
+  // Session 383 (owner, rehearsal 9 Nov): counted the SAME way as the summary above (a position AND a department) -- only faculty posted
+  // to a Schedule I teaching department count; a Professor with no department (or in Administration) used to count here but not above
+  const facDeptIds=new Set((depts||[]).filter(d=>d.ncism_code && SCHEDULE_I_CODES.includes(d.ncism_code)).map(d=>d.id));
+  const facAct=(rawStaff||[]).filter(s=>['professor','hod','associate_professor','assistant_professor'].includes(s.designation) && facDeptIds.has(s.department_id)).length;
   const facGap=Math.max(0,facReq-facAct);
 
   // Zone abbreviations for “Where Required” column
@@ -2132,7 +2220,9 @@ const totalOrgStaff = await _count('profiles',[['tenant_id',tenantId],['is_activ
     let prevZone=null;
     const trs=req.ladder.map(row=>{
       const a=cntDeptD(dept.id,row.keys), gap=Math.max(0,row.count-a);
-      if (gap > 0) _ladderGapRows.push({ department: dept.ncism_code || dept.name, designation: row.keys[0], role: _defaultInviteRole(row.keys[0]), count: gap });
+      // Session 383 (owner, rehearsal 9 Nov): the readable department name (the real department this ladder row belongs to -- an OPD
+      // sub-section card carries its department's id), never the NCISM code; the upload accepts both
+      if (gap > 0) _ladderGapRows.push({ department: (depts || []).find(d => d.id === dept.id)?.name || '',   /* not a real department (e.g. the Screening OPD card) -> none */ designation: row.keys[0], role: _defaultInviteRole(row.keys[0]), count: gap });
       // Session 134: surplus above the NCISM minimum isn't itself a problem, but it's easy
       // to mistake for a data-entry mistake (found live: Dr. Venkatesh spotted a Swasthavritta
       // Assistant Professor showing 2 recruited against 1 required and wasn't sure if that
@@ -2147,7 +2237,8 @@ const totalOrgStaff = await _count('profiles',[['tenant_id',tenantId],['is_activ
       const inviteCell = gap>0
         ? '<button data-onclick="openPositionInvite" data-onclick-a0="'+rowIdx+'" style="height:24px;padding:0 10px;font-size:11px;background:var(--green-deep);color:#fff;border:none;border-radius:6px;cursor:pointer;white-space:nowrap">+ Invite</button>'
           +(pending.length?' <button data-onclick="viewPendingInvites" data-onclick-a0="'+pendIdx+'" style="height:24px;padding:0 8px;font-size:10.5px;color:#7a5a10;background:#fff8e6;border:1px solid #e8d5a0;border-radius:6px;cursor:pointer;white-space:nowrap">🔗 '+pending.length+' pending</button>':'')
-        : (pending.length?' <button data-onclick="viewPendingInvites" data-onclick-a0="'+pendIdx+'" style="height:24px;padding:0 8px;font-size:10.5px;color:#7a5a10;background:#fff8e6;border:1px solid #e8d5a0;border-radius:6px;cursor:pointer;white-space:nowrap">🔗 '+pending.length+' pending</button>':'');
+        : '<button data-onclick="openPositionInvite" data-onclick-a0="'+rowIdx+'" title="Above the NCISM minimum -- counted as extra" style="height:24px;padding:0 9px;font-size:10.5px;background:transparent;color:var(--green-deep);border:1px solid var(--green-deep);border-radius:6px;cursor:pointer;white-space:nowrap">+ Invite extra</button>'
+          +(pending.length?' <button data-onclick="viewPendingInvites" data-onclick-a0="'+pendIdx+'" style="height:24px;padding:0 8px;font-size:10.5px;color:#7a5a10;background:#fff8e6;border:1px solid #e8d5a0;border-radius:6px;cursor:pointer;white-space:nowrap">🔗 '+pending.length+' pending</button>':'');
       let sectionHeader='';
       if(distinctZones.size>1 && row.zone!==prevZone){
         prevZone=row.zone;
@@ -2175,7 +2266,7 @@ const totalOrgStaff = await _count('profiles',[['tenant_id',tenantId],['is_activ
       +'<th style="padding:5px 10px;text-align:center;font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted);font-weight:700;border-bottom:1.5px solid var(--border)">Required</th>'
       +'<th style="padding:5px 10px;text-align:center;font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted);font-weight:700;border-bottom:1.5px solid var(--border)">Actual</th>'
       +'<th style="padding:5px 10px;text-align:center;font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted);font-weight:700;border-bottom:1.5px solid var(--border)">Status</th>'
-      +'<th style="padding:5px 10px;text-align:center;font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted);font-weight:700;border-bottom:1.5px solid var(--border)">Fill Gap</th>'
+      +'<th style="padding:5px 10px;text-align:center;font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted);font-weight:700;border-bottom:1.5px solid var(--border)">Invite</th>'
       +'</tr></thead><tbody>'+trs+'</tbody></table>'
       +optionalRowsHtml(dept, req.optional);
   }
@@ -2219,7 +2310,7 @@ const totalOrgStaff = await _count('profiles',[['tenant_id',tenantId],['is_activ
       +'<div><div style="font-weight:600;font-size:14px">NCISM Staffing Compliance — Schedule I + XX</div>'
         +'<div style="font-size:11px;opacity:.75;margin-top:2px">UG Intake: '+ug+' · Department-wise · Active profiles with designation + department assigned</div>'
       +'</div>'
-      +'<a href="signup.html" style="background:#ffffff22;color:#fff;padding:3px 12px;border-radius:8px;font-size:12px;text-decoration:none;border:1px solid #ffffff44">+ Add Staff</a>'
+      +'<button type="button" data-onclick="openInviteOne" style="background:#ffffff22;color:#fff;min-height:32px;padding:3px 12px;border-radius:8px;font-size:12px;border:1px solid #ffffff44;cursor:pointer">＋ Invite one person</button>'
     +'</div>'
     +'<div style="padding:14px 16px 0">'+summaryBannerHtml+'</div>'
     +'<div style="padding:10px 16px;background:#f0faf5;border-bottom:1px solid var(--border)">'
@@ -2287,7 +2378,8 @@ function _effectiveRoleLabel(roleVal, desig){
 function _populatePinvRoleOptions(desig){
   const roleSel = document.getElementById('pinv-role-select');
   // Session 359 (Q15): a designation with no default role (administrative_officer) -> no pre-selection; the admin must choose
-  const defaultRole = DESIG_NO_DEFAULT_ROLE.includes(desig) ? '' : (DESIG_ROLE_DEFAULT[desig] || 'doctor');
+  // Session 383 (owner, rehearsal 9 Nov): no position chosen yet ("Invite one person") -> no role either ("— Choose the role —")
+  const defaultRole = (!desig || DESIG_NO_DEFAULT_ROLE.includes(desig)) ? '' : (DESIG_ROLE_DEFAULT[desig] || 'doctor');
   // Session 350 (TODO §214): a Dept Admin cannot invite a powerful role -- shown, greyed out (the server refuses it anyway)
   const viewerIsSuper = role === 'super_admin';
   const roleLocked = r => !viewerIsSuper && isPowerfulPosition(r, null);
@@ -2313,15 +2405,31 @@ function _populatePinvRoleOptions(desig){
 }
 
 window.onPinvDesigChange = function(){
-  // Designation select is locked/disabled below -- kept as a harmless no-op
-  // in case it's ever re-enabled, rather than removing the wiring.
+  // A ladder row locks the select; in "Invite one person" (Session 383) the role list follows the chosen position
   const desig = document.getElementById('pinv-desig-select').value;
   document.getElementById('pinv-desig-label').textContent = DESIG_MAP[desig]?.l || desig || '—';
+  if (!_pinvFree) return;
+  _populatePinvRoleOptions(desig);
+  const viewerIsSuper = role === 'super_admin';
+  const scopeBox = document.getElementById('pinv-deptscope-check');
+  scopeBox.disabled = !viewerIsSuper;
+  scopeBox.checked = viewerIsSuper && ['professor', 'hod'].includes(desig) && !!document.getElementById('pinv-dept-select').value;
+  document.getElementById('pinv-monitoring-check').checked = desig === 'deputy_medical_superintendent';
+  const lockedPosition = !viewerIsSuper && !!desig && isPowerfulPosition(null, desig);
+  const note = document.getElementById('pinv-super-note');
+  note.textContent = lockedPosition ? 'Only the Super Admin can invite for this position.'
+    : (!viewerIsSuper ? 'A department scope (My Department) is given only by the Super Admin.' : '');
+  note.style.display = note.textContent ? '' : 'none';
+  document.getElementById('pinv-submit-btn').style.display = lockedPosition ? 'none' : '';
 };
 
 window.openPositionInvite = function(idxStr){
   const row = _ladderRowRegistry[Number(idxStr)];
   if(!row) return;
+  _pinvFree = false;   // Session 383: a ladder row -- the department and the position are fixed
+  document.getElementById('pinv-desig-filter-row').hidden = true;
+  document.getElementById('pinv-title').textContent = 'Invite Staff to This Position';
+  document.getElementById('pinv-dept-row').hidden = true;
   const dlabel = k => DESIG_MAP[k]?.l || k || '—';
   const desig = row.keys[0];
   document.getElementById('pinv-dept-id').value   = row.deptId;
@@ -2360,6 +2468,70 @@ window.openPositionInvite = function(idxStr){
   document.getElementById('position-invite-modal').style.display = 'flex';
 };
 
+// Session 383 (D11, §362 / §363): "Invite one person" -- from every organisation type, any department (incl. the non-NCISM ones), any
+// position. The same server function and limits as a ladder row (create_position_invite): a Dept Admin cannot give a powerful position.
+let _pinvFree = false;
+const _pinvDeptName = () => { const sel = document.getElementById('pinv-dept-select'); return sel.value ? sel.options[sel.selectedIndex].textContent : 'No specific department'; };
+// Session 383 (owner, rehearsal 9 Nov): the position list follows the chosen department (js/config/deptPositions.js); "Show all positions"
+// for the exceptions. A page convenience only -- the server decides what may be invited.
+let _pinvDepts = [], _pinvAllPositions = false;
+function _pinvFillDesigs(){
+  const keySel = document.getElementById('pinv-desig-select');
+  const keep = keySel.value;
+  const deptId = document.getElementById('pinv-dept-select').value;
+  const allowed = _pinvAllPositions ? null : positionsForDept(_pinvDepts.find(d => d.id === deptId) || null);
+  const cats = allowed;   // (null = every position)
+  const choose = document.createElement('option'); choose.value = ''; choose.textContent = '— Choose the position —';
+  const groups = [...new Set(DESIGS.map(d => d.cat))].map(cat => {
+    const items = DESIGS.filter(d => d.cat === cat && (!allowed || allowed.has(d.v)));
+    if (!items.length) return null;
+    const g = document.createElement('optgroup'); g.label = cat;
+    items.forEach(d => { const o = document.createElement('option'); o.value = d.v; o.textContent = d.l; g.append(o); });
+    return g;
+  }).filter(Boolean);
+  keySel.replaceChildren(choose, ...groups);
+  keySel.value = [...keySel.options].some(o => o.value === keep) ? keep : '';
+  const row = document.getElementById('pinv-desig-filter-row');
+  row.hidden = !cats && !_pinvAllPositions;
+  document.getElementById('pinv-desig-filter-note').textContent = _pinvAllPositions ? 'Showing every position.' : 'Positions for this department.';
+  document.getElementById('pinv-desig-all').textContent = _pinvAllPositions ? 'Show this department’s positions' : 'Show all positions';
+}
+window.togglePinvAllPositions = function(){ _pinvAllPositions = !_pinvAllPositions; _pinvFillDesigs(); window.onPinvDesigChange(); };
+window.openInviteOne = async function(deptId){
+  _pinvFree = true;
+  _pinvAllPositions = false;
+  document.getElementById('pinv-title').textContent = 'Invite one person';
+  const { data: depts, error } = await supabase.from('departments').select('id,name,ncism_code,category').eq('tenant_id', tenantId).order('name');
+  if (error) { _toast(safeErrorMessage(error, 'Could not load the departments.'), true); return; }
+  const dsel = document.getElementById('pinv-dept-select');
+  const none = document.createElement('option'); none.value = ''; none.textContent = 'No specific department';
+  dsel.replaceChildren(none, ...(depts || []).map(d => { const o = document.createElement('option'); o.value = d.id; o.textContent = d.name; return o; }));
+  dsel.value = (depts || []).some(d => d.id === deptId) ? deptId : '';
+  _pinvDepts = depts || [];
+  document.getElementById('pinv-dept-row').hidden = false;
+  const keySel = document.getElementById('pinv-desig-select');
+  keySel.replaceChildren();
+  keySel.disabled = false;
+  _pinvFillDesigs();
+  ['pinv-name', 'pinv-phone', 'pinv-email'].forEach(id => { document.getElementById(id).value = ''; });
+  document.getElementById('pinv-monitoring-check').checked = false;
+  document.getElementById('pinv-deptscope-check').checked = false;
+  document.getElementById('pinv-link-box').style.display = 'none';
+  document.getElementById('pinv-form-fields').style.display = '';
+  document.getElementById('pinv-copy-btn').style.display = 'none';
+  window.onPinvDeptChange();
+  window.onPinvDesigChange();
+  document.getElementById('position-invite-modal').style.display = 'flex';
+};
+window.onPinvDeptChange = function(){
+  if (!_pinvFree) return;
+  document.getElementById('pinv-dept-id').value = document.getElementById('pinv-dept-select').value;
+  document.getElementById('pinv-dept-name').textContent = _pinvDeptName();
+  const before = document.getElementById('pinv-desig-select').value;
+  _pinvFillDesigs();   // the position list follows the department (a position not offered there is cleared)
+  if (document.getElementById('pinv-desig-select').value !== before) window.onPinvDesigChange();
+};
+
 window.closePositionInviteModal = function(){
   document.getElementById('position-invite-modal').style.display = 'none';
 };
@@ -2374,6 +2546,8 @@ window.submitPositionInvite = async function(){
   const name  = document.getElementById('pinv-name').value.trim();
   const phone = document.getElementById('pinv-phone').value.trim();
   const email = document.getElementById('pinv-email').value.trim();
+  if(!designation){ _toast('Choose the position.', true); return; }   // Session 383: "Invite one person"
+  if(!name){ _toast('Enter the person’s full name.', true); document.getElementById('pinv-name').focus(); return; }   // Session 383 (owner, rehearsal 9 Nov)
   if(!phone && !email){ _toast('Enter a phone number or email to invite.', true); return; }
   if(!roleVal){ _toast('Choose the HMS login role for this position.', true); return; }   // Session 359 (Q15)
   { const prob = designationRoleProblem(roleVal, secondaryRoleVal || null, designation); if (prob) { _toast(prob, true); return; } }   // rule 3
@@ -3062,7 +3236,10 @@ async function _renderDeptStaff() {
       });
     }
     }
-    if(!staff.length){rows='<div style="padding:12px 0;color:var(--text-muted);font-size:13px">No active staff assigned to this department. Assign staff via <strong>All Staff</strong> tab or <a href="signup.html" style="color:var(--green-mid)">invite new members</a>.</div>';}
+    // Session 383 (§363; owner, rehearsal 9 Nov): EVERY configured department card has a real ＋ Invite to this department button, empty
+    // ones too (it was only a link inside the empty-department sentence); it opens Invite one person with the department filled in
+    if(!staff.length){rows='<div style="padding:12px 0;color:var(--text-muted);font-size:13px">No active staff assigned to this department. Assign staff via <strong>All Staff</strong> tab or invite new members.</div>';}
+    if(dept){rows+='<div style="padding:8px 0 2px"><button type="button" class="dept-invite-btn" data-onclick="openInviteOne" data-onclick-a0="'+_esc(dept.id)+'" style="min-height:44px;padding:0 14px;font-size:12.5px;background:#fff;color:var(--green-deep);border:1.5px solid var(--green-deep);border-radius:8px;cursor:pointer">＋ Invite to this department</button></div>';}
 
     const pgBadge=isPG?('<span style="background:#fef9ec;border:1px solid #f5c842;color:#854d0e;padding:1px 8px;border-radius:8px;font-size:11px;margin-left:6px">PG — '+pgSeats+' seats</span>'):'';
 
@@ -3125,7 +3302,7 @@ async function _renderDeptStaff() {
   const internBanner=expectedInterns>0&&totalInterns<expectedInterns
     ?'<div style="background:#fef9ec;border:1px solid #f5c842;border-radius:8px;padding:10px 16px;margin-bottom:12px;font-size:13px">'
       +'⚠️ <strong>Interns:</strong> Your college has a UG intake of '+ug+'. Approximately <strong>'+expectedInterns+' interns</strong> should be rotating through clinical departments at any time. Currently <strong>'+totalInterns+' interns</strong> are recorded in the system. '
-      +'Add intern profiles via <a href="signup.html" style="color:var(--green-mid)">Staff Signup</a> with designation set to <em>Intern</em> and assign them to their current rotation department.'
+      +'Interns are invited with the position <em>Intern</em> (they do not use staff places): <button type="button" data-onclick="openInviteOne" style="background:none;border:none;padding:0;color:var(--green-mid);text-decoration:underline;cursor:pointer;font:inherit">＋ Invite one person</button>.'
     +'</div>'
     :(totalInterns>0?'<div style="background:#f0faf5;border:1px solid #b7dfc8;border-radius:8px;padding:10px 16px;margin-bottom:12px;font-size:13px">✅ Intern rotation tracking active — '+totalInterns+' interns in system.</div>':'');
 
@@ -6355,27 +6532,27 @@ const totalOrgStaff = await _count('profiles',[['tenant_id',tenantId],['is_activ
         item('👨‍⚕️',`Doctors — minimum ${minDoctors} (Schedule I faculty + Schedule XX combined)`,
           `${doctors} onboarded`,
           doctors >= minDoctors, doctors >= Math.ceil(minDoctors * 0.7),
-          doctors < minDoctors ? `Add ${minDoctors - doctors} more` : 'View', 'signup.html'),
+          doctors < minDoctors ? `Add ${minDoctors - doctors} more` : 'View', '#invite'),
         item('👩‍⚕️',`Nurses — minimum ${minNurses} (Schedule XX combined)`,
           `${nurses} onboarded`,
           nurses >= minNurses, nurses >= Math.ceil(minNurses * 0.6),
-          nurses < minNurses ? `Add ${minNurses - nurses} more` : 'View', 'signup.html'),
+          nurses < minNurses ? `Add ${minNurses - nurses} more` : 'View', '#invite'),
         item('💊',`Pharmacists — minimum ${minPharm}`,
           `${pharmacists} onboarded`,
           pharmacists >= minPharm, pharmacists >= 1,
-          pharmacists < minPharm ? 'Add Pharmacist' : 'View', 'signup.html'),
+          pharmacists < minPharm ? 'Add Pharmacist' : 'View', '#invite'),
         item('🏥',`Receptionists — minimum ${minRecp}`,
           `${receptions} onboarded`,
           receptions >= minRecp, false,
-          receptions < minRecp ? 'Add Receptionist' : 'View', 'signup.html'),
+          receptions < minRecp ? 'Add Receptionist' : 'View', '#invite'),
         item('🔬',`Lab Technicians — minimum ${minLabTech}`,
           `${labTechs} onboarded`,
           labTechs >= minLabTech, labTechs >= 1,
-          labTechs < minLabTech ? 'Add Lab Tech' : 'View', 'signup.html'),
+          labTechs < minLabTech ? 'Add Lab Tech' : 'View', '#invite'),
         item('🌸',`Therapists — minimum ${minTherapist} (PK + Kriyakalpa + Physiotherapy + Yoga)`,
           `${therapists} onboarded`,
           therapists >= minTherapist, therapists >= Math.ceil(minTherapist * 0.6),
-          therapists < minTherapist ? `Add ${minTherapist - therapists} more` : 'View', 'signup.html'),
+          therapists < minTherapist ? `Add ${minTherapist - therapists} more` : 'View', '#invite'),
       ]
     }
   ];
@@ -6390,8 +6567,10 @@ const totalOrgStaff = await _count('profiles',[['tenant_id',tenantId],['is_activ
     <div class="ncism-cl-group">
       <div class="ncism-cl-group-title">${g.title}</div>
       ${g.items.map(i => {
-        const tag = i.actionHref ? `a href="${i.actionHref}"` : 'div';
-        const end = i.actionHref ? 'a' : 'div';
+        // Session 383 (§362): the staffing items open the invite form (signup.html is invite only since 366)
+        const tag = i.actionHref === '#invite' ? 'button type="button" data-onclick="openInviteOne" style="width:100%;text-align:left;font:inherit;background:none;border:none;cursor:pointer"'
+          : i.actionHref ? `a href="${i.actionHref}"` : 'div';
+        const end = i.actionHref === '#invite' ? 'button' : i.actionHref ? 'a' : 'div';
         const badge = i.pass ? 'Manage' : i.actionLabel;
         return `
         <${tag} class="ncism-cl-item${i.actionHref ? ' cl-linked' : ''}">
@@ -6453,7 +6632,15 @@ window.loadSubscription = async function() {
 
   // User count + billing (billing only meaningful for a paid, non-trial plan)
   const [{ count: userCount }, { data: priceRow }, { data: gstRow }] = await Promise.all([
-    supabase.from('profiles').select('id', { count: 'exact', head: true }).eq('tenant_id', tenantId).eq('is_active', true),
+    // Session 383 (D10): staff only -- interns / PG scholars (the server's _trainee_position) are not counted against the staff limit
+    // (all active - the trainees; a NOT IN filter would also drop the staff with no designation)
+    supabase.from('profiles').select('id', { count: 'exact', head: true }).eq('tenant_id', tenantId).eq('is_active', true)
+      .then(async all => {
+        if (all.error) return all;
+        const tr = await supabase.from('profiles').select('id', { count: 'exact', head: true }).eq('tenant_id', tenantId).eq('is_active', true)
+          .or('role.in.(trainee_doctor,student),secondary_role.in.(trainee_doctor,student),designation.in.(pg_scholar,intern,nursing_intern)');
+        return tr.error ? tr : { count: all.count - tr.count };
+      }),
     (planType !== 'trial' && billingCycle)
       ? supabase.from('subscription_plan_pricing').select('fee').eq('plan_type', planType).eq('billing_cycle', billingCycle).maybeSingle()
       : Promise.resolve({ data: null }),

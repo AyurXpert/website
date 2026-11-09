@@ -9,10 +9,17 @@
 //   5. Pending invites of the organisation: status (pending / expired), expiry, last e-mailed; Re-send (a NEW link, the old one stops),
 //      Email, WhatsApp, Copy, Cancel.
 // The CSV never carries a second role, monitoring access or a department scope (Q10) -- those stay single invites.
+// Session 383 (§372 + owner item 3, D6-D8): an Excel (.xlsx) template made for THIS organisation with dropdowns (its departments, its
+// non-powerful positions by readable name, the roles); .xlsx or .csv upload -> the on-screen TABLE (inviteTable.js) with the same
+// dropdowns per row, "+ Add row" and paste from Excel; a value that is not an exact match is red and must be picked; then the same
+// server Check -> Create. Powerful roles / positions and interns / PG scholars are invited one at a time.
 // DOM nodes + textContent only; no confirm() / alert().
 import { safeErrorMessage } from '../../utils/errors.js';
 import { DESIG_MAP } from '../../config/designations.js';
 import { BTN, BTN_OUT, inviteLink, inviteMessage, whatsAppButton, emailInvites, fmtDate } from './staffContacts.js';
+import { inviteLists, templateSheets, rawRows, mountInviteTable, COLS } from './inviteTable.js';
+import { xlsxBlob, downloadBlob } from '../../utils/xlsxWriter.js';
+import { readXlsxRows } from '../../utils/xlsxReader.js';
 
 const mk = (tag, style, text) => { const e = document.createElement(tag); if (style) e.style.cssText = style; if (text != null) e.textContent = text; return e; };
 export const CSV_COLUMNS = ['department', 'designation', 'role', 'full_name', 'phone', 'email'];
@@ -67,53 +74,88 @@ function download(name, text) {
 }
 const posLabel = k => DESIG_MAP[k]?.l || k || '—';
 
-/** mountBulkInvite(box, { supabase, tenantName, isNcism, templateRows, depts, toast, onChange }) */
+/** mountBulkInvite(box, { supabase, tenantName, isNcism, templateRows, depts, roles: [{key,label}], defaultRole(desig), toast, onChange }) */
 export async function mountBulkInvite(box, opts) {
   const { supabase, tenantName, toast } = opts;
+  const lists = inviteLists({ depts: opts.depts || [], roles: opts.roles || [] });
+  const defaultRole = opts.defaultRole || (() => '');
+  const deptLabel = id => lists.depts.find(d => d.id === id)?.label || '';
+  const roleLabel = k => lists.roles.find(r => r.key === k)?.label || k || '';
   box.replaceChildren();
   const card = mk('div', 'background:#fff;border:1px solid var(--border);border-radius:10px;padding:16px 18px;margin-bottom:16px');
   card.append(mk('div', "font-family:'Cormorant Garamond',serif;font-size:20px;font-weight:600;color:var(--green-deep);margin-bottom:6px", '📨 Bulk invite'),
     mk('p', 'font-size:13px;color:var(--text-mid);margin:0 0 12px',
-      'Invite many staff at once from a spreadsheet (CSV). Each person gets their own join link (works 14 days, used once) by email or WhatsApp. '
-      + 'After they sign up, approve them in Login Access. A second role, monitoring access or a department scope is given one by one (single invite).'));
+      'Invite many staff at once: download the Excel template (dropdowns for Department, Position and Role), fill it, upload it — or add / paste '
+      + 'rows in the table below. Each person gets their own join link (works 14 days, used once) by email or WhatsApp. After they sign up, '
+      + 'approve them in Login Access. Powerful positions (Medical Superintendent, Finance Manager …), a second role, monitoring access, a '
+      + 'department scope and interns / PG scholars are invited one at a time (＋ Invite one person). In the table, a row’s Position must be one '
+      + 'of its department’s positions (leave the department empty for an exception).'),
+    // Session 383 (owner, rehearsal 9 Nov): Excel opens a downloaded file in Protected View, where the dropdowns do not open
+    mk('p', 'font-size:12.5px;color:#7a5a10;background:#fdf3e0;border:1px solid #e8d5a0;border-radius:8px;padding:8px 10px;margin:0 0 12px',
+      'If the dropdowns don’t open in Excel, click “Enable Editing” at the top of the Excel window (Excel opens downloaded files in Protected View).'));
   const bar = mk('div', 'display:flex;flex-wrap:wrap;gap:8px;align-items:center');
-  if (opts.isNcism) {
-    const t = mk('button', BTN_OUT, '⬇ Template — open positions'); t.type = 'button';
-    t.addEventListener('click', async () => {
-      t.disabled = true;
-      const rows = await opts.templateRows();
-      t.disabled = false;
-      const lines = [CSV_COLUMNS];
-      rows.forEach(r => { for (let i = 0; i < r.count; i++) lines.push([r.department, r.designation, r.role, '', '', '']); });
-      download('staff_invites_open_positions.csv', toCsv(lines));
-      toast?.(`Template with ${lines.length - 1} open position(s) downloaded`);
+  // the open positions of the NCISM ladder, in readable names (pre-filled rows)
+  const openRows = async () => {
+    const rows = await opts.templateRows();
+    const out = [];
+    rows.forEach(r => {
+      if (!lists.positions.some(p => p.key === r.designation)) return;   // powerful / trainee positions: one at a time
+      for (let i = 0; i < r.count; i++) out.push({ dept: r.department || '', pos: posLabel(r.designation), role: roleLabel(r.role) });
     });
-    bar.append(t);
-  }
-  const blank = mk('button', BTN_OUT, '⬇ Blank template'); blank.type = 'button';
-  blank.addEventListener('click', () => download('staff_invites_blank.csv', toCsv([CSV_COLUMNS, ['Kayachikitsa', 'staff_nurse', 'nurse', 'Example Name', '9876543210', 'name@example.com']])));
-  const fileLbl = mk('label', BTN + ';display:inline-flex;align-items:center', '⬆ Upload filled CSV');
-  const file = mk('input'); file.type = 'file'; file.accept = '.csv,text/csv'; file.style.cssText = 'position:absolute;width:1px;height:1px;opacity:0';
+    return out;
+  };
+  const xl = mk('button', BTN_OUT, opts.isNcism ? '⬇ Excel template — open positions' : '⬇ Excel template'); xl.type = 'button'; xl.id = 'bulk-xlsx-template';
+  xl.addEventListener('click', async () => {
+    xl.disabled = true;
+    try {
+      const pre = opts.isNcism ? await openRows() : [];
+      downloadBlob(xlsxBlob(templateSheets(lists, pre)), opts.isNcism ? 'staff_invites_open_positions.xlsx' : 'staff_invites.xlsx');
+      toast?.(pre.length ? `Excel template with ${pre.length} open position(s) downloaded` : 'Excel template downloaded');
+    } finally { xl.disabled = false; }
+  });
+  const blank = mk('button', BTN_OUT, '⬇ CSV template'); blank.type = 'button';
+  blank.addEventListener('click', () => download('staff_invites_blank.csv', toCsv([COLS,
+    [lists.depts[0]?.label || '', posLabel('staff_nurse'), roleLabel('nurse'), 'Example Name', '9876543210', 'name@example.com']])));
+  const fileLbl = mk('label', BTN + ';display:inline-flex;align-items:center', '⬆ Upload filled Excel / CSV');
+  const file = mk('input'); file.type = 'file'; file.accept = '.xlsx,.csv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+  file.style.cssText = 'position:absolute;width:1px;height:1px;opacity:0';
   fileLbl.append(file);
-  bar.append(blank, fileLbl);
+  bar.append(xl, blank, fileLbl);
   card.append(bar);
+  const fileMsg = mk('div', 'font-size:13px;margin-top:8px'); fileMsg.setAttribute('role', 'status');
+  const tableBox = mk('div', 'margin-top:10px');
+  card.append(fileMsg, tableBox);
   const result = mk('div', 'margin-top:14px'); result.setAttribute('aria-live', 'polite');
   card.append(result);
   const pendingBox = mk('div');
   box.append(card, pendingBox);
+  // Session 383 (owner, rehearsal step 9): any change to the rows clears the old server check -- "Check the rows" again; a check still
+  // running when the rows change is thrown away when it answers
+  let checkGen = 0;
+  const table = mountInviteTable(tableBox, { lists, defaultRole, rows: [], onCheck: rows => check(rows, []),
+    onChange: () => { checkGen++; result.replaceChildren(); } });
 
   file.addEventListener('change', async () => {
     const f = file.files?.[0]; file.value = '';
     if (!f) return;
-    if (f.size > 2_000_000) { result.replaceChildren(mk('div', `color:${RED};font-size:13px`, 'The file is too large (at most 300 rows).')); return; }
-    const parsed = rowsFromCsv(await f.text());
-    if (parsed.problem) { result.replaceChildren(mk('div', `color:${RED};font-size:13px`, parsed.problem)); return; }
-    await check(parsed.rows, parsed.extra || []);
+    fileMsg.style.color = 'var(--text-mid)'; fileMsg.textContent = '';
+    if (f.size > 2_000_000) { fileMsg.style.color = RED; fileMsg.textContent = 'The file is too large (at most 300 rows).'; return; }
+    let grid;
+    try {
+      grid = /\.xlsx$/i.test(f.name) ? await readXlsxRows(await f.arrayBuffer()) : parseCsv(await f.text());
+    } catch (e) { fileMsg.style.color = RED; fileMsg.textContent = e?.message || 'The file could not be read.'; return; }
+    const r = rawRows(grid);
+    if (r.problem) { fileMsg.style.color = RED; fileMsg.textContent = r.problem; return; }
+    table.clear(); table.addRaw(r.rows); result.replaceChildren();
+    fileMsg.textContent = `${r.rows.length} row(s) read from ${f.name} — correct any red cell, then Check the rows.`
+      + (r.skipped ? ` ${r.skipped} template row(s) with no name, phone or email were left out (not invited).` : '');
   });
 
   async function check(rows, extraCols) {
+    const gen = ++checkGen;
     result.replaceChildren(mk('div', 'font-size:13px;color:var(--text-muted)', 'Checking…'));
     const { data, error } = await supabase.rpc('preview_position_invites', { p_rows: rows });
+    if (gen !== checkGen) return;   // the rows changed while the server was checking: this answer is old
     if (error) { result.replaceChildren(mk('div', `color:${RED};font-size:13px`, safeErrorMessage(error, 'The file could not be checked.'))); return; }
     // the page's own check: a designation key the HMS does not know
     (data.rows || []).forEach(r => { if (r.designation && !DESIG_MAP[r.designation]) r.errors = [...(r.errors || []), `Unknown position "${r.designation}".`]; });
@@ -134,21 +176,23 @@ export async function mountBulkInvite(box, opts) {
     const deptName = id => (opts.depts || []).find(d => d.id === id)?.name || '';
     (data.rows || []).forEach(r => {
       const tr = mk('tr', r.errors?.length ? 'background:#fff0f0' : '');
-      [String(r.n), r.candidate_name || '—', posLabel(r.designation), r.department_id ? deptName(r.department_id) : '—', r.role || '—', r.phone || '—', r.email || '—']
+      [String(r.n), r.candidate_name || '—', posLabel(r.designation), r.department_id ? (deptName(r.department_id) || deptLabel(r.department_id)) : '—', roleLabel(r.role) || '—', r.phone || '—', r.email || '—']
         .forEach(v => tr.append(mk('td', 'padding:6px;border-bottom:1px solid var(--border);vertical-align:top', v)));
       const st = mk('td', 'padding:6px;border-bottom:1px solid var(--border);vertical-align:top');
       if (r.errors?.length) r.errors.forEach(e => st.append(mk('div', `color:${RED}`, '✗ ' + e))); else st.append(mk('span', 'color:#2d7a4f;font-weight:600', '✓ OK'));
       tr.append(st); tbl.append(tr);
     });
     tw.append(tbl); wrap.append(tw);
-    const go = mk('button', BTN + ';margin-top:12px', `Create ${data.row_count} invite(s)`); go.type = 'button';
+    // Session 383 (owner, rehearsal step 9): with an error the button says what to do, not how many would be created
+    const go = mk('button', BTN + ';margin-top:12px', bad ? `Fix ${bad} row(s) first` : `Create ${data.row_count} invite(s)`); go.type = 'button';
     go.disabled = !!bad || !!data.limit_error;
-    if (go.disabled) wrap.append(mk('div', 'font-size:12.5px;color:var(--text-muted);margin-top:8px', 'Fix the rows marked ✗ in the spreadsheet and upload it again — nothing is saved until every row is OK.'));
+    if (go.disabled) wrap.append(mk('div', 'font-size:12.5px;color:var(--text-muted);margin-top:8px', 'Correct the rows marked ✗ in the table above (or in the spreadsheet) and check again — nothing is saved until every row is OK.'));
     go.addEventListener('click', async () => {
       go.disabled = true;
       const { data: made, error: e } = await supabase.rpc('create_position_invites_bulk', { p_rows: rows });
       if (e) { go.disabled = false; toast?.(safeErrorMessage(e, 'The invites could not be created.'), true); return; }
       toast?.(`✓ ${made.count} invite(s) created`);
+      table.clear(); fileMsg.textContent = '';
       showCreated(made, data.rows);
       opts.onChange?.();
       loadPending();

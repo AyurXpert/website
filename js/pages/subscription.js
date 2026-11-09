@@ -66,12 +66,16 @@ async function init() {
 // signup block in auth.js: full at count >= max_users). count:'exact' + head:true, so no row-limit problem. undefined = still
 // loading, null = the count failed (shown as "—", never as 0).
 const _staffCounts = {};
+// Session 383 (D10): interns / PG scholars are not staff -- the same rule as the server's _trainee_position (staff = active - trainees)
+const TRAINEE_FILTER = 'role.in.(trainee_doctor,student),secondary_role.in.(trainee_doctor,student),designation.in.(pg_scholar,intern,nursing_intern)';
 async function loadStaffCounts() {
   await Promise.all(_tenants.map(async t => {
-    const { count, error } = await supabase.from('profiles')
-      .select('id', { count: 'exact', head: true })
-      .eq('tenant_id', t.id).eq('is_active', true);
-    _staffCounts[t.id] = error || typeof count !== 'number' ? null : count;
+    const [all, tr] = await Promise.all([
+      supabase.from('profiles').select('id', { count: 'exact', head: true }).eq('tenant_id', t.id).eq('is_active', true),
+      supabase.from('profiles').select('id', { count: 'exact', head: true }).eq('tenant_id', t.id).eq('is_active', true).or(TRAINEE_FILTER),
+    ]);
+    const ok = !all.error && !tr.error && typeof all.count === 'number' && typeof tr.count === 'number';
+    _staffCounts[t.id] = ok ? all.count - tr.count : null;
   }));
   renderTable();
 }
