@@ -11,20 +11,23 @@ try { importScripts('./sw-build.js'); } catch (_) { /* no build stamp: the fixed
 const CACHE      = 'ayurxpert-' + (self.AX_BUILD || 'v12');
 const OFFLINE    = './offline.html';
 
-// Security headers injected on every navigation response
+// Security headers on every navigation response. Session 384 (TODO §492 / §489, owner D9): the service worker NO LONGER sets a
+// Content-Security-Policy -- it used to REPLACE the server's (Cloudflare) policy with a weaker one ('unsafe-eval', 127.0.0.1 /
+// localhost, no base-uri / form-action). The server's policy and each page's own meta policy now pass through untouched. The first three
+// headers below are added only when the server sent none; Cache-Control stays forced to no-store (stricter than the server's no-cache,
+// unchanged behaviour).
 const SEC_HEADERS = [
   ['X-Frame-Options',            'DENY'],
   ['X-Content-Type-Options',     'nosniff'],
   ['Referrer-Policy',            'strict-origin-when-cross-origin'],
   ['Cache-Control',              'no-store, no-cache, must-revalidate, private'],
-  ['Content-Security-Policy',    "frame-ancestors 'none'; default-src 'self' https://*.supabase.co https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://cdn.tailwindcss.com https://fonts.googleapis.com https://fonts.gstatic.com https://cloudflareinsights.com https://static.cloudflareinsights.com data: blob: 'unsafe-inline' 'unsafe-eval' ws://127.0.0.1:* http://127.0.0.1:* ws://localhost:* http://localhost:*; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://cdn.jsdelivr.net https://api.pwnedpasswords.com https://cloudflareinsights.com https://static.cloudflareinsights.com ws://127.0.0.1:* http://127.0.0.1:* ws://localhost:* http://localhost:*; object-src 'none'; base-uri 'self';"],
 ];
 
 // TODO §423: a redirect reaches a navigation as an opaque response (status 0): Response() cannot rebuild it, it goes to the browser as it is
 function withSecHeaders(res) {
   if (res.type === 'opaqueredirect' || res.status === 0) return res;
   const h = new Headers(res.headers);
-  SEC_HEADERS.forEach(([k, v]) => h.set(k, v));
+  SEC_HEADERS.forEach(([k, v]) => { if (k === 'Cache-Control' || !h.has(k)) h.set(k, v); });
   return new Response(res.body, { status: res.status, statusText: res.statusText, headers: h });
 }
 

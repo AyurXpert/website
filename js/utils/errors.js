@@ -133,6 +133,17 @@ export function safeErrorMessage(error, fallback = 'Something went wrong. Please
     return error.message;
   }
 
+  // Session 384 (TODO §490 / §491 / §492): the profiles guard, an unfinished sign-in (MFA code), the MFA reset rules, a patient name with markup
+  const S384_MSGS = ['Finish signing in: enter the code', 'Enter the code from your authenticator app first', 'Platform administrator access is set by AyurXpert only',
+    'An account cannot be moved to another organisation', 'On your own profile you can change only your personal details', 'Only monitoring access, the department scope',
+    'A second role is given through HR', 'Only the Super Admin can reset another person', 'You cannot reset your own two-factor sign-in', 'Give a reason (5 to 300 characters'];
+  if (['42501', '22023'].includes(error?.code) && S384_MSGS.some(m => error?.message?.startsWith(m))) {
+    return error.message;
+  }
+  if (error?.code === '23514' && error?.message?.includes('patients_name_no_markup_chk')) {
+    return 'A patient name cannot contain < or >.';
+  }
+
   // Session 324 OPD payment collection + paid-bill stop-gap (sql/session324_opd_payments.sql).
   // Plain, staff-actionable reasons (wrong mode, missing UPI reference, already paid...).
   const OPD_PAYMENT_MSGS = ['This bill is already marked paid', 'This bill is ', 'Only OPD and investigation bills',

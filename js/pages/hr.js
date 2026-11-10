@@ -186,7 +186,9 @@ window.openStaffModal = function(id) {
 
   // Reset MFA — super_admin only (mirrors promote_to_dept_admin's precedent of
   // restricting sensitive account actions to super_admin, not dept_admin too)
-  document.getElementById('sm-reset-mfa-btn').style.display = sess.role === 'super_admin' ? '' : 'none';
+  // Session 384 (§491, owner D6): never on your own account (the server refuses it too)
+  document.getElementById('sm-reset-mfa-btn').style.display = (sess.role === 'super_admin' && s.id !== sess.id) ? '' : 'none';
+  document.getElementById('sm-mfa-panel').style.display = 'none';
 
   // Status action buttons — show relevant action for each status.
   // Session 351 (TODO §233, owner 19 Oct): one rule for every account action -- an ACTIVE Super Admin, Medical Director or Medical
@@ -269,13 +271,26 @@ window.toggleSuspend = async function() {
   _toast(_viewingStaff.full_name + ' reactivated', 'success');
 };
 
-window.resetStaffMfa = async function() {
+// Session 384 (§491, owner D4 / D6): Reset MFA opens an in-page reason panel; the server (mfa-admin-reset -> mfa_admin_reset_check) decides:
+// an active Super Admin, signed in with their own code, never their own account, same organisation, a reason; the reason is in the audit.
+window.resetStaffMfa = function() {
   if (!_viewingStaff) return;
-  if (!confirm(`Reset two-factor authentication for ${_viewingStaff.full_name}? They will need to set it up again before they can log in.`)) return;
-
+  document.getElementById('sm-mfa-panel-title').textContent = `Reset two-factor sign-in for ${_viewingStaff.full_name}`;
+  document.getElementById('sm-mfa-reason').value = '';
+  document.getElementById('sm-mfa-panel').style.display = '';
+  document.getElementById('sm-mfa-reason').focus();
+};
+window.cancelResetStaffMfa = function() {
+  document.getElementById('sm-mfa-panel').style.display = 'none';
+};
+window.confirmResetStaffMfa = async function() {
+  if (!_viewingStaff) return;
+  const reason = document.getElementById('sm-mfa-reason').value.trim();
+  if (reason.length < 5) { _toast('Give a reason (5 to 300 characters).', 'error'); document.getElementById('sm-mfa-reason').focus(); return; }
   const { data: { session } } = await supabase.auth.getSession();
   if (!session) return;
-
+  const btn = document.getElementById('sm-mfa-confirm');
+  btn.disabled = true;
   try {
     const res = await fetch('https://xvlvifiebafvgzlixdee.supabase.co/functions/v1/mfa-admin-reset', {
       method: 'POST',
@@ -283,13 +298,16 @@ window.resetStaffMfa = async function() {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${session.access_token}`,
       },
-      body: JSON.stringify({ targetUserId: _viewingStaff.id }),
+      body: JSON.stringify({ targetUserId: _viewingStaff.id, reason }),
     });
     const result = await res.json();
     if (!res.ok) { _toast(result.error || 'Could not reset MFA.', 'error'); return; }
-    _toast(`MFA reset for ${_viewingStaff.full_name}`, 'success');
+    document.getElementById('sm-mfa-panel').style.display = 'none';
+    _toast(`Two-factor sign-in reset for ${_viewingStaff.full_name}`, 'success');
   } catch (err) {
     _toast(safeErrorMessage(err, 'Could not reset MFA. Please try again.'), 'error');
+  } finally {
+    btn.disabled = false;
   }
 };
 

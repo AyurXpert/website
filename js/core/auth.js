@@ -425,6 +425,11 @@ export async function verifyBackupCodeAndFinishLogin({ code }) {
     const result = await res.json();
     if (!res.ok) throw new Error(result.error || 'Invalid or already-used backup code.');
 
+    // 384 rehearsal R3 (10 Nov 2026): the server removed the authenticator; refresh the stored session so it no longer lists it (else
+    // requireAuth() sees "an authenticator + a password-only token" and sends the person back to the code step). Best effort: requireAuth()
+    // also asks the server before it does that.
+    try { await supabase.auth.refreshSession(); } catch { /* requireAuth() re-checks with the server */ }
+
     const { data: { user } } = await supabase.auth.getUser();
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
@@ -841,6 +846,26 @@ export async function requireAuth(allowedRoles = [], redirectTo = 'login.html', 
   if (pinnedUser && pinnedUser !== session.user.id) {
     blockTab(session.user.email || 'another account');
     return new Promise(() => {});
+  }
+
+  // Session 384 (§491, owner D4): an account with a verified MFA factor whose session is password-only (aal1) has NOT finished signing in
+  // (e.g. a page address typed at the code screen). Back to the code step; the server refuses such a session too. Read from the session
+  // itself (no network); an error that is no answer waits, as every other check here.
+  const { data: aal, error: aalError } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+  if (_noAnswer(aalError)) return _waitForAnswer();
+  // 384 rehearsal R3 (10 Nov 2026): the stored session's list of factors can be stale -- after a backup code removed the authenticator
+  // (mfa-backup-verify) or a Super Admin's MFA reset, the browser still lists it. Ask the server once (only in this half-signed-in case)
+  // whether a verified authenticator really exists; none = the sign-in is complete (the server's _mfa_unmet() agrees). No answer = wait.
+  let mfaStillOpen = !!(aal && aal.nextLevel === 'aal2' && aal.currentLevel !== 'aal2');
+  if (mfaStillOpen) {
+    const { data: liveFactors, error: lfError } = await supabase.auth.mfa.listFactors();
+    if (_noAnswer(lfError)) return _waitForAnswer();
+    mfaStillOpen = !!lfError || (liveFactors?.all || []).some(f => f.status === 'verified');
+  }
+  if (mfaStillOpen) {
+    sessionStorage.clear();
+    window.location.replace('login.html?mfa=1');
+    return new Promise(() => {});   // §424: a redirecting exit never resolves
   }
 
   // Check if cached profile belongs to the current session user.

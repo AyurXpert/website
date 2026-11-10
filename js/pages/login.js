@@ -262,3 +262,22 @@ async function handleMfaVerify() {
     mfaCodeEl.classList.add('error');
   }
 }
+
+// ── Session 384 (§491, owner D4): continue at the code step ───────────────────
+// The page sign-in check (js/core/auth.js) sends a password-only (aal1) session of an MFA account here as login.html?mfa=1 (e.g. a page address typed at the code
+// screen). Keep that session and ask for the code (or a backup code) again; anything else = the normal sign-in page.
+(async () => {
+  if (new URLSearchParams(window.location.search).get('mfa') !== '1') return;
+  const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+  if (!aal || aal.nextLevel !== 'aal2' || aal.currentLevel === 'aal2') return;
+  const { data: factors } = await supabase.auth.mfa.listFactors();
+  const totp = factors?.totp?.find(f => f.status === 'verified');
+  if (!totp) return;
+  _pendingFactorId = totp.id;
+  document.getElementById('step-email').style.display = 'none';
+  document.getElementById('step-password').classList.add('hidden');
+  document.getElementById('step-mfa').classList.remove('hidden');
+  document.getElementById('alert-info-text').textContent = 'Finish signing in: enter the code from your authenticator app.';
+  document.getElementById('alert-info').classList.add('show');
+  mfaCodeEl.focus();
+})();

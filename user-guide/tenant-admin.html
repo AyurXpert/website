@@ -190,7 +190,7 @@
       <li><strong>Relieve (All Staff and Organisation Staff)</strong> — replaces Terminate. Only an <strong>active</strong> <span class="badge badge-super_admin">super_admin</span>, Medical Director or Medical Superintendent sees the 📤 Relieve button. Relieving needs a <strong>reason type</strong> (Resigned, Retired, Transferred, Contract ended, Deceased, Absconding or Terminated (disciplinary)) and a reason; it locks the person's sign-in at once and moves them to <strong>Relieved Staff</strong>. An admin, a senior position (Medical Director, Principal, Medical / Nursing Superintendent and deputies, PK In-charge, Finance Manager, Nurse Manager) or an account with a department scope is relieved only by the super_admin. Nobody relieves their own account, and no approval request is needed any more.</li>
       <li><strong>Relieved Staff (Reactivate)</strong> — lists relieved staff with the reason type ("Terminated" appears only for the disciplinary type; records from before this change show "Relieved – reason not recorded" with their old reason), and below them <strong>Inactive (not relieved)</strong> accounts set inactive by the old "Mark Inactive". Reactivate follows the same rule as Relieve (super_admin, Medical Director or Medical Superintendent; admin / senior / scoped accounts: super_admin only) and unlocks the sign-in. A dept_admin no longer relieves or reactivates.</li>
       <li><strong>Block / Suspend / On Leave (the HR page, hr.html → View Profile)</strong> — the same rule: shown only to the super_admin, Medical Director or Medical Superintendent (admin / senior / scoped accounts: super_admin only). "Mark Inactive" has been removed — use Relieve. A relieved account is reactivated only from Relieved Staff.</li>
-      <li><strong>Reset MFA</strong> — in a staff member's profile modal, a super_admin can remove another user's MFA factor if they're locked out (mandatory for super_admin/dept_admin/finance roles). Use this before resorting to any database-level fix.</li>
+      <li><strong>Reset MFA</strong> — in a staff member's profile modal, the Super Admin can remove another person's two-factor sign-in if they are locked out (mandatory for super_admin/dept_admin/finance roles). It asks for a <strong>reason</strong> (recorded), works only when you yourself signed in with your own authenticator code, and is never offered on your own account (use a backup code, or Account → Security). Use this before resorting to any database-level fix.</li>
     </ul>
 
     <h3 id="hr-ncism-invite" style="scroll-margin-top: 10px">4.1 NCISM Staffing Compliance — Invite to Fill a Position</h3>
@@ -416,7 +416,7 @@
 
     <div class="scenario">
       <h4>C. A staff member is locked out of MFA</h4>
-      <p>Go to Human Resources → find their profile → use the "Reset MFA" action (super_admin only). This clears their enrolled factor so they can re-enroll on next login.</p>
+      <p>First ask whether they saved their backup codes: on the code screen, <em>Lost your device? Use a backup code instead</em> lets them in without you. Otherwise: Human Resources → their profile → <strong>Reset MFA</strong> (Super Admin only) → give the reason → <strong>Reset two-factor sign-in</strong>. This clears their enrolled factor so they set it up again at their next sign-in. You must be signed in with your own code; you cannot reset your own.</p>
     </div>
 
     <div class="scenario">
