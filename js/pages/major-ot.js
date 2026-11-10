@@ -247,8 +247,9 @@ window.saveNewCase = async function() {
 
   // NABH — Save surgical consent record
   const consentBy = document.getElementById('ot-consent-by').value.trim();
+  let consentErr = null;
   if (consentBy) {
-    await supabase.from('consent_records').insert({
+    ({ error: consentErr } = await supabase.from('consent_records').insert({
       tenant_id:              tenantId,
       patient_id:             _foundPt.id,
       consent_type:           document.getElementById('ot-consent-type').value,
@@ -259,11 +260,16 @@ window.saveNewCase = async function() {
       alternatives_explained: document.getElementById('ot-consent-alts').checked,
       questions_answered:     document.getElementById('ot-consent-questions').checked,
       procedure_details:      proc,
-    });
+    }));
   }
 
   closeNew();
-  _alert('success', `OT Case #${serial} scheduled for ${_foundPt.name}.`);
+  // Session 385a (§497, owner Q4): a consent is recorded by a consultant or a PG scholar only -- never a silent failure
+  if (consentErr) {
+    _alert('error', `OT Case #${serial} scheduled, but the consent was NOT recorded: ${safeErrorMessage(consentErr, 'Could not save the consent.')}`);
+  } else {
+    _alert('success', `OT Case #${serial} scheduled for ${_foundPt.name}.`);
+  }
   loadCases();
 };
 

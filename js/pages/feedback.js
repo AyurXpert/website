@@ -117,7 +117,9 @@ window.submitFeedback = async function() {
   });
 
   if (error) {
-    showError('Could not save feedback. Please try again.');
+    // Session 385a (§500): the server's plain reason when the link has expired or the comment is too long / holds < or >
+    const m = String(error.message || '');
+    showError(/^(This feedback link has expired|Please keep the comment under 1000|Feedback already submitted)/.test(m) ? m : 'Could not save feedback. Please try again.');
     btn.classList.remove('loading');
     btn.disabled = false;
     return;

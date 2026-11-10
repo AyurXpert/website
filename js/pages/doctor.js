@@ -1895,6 +1895,9 @@ window.startConsultation = async function(visitId) {
   // §18af/18ag/18ah — Visha features: show only for Agadatantra OPD
   const isAgd = _activeNcismCode === 'AGD' || visit?.opds?.name?.toLowerCase().includes('agad');
   document.getElementById('tab-btn-visha').style.display     = isAgd ? '' : 'none';
+  // Session 385a R10 (10 Nov 2026): the button carries class "gated" (.tab.gated{display:none}); the inline style alone never showed it -- the
+  // Visha Register tab was unreachable on every visit since 30 May 2026 (bcf0eadf). scripts/check-385a-r10.mjs checks the computed visibility.
+  document.getElementById('tab-btn-visha').classList.toggle('gated', !isAgd);
   document.getElementById('visha-class-panel').style.display  = isAgd ? '' : 'none';
   document.getElementById('btn-escalate-emg').style.display  = isAgd ? '' : 'none';
   if (isAgd) await _loadVishaRecord(visitId);
@@ -8290,6 +8293,7 @@ function _closeConsult() {
   document.getElementById('ref-banner').style.display = 'none';
   document.getElementById('tab-btn-proforma').style.display  = 'none';
   document.getElementById('tab-btn-visha').style.display      = 'none';
+  document.getElementById('tab-btn-visha').classList.add('gated');
   _renderExamGuide(null);
   document.getElementById('visha-class-panel').style.display  = 'none';
   document.getElementById('btn-escalate-emg').style.display   = 'none';
@@ -9521,7 +9525,8 @@ function renderAllergyList() {
   ).join('');
 }
 window.resolveAllergy = async function(allergyId) {
-  await supabase.from('patient_allergies').update({ status:'resolved' }).eq('id', allergyId);
+  const { error: resErr } = await supabase.from('patient_allergies').update({ status:'resolved' }).eq('id', allergyId);
+  if (resErr) { alert(safeErrorMessage(resErr, 'Could not mark the allergy resolved.')); return; }   // Session 385a: no silent failure
   await _loadPatientAllergies(_activePatient.id);
   renderAllergyList();
 };
@@ -9546,3 +9551,14 @@ window.saveAllergy = async function() {
   await _loadPatientAllergies(_activePatient.id);
   renderAllergyList();
 };
+
+// Session 385a rehearsal finding (R1.2 / R1.3, 10 Nov 2026): these 14 handlers are named in doctor.html's data-onclick / data-onchange
+// attributes, which js/utils/domEvents.js resolves as window[name]. As bare functions of this ES module they were never on window, so
+// the buttons did nothing ("[domEvents] no such function on window") -- MHA 2017 consent + mental-health flag, the ADR report, the
+// Visha (poisoning) selects and the lab-results Refresh link (CLAUDE.md recurring bug class 2; also on LIVE before 385a).
+// scripts/check-385a-actions.mjs checks every data-on* name of the page resolves.
+Object.assign(window, {
+  openMhaFlag, closeMhaFlag, saveMhaFlag, openMhaConsent, closeMhaConsent, saveMhaConsent,
+  openAdrModal, closeAdrModal, addAdrMedRow, saveAdrReport,
+  _syncVishaDiag, _onVishaTypeChange, _onPoliceChange, loadLabResults,
+});

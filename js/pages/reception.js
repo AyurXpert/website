@@ -5,6 +5,7 @@ import { supabase } from '../core/db/supabaseClient.js';
 import { createPatient } from '../modules/patient/patientService.js';
 import { logAudit } from '../core/auditLogger.js';
 import { escapeHtml as _esc } from '../utils/validators.js';
+import { canRecordClinical } from '../utils/clinicalWriters.js';   // Session 385a (§497, owner Q4)
 import { safeErrorMessage } from '../utils/errors.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { getEffectivePrice } from '../modules/billing/effectivePrice.js';
@@ -6583,7 +6584,7 @@ async function _loadReceptionAllergies(patientId) {
   const sevColor = { mild:'#f39c12', moderate:'#e67e22', severe:'#e74c3c', anaphylaxis:'#c0392b' };
   display.innerHTML = _receptionAllergies.map(a =>
     `<span style="display:inline-flex;align-items:center;gap:3px;background:${sevColor[a.severity]||'#e74c3c'}18;border:1px solid ${sevColor[a.severity]||'#e74c3c'};border-radius:12px;padding:2px 8px;margin:2px;font-size:11px">
-      <strong>${a.allergen}</strong>${a.severity ? ` <span style="color:${sevColor[a.severity]}"> [${a.severity}]</span>` : ''}
+      <strong>${_esc(a.allergen)}</strong>${a.severity ? ` <span style="color:${sevColor[a.severity]}"> [${_esc(a.severity)}]</span>` : ''}
     </span>`
   ).join('');
 }
@@ -6591,6 +6592,10 @@ async function _loadReceptionAllergies(patientId) {
 window.openReceptionAllergyModal = function() {
   if (!_receptionPatientId) return;
   document.getElementById('rx-allergy-modal').style.display = 'flex';
+  // Session 385a (§497, owner Q4): only a doctor, PG scholar, intern or nurse records an allergy (the server decides; this hides the form)
+  const canAdd = canRecordClinical(getCurrentProfile(), 'allergy');
+  document.getElementById('rx-allergy-add').style.display = canAdd ? '' : 'none';
+  document.getElementById('rx-allergy-readonly').style.display = canAdd ? 'none' : '';
   renderReceptionAllergyList();
 };
 window.closeReceptionAllergyModal = function() {
@@ -6602,7 +6607,7 @@ function renderReceptionAllergyList() {
   const sevColor = { mild:'#f39c12', moderate:'#e67e22', severe:'#e74c3c', anaphylaxis:'#c0392b' };
   el.innerHTML = _receptionAllergies.map(a =>
     `<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid #f0f4f2">
-      <span style="flex:1;font-size:13px"><strong>${a.allergen}</strong> <span style="color:var(--text-muted)">(${a.allergen_type})</span></span>
+      <span style="flex:1;font-size:13px"><strong>${_esc(a.allergen)}</strong> <span style="color:var(--text-muted)">(${_esc(a.allergen_type)})</span></span>
       ${a.severity ? `<span style="font-size:11px;font-weight:600;color:${sevColor[a.severity]||'#e74c3c'}">${a.severity}</span>` : ''}
     </div>`
   ).join('');
@@ -6610,11 +6615,13 @@ function renderReceptionAllergyList() {
 window.saveReceptionAllergy = async function() {
   const allergen = document.getElementById('rx-new-allergen').value.trim();
   if (!allergen || !_receptionPatientId) return;
-  await supabase.from('patient_allergies').insert({
+  const { error: alErr } = await supabase.from('patient_allergies').insert({
     tenant_id: tenantId, patient_id: _receptionPatientId,
     allergen, allergen_type: document.getElementById('rx-new-type').value,
     severity: document.getElementById('rx-new-severity').value || null,
   });
+  // Session 385a: never a silent failure (no false "saved")
+  if (alErr) { _alert('error', safeErrorMessage(alErr, 'Could not save the allergy.')); return; }
   await supabase.from('patients').update({ has_allergies: true }).eq('id', _receptionPatientId);
   document.getElementById('rx-new-allergen').value = '';
   await _loadReceptionAllergies(_receptionPatientId);

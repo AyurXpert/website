@@ -132,17 +132,13 @@ async function loadConfig() {
 
 // ── Save config ───────────────────────────────────────────────────────────────
 window.saveConfig = async function() {
-  const ugIntake = parseInt(document.getElementById('cfg-ug-intake').value) || 60;
-  _cfg.ugIntake  = ugIntake;
-  _cfg.opdTarget = ugIntake * 2;
+  // Session 385a (TODO §499): the UG intake and the OPD target are set by AyurXpert with the subscription (the server refuses a change
+  // from here); only the working days per week are the hospital's own setting (owner Q5).
   _cfg.workdays  = parseInt(document.getElementById('cfg-workdays').value) || 6;
-  document.getElementById('cfg-opd-target').value = _cfg.opdTarget;
 
   if (role !== 'super_admin') { _alert('error','Only super_admin can change settings.'); return; }
 
   const { error } = await supabase.from('tenants').update({
-    ug_intake:             _cfg.ugIntake,
-    opd_daily_target:      _cfg.opdTarget,
     working_days_per_week: _cfg.workdays,
   }).eq('id', tenantId);
 
@@ -801,9 +797,6 @@ window.exportCSV = function() {
 };
 
 // ── Init ──────────────────────────────────────────────────────────────────────
-document.getElementById('cfg-ug-intake').addEventListener('input', function() {
-  document.getElementById('cfg-opd-target').value = (parseInt(this.value) || 60) * 2;
-});
 document.getElementById('cfg-date').value = _refDate;
 await loadConfig();
 await loadAll();

@@ -140,6 +140,21 @@ export function safeErrorMessage(error, fallback = 'Something went wrong. Please
   if (['42501', '22023'].includes(error?.code) && S384_MSGS.some(m => error?.message?.startsWith(m))) {
     return error.message;
   }
+  // Session 385a (TODO §493-§500, §512): sign-off, server-made bills, insurance amounts, stay charges, clinical records, approvals,
+  // the feedback form -- plain, schema-free, written to be shown
+  const S385A_MSGS = ['You can sign only under your own name', 'Only a consultant can finalise this', 'A saved prescription cannot be changed here',
+    'A saved consultation note cannot be changed here', 'Bills are created only by the billing functions', 'Bill lines are added only by the billing functions',
+    'An IPD bill is generated only with Generate Bill', 'The payer of a bill cannot be changed here', 'A self-pay bill has no insurance amounts',
+    'The approved amount must be between 0', 'The quantity must be more than 0', 'The price cannot be negative', 'That fee is not an active fee',
+    'Only a consultant or a PG scholar can mark an allergy resolved', 'A saved record cannot be edited', 'Your role cannot record ',
+    'This record belongs to another organisation', 'Choose a patient of this organisation', 'That visit is not this patient', 'That admission is not this patient',
+    'This request type is sent through its own screen', 'The request names ', 'The bill of this request is not', 'This admission has no bed recorded',
+    'A bill discount is not available on this (non-GST) bill', 'No room rate configured for bed type', 'The bill can be generated only after charges are locked',
+    'This feedback link has expired', 'Please keep the comment under 1000 characters', 'Feedback already submitted', 'Unknown payer type'];
+  if (['P0001', '42501', '22023'].includes(error?.code) && (S385A_MSGS.some(m => error?.message?.startsWith(m))
+      || /^The organisation's [a-z_]+ is managed by the AyurXpert platform/.test(error?.message || ''))) {
+    return error.message;
+  }
   if (error?.code === '23514' && error?.message?.includes('patients_name_no_markup_chk')) {
     return 'A patient name cannot contain < or >.';
   }

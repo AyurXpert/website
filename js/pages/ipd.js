@@ -1795,119 +1795,27 @@ window.confirmGenerateBill = async function() {
   const payerType = document.getElementById('bill-payer-type').value;
   const btn = document.getElementById('btn-generate-bill');
 
-  // GST Phase 2b -- gst_v1 admissions go through the DB's own atomic RPC
-  // (build draft + calculate + finalize + stay-charge status + admission
-  // status + audit log, all in one transaction) instead of the manual
-  // inserts below, which stay exactly as they were for legacy admissions.
-  if (_billRegime === 'gst_v1') {
-    btn.disabled = true; btn.textContent = 'Generating…';
-    const { data, error } = await supabase.rpc('generate_ipd_bill', {
-      p_adm: admId, p_payer: payerType, p_bill_discount: 0,
-    });
-    if (error) {
-      btn.disabled = false; btn.textContent = 'Generate Bill';
-      _alert('error', safeErrorMessage(error, 'Could not generate bill.')); return;
-    }
-    if (adm.patients?.id) {
-      _abdmCareContextInvoice(data.bill_id, adm.patients.id, admId, {
-        abhaNumber:  adm.patients.abha_number,
-        abhaAddress: adm.patients.abha_address,
-      });
-    }
-    btn.disabled = false; btn.textContent = 'Generate Bill';
-    closeGenerateBillDrawer();
-    _alert('success', `IPD bill generated — ${data.document_number || ''} ₹${Number(data.final_amount||0).toLocaleString('en-IN')}.`);
-    await loadAll();
-    await openAccountDrawer(admId); // Session 302 -- straight into collection
-    return;
-  }
-
-  if (!_billTariff) { _alert('error','Fix the room tariff issue above before generating the bill.'); return; }
+  // Session 385a (TODO §494, owner Q1): every IPD bill -- GST or legacy -- is made by the server's own atomic function
+  // generate_ipd_bill (a legacy admission is priced there exactly as this page priced it before: days x the bed's room fee + its
+  // GST %, + the open stay charges). The browser no longer inserts bills, bill lines or the admission's bill link.
+  if (_billRegime !== 'gst_v1' && !_billTariff) { _alert('error','Fix the room tariff issue above before generating the bill.'); return; }
   btn.disabled = true; btn.textContent = 'Generating…';
-
-  const tariffGst    = _billTariff.gstPercent ? _billTariff.total * _billTariff.gstPercent / 100 : 0;
-  const chargesTotal = _billCharges.reduce((s,r) => s + (Number(r.amount)||0), 0);
-  const chargesGst   = _billCharges.reduce((s,r) => s + (Number(r.amount)||0) * (Number(r.gst_percent)||0) / 100, 0);
-  const finalAmount  = _billTariff.total + tariffGst + chargesTotal + chargesGst;
-
-  // chk_insurance_workflow_sync requires self_pay <-> not_applicable,
-  // anything else <-> a real (non not_applicable) claim status. Insurance
-  // provider/TPA/policy details aren't captured here (no such field exists
-  // on ipd_admissions/patients to copy from) -- Insurance Counter fills
-  // those in via the existing finance.html / insurance-claims.html flow,
-  // which this bill surfaces in automatically once payer_type != self_pay.
-  const insuranceClaimStatus = payerType === 'self_pay' ? 'not_applicable' : 'pre_auth_pending';
-
-  // Session 302: advance_credited is no longer set here -- the payments ledger's
-  // sync trigger (_ipd_ledger_sync, fired on ipd_admissions.discharge_bill_id being
-  // set below) fills it in from the real ledger total the moment this bill is
-  // linked to the admission, and keeps it correct from then on as deposits/
-  // payments/refunds are recorded. patient_due (GENERATED STORED) is
-  // final_amount - insurance_approved_amount - advance_credited.
-  const { data: bill, error: billErr } = await supabase.from('bills').insert({
-    tenant_id: tenantId, patient_id: adm.patients?.id,
-    bill_type: 'ipd', total_amount: finalAmount, final_amount: finalAmount,
-    payer_type: payerType, insurance_claim_status: insuranceClaimStatus,
-    status: 'pending', payment_mode: null,
-    // Session 302 -- same field the GST path's _ipd_build_draft() already sets; finance.js's
-    // Outstanding list uses it to link straight back into this admission's Account drawer.
-    ipd_admission_id: admId,
-    billing_note: _billBillingNote,
-  }).select('id').single();
-
-  if (billErr) {
+  const { data, error } = await supabase.rpc('generate_ipd_bill', {
+    p_adm: admId, p_payer: payerType, p_bill_discount: 0,
+  });
+  if (error) {
     btn.disabled = false; btn.textContent = 'Generate Bill';
-    _alert('error', safeErrorMessage(billErr, 'Could not generate bill.')); return;
+    _alert('error', safeErrorMessage(error, 'Could not generate bill.')); return;
   }
-
-  const billItems = [{
-    bill_id: bill.id, tenant_id: tenantId, item_type: 'room_tariff',
-    // Session 319 -- the fee's own admin-set label, not the raw bed_type key (this line is
-    // finalized/printed on the patient's invoice, and a custom bed type's raw key like
-    // "custom-1735500000000" must never appear there).
-    description: `Room Tariff — ${_billTariff.days} day${_billTariff.days>1?'s':''} × ${_billTariff.label}`,
-    quantity: _billTariff.days, price: _billTariff.dailyRate, total: _billTariff.total,
-    gst_percent: _billTariff.gstPercent, gst_amount: tariffGst,
-  }].concat(_billCharges.map(r => ({
-    bill_id: bill.id, tenant_id: tenantId, item_type: r.source,
-    description: r.description, quantity: Math.round(r.quantity), price: r.unit_price, total: r.amount,
-    gst_percent: r.gst_percent, gst_amount: (Number(r.amount)||0) * (Number(r.gst_percent)||0) / 100,
-  })));
-
-  const { error: itemsErr } = await supabase.from('bill_items').insert(billItems);
-  if (itemsErr) {
-    btn.disabled = false; btn.textContent = 'Generate Bill';
-    _alert('error', safeErrorMessage(itemsErr, 'Bill created but items failed — contact support.')); return;
-  }
-
-  if (_billCharges.length) {
-    await supabase.from('ipd_stay_charges').update({ status: 'billed', billed_bill_id: bill.id })
-      .in('id', _billCharges.map(r => r.id));
-  }
-
-  const { error: admErr } = await supabase.from('ipd_admissions').update({
-    status: 'bill_generated', bill_generated_at: new Date().toISOString(), discharge_bill_id: bill.id,
-  }).eq('id', admId);
-  if (admErr) _alert('error', safeErrorMessage(admErr, 'Bill created but admission status update failed.'));
-
-  await logAudit('ipd_bill_generated', 'bills', bill.id, { admission_id: admId, final_amount: finalAmount }, _ctx);
-
-  // Session 183: separate Invoice care context for this discharge bill (own
-  // BILL-<id> ref — doesn't collide with the admission's DischargeSummary-tagged
-  // IPD-<id> context)
-  // 5 Sep 2026 (Session 197) — widened to also fire on abha_address alone, and to
-  // still create the care context even with neither identifier yet (matching
-  // dispensaryPOS.js's already-shipped fix) -- see _abdmCareContextInvoice below.
   if (adm.patients?.id) {
-    _abdmCareContextInvoice(bill.id, adm.patients.id, admId, {
+    _abdmCareContextInvoice(data.bill_id, adm.patients.id, admId, {
       abhaNumber:  adm.patients.abha_number,
       abhaAddress: adm.patients.abha_address,
     });
   }
-
   btn.disabled = false; btn.textContent = 'Generate Bill';
   closeGenerateBillDrawer();
-  _alert('success', `IPD bill generated — ₹${finalAmount.toLocaleString('en-IN')}.`);
+  _alert('success', `IPD bill generated — ${data.document_number || ''} ₹${Number(data.final_amount||0).toLocaleString('en-IN')}.`);
   await loadAll();
   await openAccountDrawer(admId); // Session 302 -- straight into collection
 };
