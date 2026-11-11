@@ -155,6 +155,17 @@ export function safeErrorMessage(error, fallback = 'Something went wrong. Please
       || /^The organisation's [a-z_]+ is managed by the AyurXpert platform/.test(error?.message || ''))) {
     return error.message;
   }
+  // Session 386a (TODO §538): PK session charges posted by the server, unpriced items, the lock / bill waiting for them -- plain, schema-free
+  const S386A_MSGS = ['Panchakarma session charges are added by the server', 'Mark these Panchakarma sessions completed or skipped', 'No price set for: ',
+    'Only the accountant, the finance manager, the Medical Superintendent', 'Item not found', 'This item is already resolved',
+    'The bill for this admission is already made', 'The reason must be at most 300 characters', 'Give a reason for cancelling this item',
+    'That fee is not an active procedure fee', 'The session is no longer completed', 'Give a reason for cancelling this charge',
+    'A PK session can be started or completed only on or after', 'Only the ordering doctor, the Medical Superintendent', 'Pick today or a later date for the',
+    'That slot is not free on', 'PK session not found in your organisation', 'Only a scheduled or running session can be skipped',
+    'PK sessions are updated by their therapist'];
+  if (['P0002', '42501', '22023'].includes(error?.code) && S386A_MSGS.some(m => error?.message?.startsWith(m))) {
+    return error.message;
+  }
   if (error?.code === '23514' && error?.message?.includes('patients_name_no_markup_chk')) {
     return 'A patient name cannot contain < or >.';
   }

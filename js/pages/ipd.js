@@ -20,6 +20,7 @@ import { creditNoteLinks, creditNotesForBills, payoutBox, PAYOUT_ROLES } from '.
 import { canOfferCancel, renderCancelBill, renderCancelledBills } from '../modules/ipd/ipdBillCancel.js';
 import { abdmOn } from '../modules/abdm/comingSoon.js';   // Session 379a
 import { exitPowers, exitOpen, exitTimeBounds, exitTimeProblem } from '../modules/ipd/ipdExit.js';   // Session 381 (§471)
+import { loadOpenChargeIssues, renderOpenChargeIssues, askInPage } from '../modules/billing/unpricedItems.js';   // Session 386a (§538)
 
 /*
   SQL to run in Supabase (one time) before using this page:
@@ -1625,6 +1626,7 @@ async function _refreshBillPreview(adm) {
   if (_billRegime === 'gst_v1') {
     if (notice) notice.style.display = '';
     await _refreshBillPreviewGst(adm);
+    await _renderBillUnpriced(adm);
     return;
   }
 
@@ -1650,6 +1652,17 @@ async function _refreshBillPreview(adm) {
   }
 
   await _loadBillCharges(adm.id);
+  await _renderBillUnpriced(adm);
+}
+
+// Session 386a (TODO §538): items the server could not price (a Panchakarma session completed with no fee for its AYUSH code). The
+// server refuses the bill while one is open; the accountant / finance manager / MS / Super Admin choose its fee or cancel it here.
+async function _renderBillUnpriced(adm) {
+  const issues = await loadOpenChargeIssues(supabase, adm.id);
+  const clear = await renderOpenChargeIssues(document.getElementById('bill-unpriced'), {
+    supabase, tenantId, profile: myProfile, issues: { ...issues, notDone: [] }, onChanged: () => _refreshBillPreview(adm),
+  });
+  if (!clear) document.getElementById('btn-generate-bill').disabled = true;
 }
 
 // GST Phase 2b -- admission is on/after the tenant's gst_go_live_date. The DB
@@ -1776,8 +1789,9 @@ window.addBillCharge = async function() {
 window.voidBillCharge = async function(chargeId) {
   const admId = document.getElementById('bill-adm-id').value;
   // Session 305: cancel with a reason (who/when/why recorded), never a silent void/delete.
-  const reason = (prompt('Reason for cancelling this charge (required):') || '').trim();
-  if (!reason) return;
+  // Session 386a: an in-page reason panel instead of the native prompt() (no native dialogs in money flows)
+  const reason = await askInPage(document.getElementById('bill-ask'), { title: 'Reason for cancelling this charge', needReason: true, okLabel: 'Cancel the charge' });
+  if (reason == null) return;
   const { error } = await supabase.rpc('cancel_ipd_stay_charge', { p_charge_id: chargeId, p_reason: reason });
   if (error) { _alert('error', safeErrorMessage(error, 'Could not cancel the charge.')); return; }
   if (_billRegime === 'gst_v1') {

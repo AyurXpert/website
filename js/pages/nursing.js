@@ -18,7 +18,7 @@ import { initNavbar } from '../components/navbar.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
 import { logAudit } from '../core/auditLogger.js';
-import { getEffectivePrice } from '../modules/billing/effectivePrice.js';
+import { loadOpenChargeIssues, renderOpenChargeIssues, askInPage } from '../modules/billing/unpricedItems.js';   // Session 386a
 import { renderPromoBanner } from '../components/promoBanner.js';
 import { checkRosterChanged } from '../modules/roster/scheduleChangeIndicator.js';
 import { fetchMyDuty, renderMyDutyHtml, renderTodayHtml } from '../modules/roster/myDutyWidget.js';
@@ -1090,6 +1090,13 @@ const DISCHARGE_STATUS_LABELS = {
   pending:'Pending confirmation', confirmed:'Confirmed', billed:'Billed', voided:'Cancelled',
 };
 
+async function _renderReconIssues(admId) {
+  const issues = await loadOpenChargeIssues(supabase, admId);
+  return renderOpenChargeIssues(document.getElementById('recon-unpriced'), {
+    supabase, tenantId, profile, issues, onChanged: () => loadDischargeReconciliation(),
+  });
+}
+
 window.loadDischargeReconciliation = async function() {
   const readyWrap = document.getElementById('disc-recon-body');
   const notReady  = document.getElementById('disc-not-ready');
@@ -1107,44 +1114,13 @@ window.loadDischargeReconciliation = async function() {
   const admId = _activeAdm.id;
   const { data: staged } = await supabase.from('ipd_stay_charges')
     .select('*').eq('ipd_admission_id', admId).order('added_at');
-  let rows = staged || [];
+  const rows = staged || [];
 
-  // Pull PK therapy sessions linked to this admission that aren't staged
-  // yet, price-matching by therapy_name against fee_structures (Panchakarma
-  // procedure fees, category='procedure', label e.g. "Panchakarma —
-  // Abhyanga"). pk_therapy_sessions has no stored price -- it's a pure
-  // clinical scheduling record -- so this is a real lookup, not a stored-
-  // amount read, and free-text therapy_name vs free-text fee label may not
-  // always match. Unmatched sessions still get staged (status 'pending',
-  // unit_price 0) with a "price not found" note rather than silently
-  // skipped, so the nurse always sees every session and can fill in the
-  // price manually instead of it vanishing from the reconciliation list.
-  const stagedRefIds = new Set(rows.filter(r => r.source_ref_id).map(r => r.source_ref_id));
-  const { data: sessions } = await supabase.from('pk_therapy_sessions')
-    .select('id, therapy_name, scheduled_date')
-    .eq('ipd_admission_id', admId);
-  const newSessionRows = (sessions || []).filter(s => !stagedRefIds.has(s.id));
-  if (newSessionRows.length) {
-    const { data: feeRows } = await supabase.from('fee_structures')
-      .select('id, label, amount, gst_percent, promo_price, promo_valid_until')
-      .eq('tenant_id', tenantId).eq('category', 'procedure').eq('is_active', true);
-    // GST Phase 2b -- fee_structure_id/charge_date let a future gst_v1 bill use this
-    // fee's own tax profile instead of the tenant default; harmless while pharmacy
-    // stays off and no tenant is GST-live yet.
-    const inserts = newSessionRows.map(s => {
-      const match = (feeRows || []).find(f => (f.label||'').toLowerCase().includes((s.therapy_name||'').toLowerCase().trim()) && s.therapy_name?.trim());
-      const price = match ? getEffectivePrice(match) : 0;
-      return {
-        tenant_id: tenantId, ipd_admission_id: admId, source: 'pk_session', source_ref_id: s.id,
-        description: match ? s.therapy_name : `${s.therapy_name || 'PK Session'} (price not found — verify)`,
-        quantity: 1, unit_price: price, gst_percent: match?.gst_percent ?? null,
-        amount: price, status: 'pending', added_by: userId,
-        fee_structure_id: match?.id || null, charge_date: s.scheduled_date || todayLocalStr(),
-      };
-    });
-    const { data: inserted } = await supabase.from('ipd_stay_charges').insert(inserts).select('*');
-    rows = rows.concat(inserted || []);
-  }
+  // Session 386a (TODO §538): Panchakarma sessions are no longer staged here. The SERVER charges a session when it is COMPLETED,
+  // priced from the fee with the same AYUSH code; what it cannot price becomes an "unpriced item" that the lock and the bill wait
+  // for (the accountant / finance manager / MS / Super Admin choose its fee or cancel it with a reason). Before 386a this page
+  // staged every session of the admission -- skipped, scheduled and in-progress ones too -- by a name match, unpriced ones at Rs 0.
+  await _renderReconIssues(admId);
 
   renderReconciliationList(rows);
 };
@@ -1192,8 +1168,9 @@ window.addManualCharge = async function() {
 window.voidStayCharge = async function(chargeId) {
   // Session 305: charges are never deleted or silently voided -- cancel with a reason
   // (cancel_ipd_stay_charge records who/when/why).
-  const reason = (prompt('Reason for cancelling this charge (required):') || '').trim();
-  if (!reason) return;
+  // Session 386a: an in-page reason panel instead of the native prompt() (no native dialogs in money flows)
+  const reason = await askInPage(document.getElementById('recon-ask'), { title: 'Reason for cancelling this charge', needReason: true, okLabel: 'Cancel the charge' });
+  if (reason == null) return;
   const { error } = await supabase.rpc('cancel_ipd_stay_charge', { p_charge_id: chargeId, p_reason: reason });
   if (error) { _alert('error', safeErrorMessage(error, 'Could not cancel the charge.')); return; }
   loadDischargeReconciliation();
@@ -1201,14 +1178,16 @@ window.voidStayCharge = async function(chargeId) {
 
 window.lockChargesAndFreeBed = async function() {
   if (!_activeAdm) return;
-  if (!confirm('Lock charges and free the bed? Once locked, only the billing clerk can adjust charges.')) return;
+  // Session 386a: an in-page confirmation instead of the native confirm(); the server refuses while a PK session or an unpriced item is open
+  const ok = await askInPage(document.getElementById('recon-ask'), { title: 'Lock charges and free the bed? Once locked, only billing staff can adjust charges.', okLabel: '🔒 Lock charges' });
+  if (ok == null) return;
   const admId = _activeAdm.id;
 
   // Session 305: one server-side transaction (confirm pending charges + lock admission + free
   // bed) -- the old three separate writes could stop half-way (trainee: charges confirmed,
   // admission never locked). sql/session305e_ipd_lock_charges_rpc.sql.
   const { error } = await supabase.rpc('lock_ipd_charges', { p_admission_id: admId });
-  if (error) { _alert('error', safeErrorMessage(error, 'Could not lock charges.')); return; }
+  if (error) { _alert('error', safeErrorMessage(error, 'Could not lock charges.')); await _renderReconIssues(admId); return; }
 
   // ABDM M2 — create care context for DischargeSummary FHIR type (fire-and-forget).
   // 7 Sep 2026 (Session 199) — this is the real completion point for a NORMAL

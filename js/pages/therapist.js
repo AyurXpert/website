@@ -2069,8 +2069,11 @@ function renderTable(rows) {
     const dept      = s.departments || {};
     const doctor    = s.ordering_doctor || {};
     const timeStr   = s.scheduled_time ? s.scheduled_time.slice(0,5) : '—';
-    const canStart  = s.status === 'scheduled';
-    const canComplete = s.status === 'scheduled' || s.status === 'in_progress';
+    // Session 386a (owner, rehearsal R10): a session is started / completed only on or after its scheduled date (IST) -- the server refuses
+    // earlier; skipping a future session stays allowed
+    const notYet    = !!s.scheduled_date && s.scheduled_date > todayISTStr();
+    const canStart  = s.status === 'scheduled' && !notYet;
+    const canComplete = (s.status === 'scheduled' || s.status === 'in_progress') && !notYet;
     const canSkip   = s.status === 'scheduled';
 
     // Session 223 -- was an 11px muted subtext, easy to miss (reported live). Kept inline
@@ -2940,6 +2943,7 @@ window.openCompleteDrawer = async function(id, isSkip, notesOnly) {
   document.getElementById('comp-clearance').checked   = s.doctor_clearance || false;
   document.getElementById('comp-skip-reason').value   = '';
   document.getElementById('comp-reschedule-date').value = '';
+  document.getElementById('comp-reschedule-time').value = s.scheduled_time ? s.scheduled_time.slice(0, 5) : '';   // Session 386a
 
   // Samsarjana Krama — only for Paschatkarma, and only in the real Complete/Skip flow.
   const isPaschatkarma = s.therapy_phase === 'paschatkarma';
@@ -3079,11 +3083,24 @@ window.saveCompletion = async function() {
   const btn = document.getElementById('btn-complete-save');
   btn.disabled = true; btn.textContent = 'Saving…';
 
-  const { error } = await supabase.from('pk_therapy_sessions').update(patch).eq('id', id);
+  // Session 386a (owner, rehearsal C2): Skip + "Reschedule To" is ONE server call (skip_pk_session), all or nothing -- before, the skip
+  // was saved first and a refused reschedule left the session skipped with nothing replacing it, and the page still said "rescheduled".
+  const rescheduleDate = isSkip ? document.getElementById('comp-reschedule-date').value : '';
+  const rescheduleTime = isSkip ? document.getElementById('comp-reschedule-time').value : '';
+  let skipResult = null;
+  let error;
+  if (isSkip) {
+    ({ data: skipResult, error } = await supabase.rpc('skip_pk_session', {
+      p_session: id, p_reason: skipReason || null, p_notes: notes || null,
+      p_reschedule_date: rescheduleDate || null, p_reschedule_time: rescheduleDate && rescheduleTime ? rescheduleTime : null,
+    }));
+  } else {
+    ({ error } = await supabase.from('pk_therapy_sessions').update(patch).eq('id', id));
+  }
   btn.disabled = false;
   btn.textContent = isSkip ? 'Mark Skipped' : 'Mark Completed';
 
-  if (error) { _alert('error', safeErrorMessage(error, 'Could not update session.')); return; }
+  if (error) { _alert('error', safeErrorMessage(error, isSkip ? 'Could not skip the session — nothing was saved.' : 'Could not update session.')); return; }
 
   // Session 255 -- record the actual Snehapana dose administered. Best-effort/non-fatal:
   // the session is already marked completed above; a failure here shouldn't undo that,
@@ -3105,15 +3122,7 @@ window.saveCompletion = async function() {
   // permanent record -- carries over the same patient/therapy/room/therapist(s) as a starting
   // point, doctor_clearance reset to false (a new instance of the procedure needs its own
   // fitness confirmation, same as any newly created session).
-  const rescheduleDate = isSkip ? document.getElementById('comp-reschedule-date').value : '';
-  if (rescheduleDate && session) {
-    // Session 353B: one server step (reschedule_skipped_pk_session) -- the skipped session copied to the new date with its therapists,
-    // clearance reset; a new session is otherwise created only by the PK in-charge
-    const { error: reErr } = await supabase.rpc('reschedule_skipped_pk_session', { p_session: id, p_date: rescheduleDate });
-    if (reErr) {
-      _alert('error', safeErrorMessage(reErr, 'Session skipped, but the reschedule could not be created — reschedule it manually.'));
-    }
-  }
+  // (Session 386a: the reschedule is part of skip_pk_session above -- no second call)
 
   closeCompleteDrawer();
 
@@ -3160,7 +3169,9 @@ window.saveCompletion = async function() {
   }
 
   _alert('success', isSkip
-    ? (rescheduleDate ? `Session skipped and rescheduled to ${rescheduleDate}.` : 'Session skipped.')
+    ? (skipResult?.new_session
+        ? `Session skipped and rescheduled to ${skipResult.new_date}${skipResult.new_time ? ' at ' + String(skipResult.new_time).slice(0, 5) : ''}.`
+        : 'Session skipped.')
     : 'Session completed.');
   await loadAll();
 };

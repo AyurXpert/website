@@ -623,9 +623,12 @@ input[type="checkbox"]{width:16px;height:16px;accent-color:var(--green-deep);ver
              right here, when treatment didn't happen at all. Optional -- skipping alone is
              still a complete, valid action without rescheduling anything. -->
         <div class="field">
-          <label>Reschedule To (optional)</label>
-          <input id="comp-reschedule-date" type="date"/>
-          <div class="field-note">Creates a new session for this same patient/therapy on the date above — the skipped one stays on record as skipped.</div>
+          <label for="comp-reschedule-date">Reschedule To (optional)</label>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <input id="comp-reschedule-date" type="date" aria-label="New date"/>
+            <input id="comp-reschedule-time" type="time" aria-label="New time" style="min-height:36px"/>
+          </div>
+          <div class="field-note">Creates a new session for this same patient/therapy on the date and time above — the skipped one stays on record as skipped. The server checks the slot is free (patient, therapist, room); if the new slot is refused, nothing is saved.</div>
         </div>
       </div>
     </div>
