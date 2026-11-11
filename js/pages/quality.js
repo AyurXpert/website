@@ -86,11 +86,11 @@ window.loadGrievances = async function() {
     <th style="padding:8px 12px;text-align:left;font-size:11px;font-weight:600;color:var(--text-muted);border-bottom:1.5px solid var(--border)">Action</th>
     </tr></thead><tbody>
     ${_grievances.map(g=>`<tr>
-      <td style="padding:8px 12px;border-bottom:1px solid #f0f4f2">${g.received_date}</td>
-      <td style="padding:8px 12px;border-bottom:1px solid #f0f4f2;font-weight:500">${g.patient_name||'—'}</td>
-      <td style="padding:8px 12px;border-bottom:1px solid #f0f4f2">${(g.complaint_type||'').replace(/_/g,' ')}</td>
-      <td style="padding:8px 12px;border-bottom:1px solid #f0f4f2;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${g.description}">${g.description||'—'}</td>
-      <td style="padding:8px 12px;border-bottom:1px solid #f0f4f2"><span style="font-size:11px;font-weight:600;padding:2px 8px;border-radius:4px;background:${statusColors[g.status]||'#f5f5f5'}">${statusText[g.status]||g.status}</span></td>
+      <td style="padding:8px 12px;border-bottom:1px solid #f0f4f2">${_esc(g.received_date)}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #f0f4f2;font-weight:500">${_esc(g.patient_name||'—')}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #f0f4f2">${_esc((g.complaint_type||'').replace(/_/g,' '))}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #f0f4f2;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${_esc(g.description||'')}">${_esc(g.description||'—')}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #f0f4f2"><span style="font-size:11px;font-weight:600;padding:2px 8px;border-radius:4px;background:${statusColors[g.status]||'#f5f5f5'}">${statusText[g.status]||_esc(g.status)}</span></td>
       <td style="padding:8px 12px;border-bottom:1px solid #f0f4f2">
         <select data-onchange="updateGrievanceStatus" data-onchange-a0="${g.id}" data-onchange-a1="@value" style="height:28px;border:1px solid var(--border);border-radius:5px;font-size:11px;padding:0 6px;font-family:inherit">
           <option value="">Change status…</option>
@@ -397,7 +397,7 @@ function renderFbList(list) {
     return `<div class="fb-card">
       <div class="fb-top">
         <div>
-          <div style="font-size:13px;font-weight:600;color:var(--green-deep)">${f.patients?.name || 'Anonymous'}</div>
+          <div style="font-size:13px;font-weight:600;color:var(--green-deep)">${_esc(f.patients?.name || 'Anonymous')}</div>
           <div style="font-size:11px;color:var(--text-muted)">${_fmtD(f.submitted_at?.slice(0,10))}</div>
         </div>
         <div style="text-align:right">
@@ -410,7 +410,7 @@ function renderFbList(list) {
           `<div class="fb-rating-item">${labels[c]}<span style="color:#f5a623">${'★'.repeat(f[c+'_rating'])}</span></div>`
         ).join('')}
       </div>
-      ${f.comments ? `<div style="font-size:12px;color:var(--text-mid);font-style:italic;margin-top:4px">"${f.comments}"</div>` : ''}
+      ${f.comments ? `<div style="font-size:12px;color:var(--text-mid);font-style:italic;margin-top:4px">"${_esc(f.comments)}"</div>` : ''}
     </div>`;
   }).join('');
 }
@@ -472,7 +472,7 @@ window.searchFbPatient = function() {
     el.innerHTML = (data||[]).map(p =>
       `<div style="padding:6px 10px;cursor:pointer;background:var(--white);border:1px solid var(--border);border-top:none;font-size:12px"
         data-onclick="_selectFbPatient" data-onclick-a0="${p.id}" data-onclick-a1="${_esc(p.name)}">
-        ${p.name} · ${p.phone||''}
+        ${_esc(p.name)} · ${_esc(p.phone||'')}
       </div>`).join('');
   }, 300);
 };

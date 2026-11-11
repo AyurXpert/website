@@ -301,13 +301,13 @@ async function loadNcismRequests() {
     const t = r.tenants || {};
     const pgLines = (r.requested_pg || []).map(p => {
       const name = NCISM_DEPTS.find(d => d.ncism_code === p.code)?.name || p.code;
-      return `${_esc(name)} (+${p.seats})`;
+      return `${_esc(name)} (+${_esc(Number(p.seats) || 0)})`;   // Session 385b (audit M11): seats are a number, never markup
     }).join(', ') || '—';
     return `<tr>
       <td><strong>${_esc(t.name)}</strong><br><span style="font-size:11px;color:var(--text-muted);font-family:monospace">${_esc(t.tenant_code||'')}</span></td>
-      <td>${t.ug_intake ?? '—'} → <strong>${r.requested_ug_intake}</strong></td>
+      <td>${_esc(t.ug_intake ?? '—')} → <strong>${_esc(r.requested_ug_intake)}</strong></td>
       <td style="max-width:220px">${pgLines}</td>
-      <td>₹${Number(r.computed_fee).toLocaleString('en-IN')}${Number(r.gst_amount) > 0 ? `<br><span style="font-size:11px;color:var(--text-muted)">+${r.gst_rate}% GST (₹${Number(r.gst_amount).toLocaleString('en-IN')}) = ₹${(Number(r.computed_fee)+Number(r.gst_amount)).toLocaleString('en-IN')}</span>` : ''}</td>
+      <td>₹${Number(r.computed_fee).toLocaleString('en-IN')}${Number(r.gst_amount) > 0 ? `<br><span style="font-size:11px;color:var(--text-muted)">+${_esc(Number(r.gst_rate) || 0)}% GST (₹${Number(r.gst_amount).toLocaleString('en-IN')}) = ₹${(Number(r.computed_fee)+Number(r.gst_amount)).toLocaleString('en-IN')}</span>` : ''}</td>
       <td style="font-size:12px">${new Date(r.requested_at).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'})}</td>
       <td>
         <button class="btn btn-primary" data-onclick="approveNcismRequest" data-onclick-a0="${r.id}">✓ Approve</button>

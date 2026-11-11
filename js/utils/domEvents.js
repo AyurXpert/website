@@ -20,6 +20,11 @@
 //   "@null"     -> literal null (for handlers like fn(null, 'id') where the first positional
 //                  arg is deliberately absent — a raw "null" string would otherwise be a truthy,
 //                  non-empty string and break `id ? ... : ...` branches expecting real null)
+//
+// Session 385b: a name runs only if it is on the current page's list (js/config/pageActions.js). A new button = its name appears in
+// the page's list after `node scripts/check-385b-actions.mjs --write` (CI fails until it does).
+
+import { PAGE_ACTIONS } from '../config/pageActions.js';
 
 const EVENTS = ['click', 'change', 'input'];
 
@@ -54,8 +59,38 @@ function resolveArgs(el, attr, e) {
   return args;
 }
 
+// Session 385b (audit M3, TODO §500): only the names on THIS page's list in js/config/pageActions.js run -- never a window lookup of
+// an arbitrary name. Markup that reaches a page from stored text (e.g. data-onclick="open") can no longer call window.open, fetch or a
+// page function the page never put in its own buttons. The lists are generated from the pages' code and checked in CI
+// (scripts/check-385b-actions.mjs). "print" is built in (the print pages' "Print / Save PDF" button).
+// Never runnable, even if a list ever named them (scripts/check-385b-actions.mjs keeps an identical copy and compares):
+const DENY = new Set(['open', 'close', 'print', 'alert', 'confirm', 'prompt', 'eval', 'Function', 'fetch', 'postMessage', 'setTimeout',
+  'setInterval', 'queueMicrotask', 'requestAnimationFrame', 'location', 'importScripts', 'XMLHttpRequest', 'WebSocket', 'Worker', 'focus',
+  'blur', 'stop', 'scrollTo', 'scrollBy', 'moveTo', 'resizeTo', 'structuredClone', 'reportError', 'showModalDialog', 'atob', 'btoa',
+  'escape', 'unescape', 'decodeURI', 'decodeURIComponent', 'encodeURI', 'encodeURIComponent', 'constructor', '__proto__',
+  'hasOwnProperty', 'toString', 'valueOf']);
+const BUILT_IN = new Map([['print', () => window.print()]]);
+
+// The page's key in PAGE_ACTIONS: the file name of the address ("/reception", "/reception.html", "/" -> index.html). Every page that
+// uses data-on* is in the site root.
+function pageKey(pathname) {
+  let name = '';
+  try { name = decodeURIComponent(String(pathname || '/')).split('/').pop() || ''; } catch { name = ''; }
+  if (!name) name = 'index.html';
+  if (!/\.html?$/i.test(name)) name += '.html';
+  return name;
+}
+const ALLOWED = new Set(Object.prototype.hasOwnProperty.call(PAGE_ACTIONS, pageKey(location.pathname))
+  ? PAGE_ACTIONS[pageKey(location.pathname)] : []);
+
 function dispatch(el, attr, e) {
   const fnName = el.getAttribute(`data-${attr}`);
+  const builtIn = BUILT_IN.get(fnName);
+  if (builtIn) { builtIn(); return; }
+  if (!ALLOWED.has(fnName) || DENY.has(fnName)) {
+    console.warn(`[domEvents] action not allowed on this page: ${fnName}`);
+    return;
+  }
   const fn = window[fnName];
   if (typeof fn !== 'function') {
     console.warn(`[domEvents] no such function on window: ${fnName}`);

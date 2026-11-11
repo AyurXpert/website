@@ -27,6 +27,13 @@ export function validatePassword(pw) {
   return { valid: true, message: '' };
 }
 
+// Session 385b (audit M3): a stored link is used as an href only when it is an absolute http(s) address; otherwise ''.
+export function safeHttpUrl(u) {
+  const s = String(u ?? '').trim();
+  if (!s) return '';
+  try { const x = new URL(s); return x.protocol === 'https:' || x.protocol === 'http:' ? x.href : ''; } catch { return ''; }
+}
+
 // Escape a value for safe interpolation into innerHTML.
 export function escapeHtml(s) {
   return String(s ?? '')

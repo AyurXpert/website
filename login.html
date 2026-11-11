@@ -113,14 +113,17 @@
       </div>
       <div class="field hidden" id="mfa-backup-field">
         <label for="mfa-backup-code">Backup recovery code</label>
-        <input type="text" id="mfa-backup-code" maxlength="11" placeholder="XXXXX-XXXXX" style="text-transform:uppercase"/>
+        <input type="text" id="mfa-backup-code" maxlength="11" placeholder="XXXXX-XXXXX" aria-describedby="mfa-backup-note"/>
+        <!-- Session 385b (TODO §532, owner wording 11 Nov 2026): a fixed note, no running count. The lock itself is the server's (385a §512).
+             Styled in css/login.css (the page's CSP allows no inline style; rehearsal step 7). -->
+        <p id="mfa-backup-note" class="mfa-backup-note">After 5 wrong codes, backup-code sign-in is locked for 15 minutes.</p>
       </div>
       <button class="btn-submit" id="btn-mfa-verify" type="button">
         <span class="btn-text">Verify</span>
         <span class="btn-spinner"><span class="spinner"></span></span>
       </button>
-      <div style="text-align:center;margin-top:10px">
-        <a href="#" id="link-use-backup" style="font-size:12.5px;color:var(--text-muted,#7a9485)">Lost your device? Use a backup code instead</a>
+      <div class="mfa-alt">
+        <a href="#" id="link-use-backup">Lost your device? Use a backup code instead</a>
       </div>
     </div>
 

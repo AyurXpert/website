@@ -5267,8 +5267,8 @@ function _openEodModal() {
     return `<div class="eod-visit-row">
       <input type="checkbox" class="eod-chk" value="${v.id}" checked>
       <div style="flex:1">
-        <div class="eod-visit-name">Token #${v.token_number || '—'} — ${patName}</div>
-        <div class="eod-visit-meta">${doc} · ${v.chief_complaint || '—'}</div>
+        <div class="eod-visit-name">Token #${_esc(v.token_number || '—')} — ${_esc(patName)}</div>
+        <div class="eod-visit-meta">${_esc(doc)} · ${_esc(v.chief_complaint || '—')}</div>
       </div>
       <div class="eod-visit-date">${dateStr} ${timeStr}</div>
     </div>`;
@@ -6584,7 +6584,7 @@ async function _loadReceptionAllergies(patientId) {
   const sevColor = { mild:'#f39c12', moderate:'#e67e22', severe:'#e74c3c', anaphylaxis:'#c0392b' };
   display.innerHTML = _receptionAllergies.map(a =>
     `<span style="display:inline-flex;align-items:center;gap:3px;background:${sevColor[a.severity]||'#e74c3c'}18;border:1px solid ${sevColor[a.severity]||'#e74c3c'};border-radius:12px;padding:2px 8px;margin:2px;font-size:11px">
-      <strong>${_esc(a.allergen)}</strong>${a.severity ? ` <span style="color:${sevColor[a.severity]}"> [${_esc(a.severity)}]</span>` : ''}
+      <strong>${_esc(a.allergen)}</strong>${a.severity ? ` <span style="color:${sevColor[a.severity]||'#e74c3c'}"> [${_esc(a.severity)}]</span>` : ''}
     </span>`
   ).join('');
 }
@@ -6608,7 +6608,7 @@ function renderReceptionAllergyList() {
   el.innerHTML = _receptionAllergies.map(a =>
     `<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid #f0f4f2">
       <span style="flex:1;font-size:13px"><strong>${_esc(a.allergen)}</strong> <span style="color:var(--text-muted)">(${_esc(a.allergen_type)})</span></span>
-      ${a.severity ? `<span style="font-size:11px;font-weight:600;color:${sevColor[a.severity]||'#e74c3c'}">${a.severity}</span>` : ''}
+      ${a.severity ? `<span style="font-size:11px;font-weight:600;color:${sevColor[a.severity]||'#e74c3c'}">${_esc(a.severity)}</span>` : ''}
     </div>`
   ).join('');
 }

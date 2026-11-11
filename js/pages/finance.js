@@ -5,6 +5,7 @@ import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
 import { logAudit } from '../core/auditLogger.js';
 import { localDateStr, todayLocalStr } from '../utils/dateUtils.js';
+import { safeHttpUrl } from '../utils/validators.js';   // Session 385b: the audit report link (only http / https)
 import { billCategory, BILL_CATEGORY_LABEL, OUTSTANDING_STATUSES, dueAmount, summarisePeriod, isSale, isCancelledBill, istDate } from '../modules/billing/billCategory.js';
 import { notify } from '../components/notify.js';
 import { canCollectOpd, isCollectableOpdBill, opdCollectControlsHtml, collectOpdBill, openReceipt } from '../modules/billing/opdPayments.js';
@@ -281,11 +282,11 @@ window.loadAudits = async function() {
   }
   tbody.innerHTML = _audits.map(a => `
     <tr>
-      <td style="font-weight:600">${a.audit_year || '—'}</td>
-      <td>${a.ca_firm_name || '—'}</td>
+      <td style="font-weight:600">${_esc(a.audit_year || '—')}</td>
+      <td>${_esc(a.ca_firm_name || '—')}</td>
       <td>${a.audit_date ? new Date(a.audit_date).toLocaleDateString('en-IN') : '—'}</td>
-      <td><span style="padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;background:${a.status==='completed'?'#e8f5ee':'#fff8e1'};color:${a.status==='completed'?'#1a4a2e':'#6b4c00'}">${a.status?.toUpperCase()}</span></td>
-      <td>${a.report_url ? `<a href="${a.report_url}" target="_blank" style="color:var(--green-mid);font-size:12px">View Report</a>` : '—'}</td>
+      <td><span style="padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;background:${a.status==='completed'?'#e8f5ee':'#fff8e1'};color:${a.status==='completed'?'#1a4a2e':'#6b4c00'}">${_esc(a.status?.toUpperCase())}</span></td>
+      <td>${safeHttpUrl(a.report_url) ? `<a href="${_esc(safeHttpUrl(a.report_url))}" target="_blank" rel="noopener noreferrer" style="color:var(--green-mid);font-size:12px">View Report</a>` : (a.report_url ? _esc(a.report_url) : '—')}</td>
     </tr>`).join('');
 };
 
@@ -825,8 +826,8 @@ function renderInsClaims() {
   wrap.innerHTML = `<table>
     <thead><tr><th>Patient</th><th>Type</th><th>Payer</th><th style="text-align:right">Bill</th><th style="text-align:right">Approved</th><th style="text-align:right">Patient Due</th><th>Days</th><th>Status</th><th>Action</th></tr></thead>
     <tbody>${rows.map(b=>`<tr>
-      <td><strong>${b.patients?.name||'—'}</strong>${b.visits?.chief_complaint?`<div style="font-size:11px;color:var(--text-muted)">Visit: ${b.visits.chief_complaint.slice(0,40)}</div>`:''} ${b.policy_number?`<div style="font-size:11px;color:var(--text-muted)">Policy: ${b.policy_number}</div>`:''}</td>
-      <td><span class="badge b-pending" style="font-size:10px">${b.bill_type||'OPD'}</span></td>
+      <td><strong>${_esc(b.patients?.name||'—')}</strong>${b.visits?.chief_complaint?`<div style="font-size:11px;color:var(--text-muted)">Visit: ${_esc(b.visits.chief_complaint.slice(0,40))}</div>`:''} ${b.policy_number?`<div style="font-size:11px;color:var(--text-muted)">Policy: ${_esc(b.policy_number)}</div>`:''}</td>
+      <td><span class="badge b-pending" style="font-size:10px">${_esc(b.bill_type||'OPD')}</span></td>
       <td>${_payerChip(b)}</td>
       <td style="text-align:right">${_fmtAmt(b.final_amount)}</td>
       <td style="text-align:right">${b.insurance_approved_amount?_fmtAmt(b.insurance_approved_amount):'—'}</td>
@@ -849,11 +850,11 @@ function renderPreAuth() {
   wrap.innerHTML = `<table>
     <thead><tr><th>Patient</th><th>Payer</th><th style="text-align:right">Bill</th><th style="text-align:right">Pre-Auth Amount</th><th>Pre-Auth Ref</th><th>Status</th><th>Action</th></tr></thead>
     <tbody>${rows.map(b=>`<tr>
-      <td><strong>${b.patients?.name||'—'}</strong></td>
+      <td><strong>${_esc(b.patients?.name||'—')}</strong></td>
       <td>${_payerChip(b)}</td>
       <td style="text-align:right">${_fmtAmt(b.final_amount)}</td>
       <td style="text-align:right">${b.pre_auth_amount?_fmtAmt(b.pre_auth_amount):'—'}</td>
-      <td style="font-size:12px">${b.pre_auth_number||'—'}</td>
+      <td style="font-size:12px">${_esc(b.pre_auth_number||'—')}</td>
       <td>${_csBadge(b.insurance_claim_status)}</td>
       <td><button class="btn btn-outline btn-sm" data-onclick="openInsModal" data-onclick-a0="${_esc(b.id)}">✏️ Update</button></td>
     </tr>`).join('')}</tbody>
@@ -871,7 +872,7 @@ window.openInsModal = async function(billId) {
     .eq('id',billId).single();
   if (!b) return;
   document.getElementById('ins-bill-info').innerHTML =
-    `Patient: <strong>${b.patients?.name||'—'}</strong> &nbsp;|&nbsp; ${b.bill_type||'OPD'} &nbsp;|&nbsp; Bill: <strong>${_fmtAmt(b.final_amount)}</strong> &nbsp;|&nbsp; Patient Due: <strong style="color:var(--red)">${_fmtAmt(b.patient_due??b.final_amount)}</strong>`;
+    `Patient: <strong>${_esc(b.patients?.name||'—')}</strong> &nbsp;|&nbsp; ${_esc(b.bill_type||'OPD')} &nbsp;|&nbsp; Bill: <strong>${_fmtAmt(b.final_amount)}</strong> &nbsp;|&nbsp; Patient Due: <strong style="color:var(--red)">${_fmtAmt(b.patient_due??b.final_amount)}</strong>`;
   document.getElementById('ins-payer-type').value    = b.payer_type||'insurance';
   pSel.value = b.insurance_provider||'';
   tSel.value = b.tpa_name||'';

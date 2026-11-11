@@ -131,16 +131,16 @@ function renderTable() {
       <td style="font-weight:600;min-width:40px">${c.serial_no||'—'}</td>
       <td>${time}</td>
       <td>
-        <div style="font-weight:600">${c.procedure_name}</div>
-        <div style="font-size:11px;color:var(--text-muted)">${c.pre_op_diagnosis||''}</div>
+        <div style="font-weight:600">${_esc(c.procedure_name)}</div>
+        <div style="font-size:11px;color:var(--text-muted)">${_esc(c.pre_op_diagnosis||'')}</div>
       </td>
-      <td>${c.patients?.name||'—'}<div style="font-size:11px;color:var(--text-muted)">${c.patients?.phone||''}</div></td>
-      <td>${c.profiles?.full_name||'—'}</td>
-      <td>${c.ot_table||'—'}</td>
+      <td>${_esc(c.patients?.name||'—')}<div style="font-size:11px;color:var(--text-muted)">${_esc(c.patients?.phone||'')}</div></td>
+      <td>${_esc(c.profiles?.full_name||'—')}</td>
+      <td>${_esc(c.ot_table||'—')}</td>
       <td><span class="anaes-lbl">${_anaesLabel(c.anaesthesia_type)}</span></td>
       <td>${dur}</td>
-      <td><span class="case-type-chip ${tCls}">${tLbl}</span></td>
-      <td><span class="status-chip ${sCls}">${sLbl}</span></td>
+      <td><span class="case-type-chip ${tCls}">${_esc(tLbl)}</span></td>
+      <td><span class="status-chip ${sCls}">${_esc(sLbl)}</span></td>
       <td data-onclick="_stopProp" data-onclick-a0="@event" style="white-space:nowrap">
         ${c.status==='scheduled'   ? `<button class="btn btn-secondary btn-sm" data-onclick="startCase" data-onclick-a0="${c.id}">▶ Start</button>` : ''}
         ${c.status==='in_progress' ? `<button class="btn btn-primary btn-sm" data-onclick="openIntra" data-onclick-a0="${c.id}">📝 Complete</button>` : ''}
@@ -498,13 +498,13 @@ window.loadLogbook = async function() {
     <td>${c.serial_no||'—'}</td>
     <td>${_fmtDate(c.scheduled_date)}</td>
     <td>${c.scheduled_time?.slice(0,5)||'—'}</td>
-    <td>${c.patients?.name||'—'}</td>
-    <td>${c.patients?.age||'—'} / ${(c.patients?.gender||'').charAt(0).toUpperCase()}</td>
-    <td>${c.procedure_name}</td>
+    <td>${_esc(c.patients?.name||'—')}</td>
+    <td>${_esc(c.patients?.age||'—')} / ${_esc((c.patients?.gender||'').charAt(0).toUpperCase())}</td>
+    <td>${_esc(c.procedure_name)}</td>
     <td>${_anaesLabel(c.anaesthesia_type)}</td>
-    <td>${c.profiles?.full_name||'—'}</td>
-    <td>${c.duration_minutes?c.duration_minutes+' min':'—'}</td>
-    <td>${{scheduled:'Sched',in_progress:'In Prog',completed:'Done',cancelled:'Cancel'}[c.status]||c.status}</td>
+    <td>${_esc(c.profiles?.full_name||'—')}</td>
+    <td>${_esc(c.duration_minutes?c.duration_minutes+' min':'—')}</td>
+    <td>${_esc({scheduled:'Sched',in_progress:'In Prog',completed:'Done',cancelled:'Cancel'}[c.status]||c.status)}</td>
   </tr>`).join('');
 
   document.getElementById('logbook-body').innerHTML = rows

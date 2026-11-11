@@ -3,6 +3,7 @@ import { initNavbar } from '../components/navbar.js';
 import { supabase } from '../core/db/supabaseClient.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
+import { escapeHtml as _esc } from '../utils/validators.js';   // Session 385b (audit M3)
 import { todayLocalStr } from '../utils/dateUtils.js';
 import { notify } from '../components/notify.js';
 import { printDocument, docHeader, shown } from '../utils/printDocument.js';
@@ -66,10 +67,10 @@ async function searchPatients(q) {
   el.innerHTML = data.map(p => `
     <div class="search-row-item" data-onclick="selectPatient" data-onclick-a0="${p.id}">
       <div>
-        <div class="pt-name">${p.name}</div>
-        <div class="pt-meta">${p.phone || '—'} · Age ${p.age || '—'} · ${(p.gender||'').charAt(0).toUpperCase()}</div>
+        <div class="pt-name">${_esc(p.name)}</div>
+        <div class="pt-meta">${_esc(p.phone || '—')} · Age ${_esc(p.age || '—')} · ${_esc((p.gender||'').charAt(0).toUpperCase())}</div>
       </div>
-      <span style="font-size:11px;color:var(--text-muted)">${p.abha_number||''}</span>
+      <span style="font-size:11px;color:var(--text-muted)">${_esc(p.abha_number||'')}</span>
     </div>`).join('');
 }
 
@@ -332,7 +333,7 @@ window.viewVisit = function(id) {
       ${_row('Referral', v.referral)}
       ${_row('Next Visit', v.next_visit_date ? _fmtDate(v.next_visit_date) : '—')}
     </div>
-    ${v.remarks ? `<div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border)"><strong>Advice / Remarks:</strong><br>${v.remarks}</div>` : ''}`;
+    ${v.remarks ? `<div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border)"><strong>Advice / Remarks:</strong><br><span style="white-space:pre-line">${_esc(v.remarks)}</span></div>` : ''}`;
   document.getElementById('detail-overlay').style.display = 'flex';
 };
 
@@ -371,8 +372,8 @@ window.loadGarbhaSessions = async function() {
   el.innerHTML = _garbhaSessions.map(s => `
     <div style="display:flex;align-items:center;gap:12px;padding:8px 0;border-bottom:1px solid #f0f4f2">
       <div style="font-weight:600;font-size:13px;min-width:90px">${s.session_date}</div>
-      <span style="padding:2px 8px;border-radius:4px;background:#e8f5ee;color:var(--green-deep);font-size:11px;font-weight:600">${typeLabel[s.session_type]||s.session_type}</span>
-      <div style="font-size:12px;color:var(--text-muted)">${s.gestational_week ? 'Week '+s.gestational_week+' ·' : ''} ${s.duration_minutes||60} min ${s.notes ? '· '+s.notes : ''}</div>
+      <span style="padding:2px 8px;border-radius:4px;background:#e8f5ee;color:var(--green-deep);font-size:11px;font-weight:600">${typeLabel[s.session_type]||_esc(s.session_type)}</span>
+      <div style="font-size:12px;color:var(--text-muted)">${s.gestational_week ? 'Week '+s.gestational_week+' ·' : ''} ${s.duration_minutes||60} min ${s.notes ? '· '+_esc(s.notes) : ''}</div>
     </div>`).join('');
 };
 
@@ -398,7 +399,7 @@ window.saveGarbhaSession = async function() {
 };
 
 function _row(label, value) {
-  return `<div><span style="font-size:11px;color:var(--text-muted);display:block">${label}</span><span style="font-weight:500">${value || '—'}</span></div>`;
+  return `<div><span style="font-size:11px;color:var(--text-muted);display:block">${label}</span><span style="font-weight:500">${_esc(value || '—')}</span></div>`;
 }
 function _riskLabel(r) { return {normal:'Normal', moderate:'Moderate', high:'High Risk'}[r] || r || 'Normal'; }
 function _fmtDate(d) { if (!d) return '—'; return new Date(d+'T00:00:00').toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}); }

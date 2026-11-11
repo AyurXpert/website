@@ -210,6 +210,9 @@ function _summarizeTests(items) {
 }
 
 // ── Queue rendering ───────────────────────────────────────────────────────────
+// Session 385b (TODO §522): the "Search patient name…" boxes (lab.html q-search / img-q-search, data-oninput) call these by name.
+// They were bare module functions, never on window, so the boxes filtered nothing since they were added.
+Object.assign(window, { renderQueue, renderImgQueue });
 function renderQueue() {
   const q      = document.getElementById('q-search').value.toLowerCase();
   const filtered = _orders.filter(o =>

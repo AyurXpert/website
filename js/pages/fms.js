@@ -1,7 +1,7 @@
 import { requireAuth, getCurrentProfile, getCurrentTenantId } from '../core/auth.js';
 import { initNavbar } from '../components/navbar.js';
 import { supabase } from '../core/db/supabaseClient.js';
-import { escapeHtml as _esc } from '../utils/validators.js';
+import { escapeHtml as _esc, safeHttpUrl } from '../utils/validators.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
 import { localDateStr, todayLocalStr, istMonthStr } from '../utils/dateUtils.js';
@@ -161,17 +161,18 @@ window.renderEquipment = function() {
     const ppmCls   = e.next_ppm_date ? (new Date(e.next_ppm_date) < today ? 'rl-red' : new Date(e.next_ppm_date) <= in30 ? 'rl-amber' : 'rl-green') : '';
     const calCls   = e.next_calibration_date ? (new Date(e.next_calibration_date) < today ? 'rl-red' : new Date(e.next_calibration_date) <= in30 ? 'rl-amber' : 'rl-green') : '';
     const badgeMap = { active:'b-active', under_repair:'b-repair', decommissioned:'b-decommissioned', condemned:'b-condemned' };
-    const certBtn  = e.calibration_cert_url ? `<a href="${e.calibration_cert_url}" target="_blank" class="btn btn-outline btn-sm" style="text-decoration:none">📜 Cert</a>` : '';
+    const certUrl  = safeHttpUrl(e.calibration_cert_url);   // Session 385b (audit M3): only an http(s) link
+    const certBtn  = certUrl ? `<a href="${_esc(certUrl)}" target="_blank" rel="noopener noreferrer" class="btn btn-outline btn-sm" style="text-decoration:none">📜 Cert</a>` : '';
     return `<div class="eq-card ${ppmClass}">
-      <div class="eq-name">${e.name}</div>
-      <div class="eq-code">${e.asset_code||'—'} · ${CAT_LABELS[e.category]||e.category} · <span class="badge ${badgeMap[e.status]||'b-active'}" style="font-size:10px">${e.status}</span></div>
-      <div class="eq-row"><span class="eq-label">Make/Model</span><span class="eq-val">${e.make||'—'}${e.model?' / '+e.model:''}</span></div>
-      <div class="eq-row"><span class="eq-label">Serial No.</span><span class="eq-val">${e.serial_number||'—'}</span></div>
-      <div class="eq-row"><span class="eq-label">Location</span><span class="eq-val">${e.department||'—'}</span></div>
-      <div class="eq-row"><span class="eq-label">Next PPM</span><span class="eq-val ${ppmCls}">${e.next_ppm_date||'—'}</span></div>
-      <div class="eq-row"><span class="eq-label">Next Calibration</span><span class="eq-val ${calCls}">${e.next_calibration_date||'—'}</span></div>
-      <div class="eq-row"><span class="eq-label">AMC Vendor</span><span class="eq-val">${e.amc_vendor||'—'}</span></div>
-      <div class="eq-row"><span class="eq-label">AMC Expiry</span><span class="eq-val ${e.amc_expiry && new Date(e.amc_expiry)<in30?'rl-amber':''}">${e.amc_expiry||'—'}</span></div>
+      <div class="eq-name">${_esc(e.name)}</div>
+      <div class="eq-code">${_esc(e.asset_code||'—')} · ${_esc(CAT_LABELS[e.category]||e.category)} · <span class="badge ${badgeMap[e.status]||'b-active'}" style="font-size:10px">${_esc(e.status)}</span></div>
+      <div class="eq-row"><span class="eq-label">Make/Model</span><span class="eq-val">${_esc(e.make||'—')}${e.model?' / '+_esc(e.model):''}</span></div>
+      <div class="eq-row"><span class="eq-label">Serial No.</span><span class="eq-val">${_esc(e.serial_number||'—')}</span></div>
+      <div class="eq-row"><span class="eq-label">Location</span><span class="eq-val">${_esc(e.department||'—')}</span></div>
+      <div class="eq-row"><span class="eq-label">Next PPM</span><span class="eq-val ${ppmCls}">${_esc(e.next_ppm_date||'—')}</span></div>
+      <div class="eq-row"><span class="eq-label">Next Calibration</span><span class="eq-val ${calCls}">${_esc(e.next_calibration_date||'—')}</span></div>
+      <div class="eq-row"><span class="eq-label">AMC Vendor</span><span class="eq-val">${_esc(e.amc_vendor||'—')}</span></div>
+      <div class="eq-row"><span class="eq-label">AMC Expiry</span><span class="eq-val ${e.amc_expiry && new Date(e.amc_expiry)<in30?'rl-amber':''}">${_esc(e.amc_expiry||'—')}</span></div>
       <div class="eq-actions">
         ${certBtn}
         <button class="btn btn-outline btn-sm" data-onclick="editEquipment" data-onclick-a0="${e.id}">Edit</button>
@@ -248,14 +249,14 @@ window.renderUtilities = function() {
   const tbody = document.getElementById('util-tbody');
   if (!rows.length) { tbody.innerHTML = '<tr><td colspan="8"><div class="empty">No utility logs for this period</div></td></tr>'; return; }
   tbody.innerHTML = rows.map(r => `<tr>
-    <td style="white-space:nowrap">${r.log_date}</td>
-    <td><strong>${UTIL_LABELS[r.utility_type]||r.utility_type}</strong></td>
-    <td style="font-size:12px;max-width:200px">${r.description.slice(0,80)}${r.description.length>80?'…':''}</td>
-    <td style="font-size:12px">${r.performed_by||'—'}</td>
-    <td style="font-size:12px">${r.result||'—'}</td>
+    <td style="white-space:nowrap">${_esc(r.log_date)}</td>
+    <td><strong>${_esc(UTIL_LABELS[r.utility_type]||r.utility_type)}</strong></td>
+    <td style="font-size:12px;max-width:200px">${_esc((r.description||'').slice(0,80))}${(r.description||'').length>80?'…':''}</td>
+    <td style="font-size:12px">${_esc(r.performed_by||'—')}</td>
+    <td style="font-size:12px">${_esc(r.result||'—')}</td>
     <td style="text-align:center">${r.is_compliant ? '✅' : '❌'}</td>
-    <td style="font-size:12px;color:${r.issues_found?'var(--red)':'var(--text-muted)'}">${r.issues_found ? r.issues_found.slice(0,60) : '—'}</td>
-    <td style="white-space:nowrap">${r.next_due_date||'—'}</td>
+    <td style="font-size:12px;color:${r.issues_found?'var(--red)':'var(--text-muted)'}">${r.issues_found ? _esc(r.issues_found.slice(0,60)) : '—'}</td>
+    <td style="white-space:nowrap">${_esc(r.next_due_date||'—')}</td>
   </tr>`).join('');
 };
 
@@ -268,13 +269,13 @@ window.renderMaintenance = function() {
   tbody.innerHTML = rows.map(r => {
     const stMap = { completed:'b-active', pending:'b-repair', in_progress:'b-needs_refill' };
     return `<tr>
-      <td style="white-space:nowrap">${r.performed_date}</td>
-      <td style="font-weight:500">${r.equipment_register?.name||'—'}<br/><span style="font-size:11px;color:var(--text-muted)">${r.equipment_register?.asset_code||''}</span></td>
-      <td>${MAINT_LABELS[r.maintenance_type]||r.maintenance_type}</td>
-      <td style="font-size:12px">${r.performed_by||r.vendor_engineer||'—'}</td>
-      <td style="font-size:12px;max-width:180px">${(r.description||'—').slice(0,80)}</td>
-      <td style="text-align:center">${r.downtime_hours||0}</td>
-      <td><span class="badge ${stMap[r.status]||'b-active'}">${r.status}</span></td>
+      <td style="white-space:nowrap">${_esc(r.performed_date)}</td>
+      <td style="font-weight:500">${_esc(r.equipment_register?.name||'—')}<br/><span style="font-size:11px;color:var(--text-muted)">${_esc(r.equipment_register?.asset_code||'')}</span></td>
+      <td>${_esc(MAINT_LABELS[r.maintenance_type]||r.maintenance_type)}</td>
+      <td style="font-size:12px">${_esc(r.performed_by||r.vendor_engineer||'—')}</td>
+      <td style="font-size:12px;max-width:180px">${_esc((r.description||'—').slice(0,80))}</td>
+      <td style="text-align:center">${_esc(r.downtime_hours||0)}</td>
+      <td><span class="badge ${stMap[r.status]||'b-active'}">${_esc(r.status)}</span></td>
     </tr>`;
   }).join('');
 };

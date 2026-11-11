@@ -200,3 +200,9 @@ html,body{min-height:100%;font-family:'DM Sans',sans-serif;background:var(--crea
   .ax-popup-btns{flex-direction:column}
   .ax-popup-close{height:42px}
 }
+/* Session 385b (rehearsal step 7, 11 Nov 2026): the MFA code-step styles moved out of login.html -- its CSP (style-src without
+   'unsafe-inline', session 384) refused every inline style there, so none of them ever applied. --text-mid = 6.4 : 1 on white. */
+#mfa-backup-code{text-transform:uppercase}
+.mfa-backup-note{font-size:12.5px;color:var(--text-mid);margin:6px 0 0;line-height:1.4}
+.mfa-alt{text-align:center;margin-top:10px}
+.mfa-alt a{font-size:12.5px;color:var(--text-mid)}

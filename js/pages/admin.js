@@ -7274,15 +7274,15 @@ window.loadModules = async function() {
       ${_MODULE_META.map(m => {
         const on = effective[m.key] === true;   // same rule as the server's _tenant_has_module() (Session 331)
         const isDefault = defaults[m.key] === true && saved[m.key] === undefined;
-        return `<div style="background:${on?'#f0fff4':'#fafafa'};border:1.5px solid ${on?'#a5d6b8':'#e0e0e0'};border-radius:8px;padding:12px 14px;display:flex;align-items:flex-start;gap:12px">
+        return `<div class="mod-card" style="background:${on?'#f0fff4':'#fafafa'};border:1.5px solid ${on?'#a5d6b8':'#e0e0e0'};border-radius:8px;padding:12px 14px;display:flex;align-items:flex-start;gap:12px">
           <div style="font-size:20px;flex-shrink:0">${m.icon}</div>
           <div style="flex:1;min-width:0">
-            <div style="font-size:13px;font-weight:600;color:${on?'var(--green-deep)':'#888'}">${m.label}</div>
+            <div class="mod-title" style="font-size:13px;font-weight:600;color:${on?'var(--green-deep)':'#888'}">${m.label}</div>
             <div style="font-size:11px;color:var(--text-muted);margin:2px 0 8px;line-height:1.4">${m.desc}</div>
-            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12px;font-weight:500;color:${on?'var(--green-mid)':'#aaa'}">
+            <label class="mod-label" style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12px;font-weight:500;color:${on?'var(--green-mid)':'#aaa'}">
               <input type="checkbox" data-mod="${m.key}" ${on?'checked':''} data-onchange="_refreshModCard" data-onchange-a0="@this"
                 style="width:16px;height:16px;accent-color:var(--green-mid);cursor:pointer"/>
-              ${on ? 'Enabled' : 'Disabled'}
+              <span class="mod-state">${on ? 'Enabled' : 'Disabled'}</span>
               ${isDefault?'<span style="font-size:10px;color:var(--text-muted);font-weight:400">(default for your plan)</span>':''}
             </label>
           </div>
@@ -7293,18 +7293,24 @@ window.loadModules = async function() {
   document.getElementById('btn-save-modules').onclick = _saveModules;
 };
 
-function _refreshModCard(chk) {
-  const card = chk.closest('div[style*="border-radius:8px"]');
+// Session 385b (TODO §522): the Feature Modules checkbox calls this by name (data-onchange) -- it was a bare module function, never on
+// window, so the card never changed on ticking (the save itself reads only the checkboxes and was not affected). It also wrote the word
+// into childNodes[1] (the checkbox itself), so "Enabled / Disabled" would never have changed: the word now has its own span.
+// Rehearsal step 3 (11 Nov 2026): the card was found by its style TEXT (div[style*="border-radius:8px"]); the first change rewrites the
+// style attribute ("border-radius: 8px", with a space), so the SECOND tick found no card (TypeError). The parts now have their own classes.
+window._refreshModCard = function _refreshModCard(chk) {
+  const card = chk.closest('.mod-card');
+  if (!card) return;
   const on = chk.checked;
   card.style.background = on ? '#f0fff4' : '#fafafa';
   card.style.border = `1.5px solid ${on ? '#a5d6b8' : '#e0e0e0'}`;
-  const title = card.querySelector('div[style*="font-weight:600"]');
-  title.style.color = on ? 'var(--green-deep)' : '#888';
-  const lbl = chk.parentElement;
-  lbl.style.color = on ? 'var(--green-mid)' : '#aaa';
-  lbl.firstChild.textContent = '';
-  lbl.childNodes[1].textContent = on ? 'Enabled' : 'Disabled';
-}
+  const title = card.querySelector('.mod-title');
+  if (title) title.style.color = on ? 'var(--green-deep)' : '#888';
+  const lbl = chk.closest('.mod-label');
+  if (lbl) lbl.style.color = on ? 'var(--green-mid)' : '#aaa';
+  const word = card.querySelector('.mod-state');
+  if (word) word.textContent = on ? 'Enabled' : 'Disabled';
+};
 
 async function _saveModules() {
   const checkboxes = document.querySelectorAll('#mod-grid input[data-mod]');

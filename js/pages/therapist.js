@@ -3631,8 +3631,8 @@ window.openRxDrawer = function(sessionId) {
   const adm  = _admissions.find(a => a.patients?.id === pt.id);
   const bed  = adm?.beds?.bed_number ? ` · Bed ${adm.beds.bed_number}` : '';
   document.getElementById('rx-session-info').innerHTML =
-    `<strong>${pt.name || '—'}</strong>${bed}<br>
-     Therapy: <strong>${s.therapy_name || '—'}</strong> · ${_phaseLabel(s.therapy_phase)} · ${dept.name || '—'}`;
+    `<strong>${_esc(pt.name || '—')}</strong>${_esc(bed)}<br>
+     Therapy: <strong>${_esc(s.therapy_name || '—')}</strong> · ${_esc(_phaseLabel(s.therapy_phase))} · ${_esc(dept.name || '—')}`;
   const list = document.getElementById('rx-items-list');
   list.innerHTML = '';
   _addRxItem(); _addRxItem();
