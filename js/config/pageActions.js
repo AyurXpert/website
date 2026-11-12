@@ -1586,6 +1586,7 @@ export const PAGE_ACTIONS = Object.freeze({
     "onBulkRoomPrefixInput",
     "onDatePick",
     "onPkRosterDatePick",
+    "onRangeChange",
     "onSchedAssignInputsChange",
     "onSchedExtraTherapistChange",
     "onSourceChange",

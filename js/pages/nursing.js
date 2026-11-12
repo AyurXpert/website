@@ -14,6 +14,7 @@
 // .from(...) query, a mechanical, behavior-preserving substitution.
 import { supabase } from '../core/db/supabaseClient.js';
 import { requireAuth, getCurrentProfile, getCurrentTenant } from '../core/auth.js';
+import { canWardCharge, isServerPosted } from '../utils/chargeRights.js';   // Session 386b-1 (§548)
 import { initNavbar } from '../components/navbar.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
@@ -45,10 +46,16 @@ const tenant    = getCurrentTenant();
 const tenantId  = tenant?.id;
 const userId    = profile?.id;
 const _ctx      = { tenantId, userId, userName: profile?.full_name };
-// Trainees cannot lock IPD charges (lock_ipd_charges() refuses them) -- don't show the button.
-if (profile?.role === 'trainee_doctor') {
+// Session 386b-1 (§548): add / cancel / lock IPD charges only for the ward nurse / nurse manager (primary or second role), the MS and
+// the Super Admin -- the server decides (_ipd_charge_ward_ok); doctors and everyone else see the list read-only. (Was: trainees only hidden.)
+const _canWardCharge = canWardCharge(profile);
+if (!_canWardCharge) {
   const lockBtn = document.getElementById('btn-lock-charges');
   if (lockBtn) lockBtn.style.display = 'none';
+  const addBlock = document.getElementById('recon-add-block');
+  if (addBlock) addBlock.hidden = true;
+  const viewOnly = document.getElementById('recon-view-only');
+  if (viewOnly) viewOnly.hidden = false;
 }
 function _esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
 
@@ -1139,7 +1146,8 @@ function renderReconciliationList(rows) {
         <div style="font-size:11px;color:var(--text-muted);margin-top:2px">${r.quantity} × ₹${Number(r.unit_price).toLocaleString('en-IN')} = ₹${Number(r.amount).toLocaleString('en-IN')} · ${DISCHARGE_STATUS_LABELS[r.status]||r.status}</div>
         ${r.status==='voided' && r.cancel_reason ? `<div style="font-size:11px;color:var(--text-muted);margin-top:2px">Reason: ${_esc(r.cancel_reason)}</div>` : ''}
       </div>
-      ${r.status==='pending' || r.status==='confirmed' ? `<button class="btn btn-secondary btn-sm" data-onclick="voidStayCharge" data-onclick-a0="${r.id}">Cancel charge</button>` : ''}
+      ${(r.status==='pending' || r.status==='confirmed') && _canWardCharge && !isServerPosted(r) ? `<button class="btn btn-secondary btn-sm" data-onclick="voidStayCharge" data-onclick-a0="${r.id}">Cancel charge</button>` : ''}
+      ${(r.status==='pending' || r.status==='confirmed') && isServerPosted(r) ? `<span style="font-size:11px;color:var(--text-muted);max-width:170px;text-align:right">Added by the server — corrected at its source</span>` : ''}
     </div>`).join('') +
     `<div style="text-align:right;font-weight:700;font-size:13px;margin-top:8px;color:var(--green-deep)">Total so far: ₹${total.toLocaleString('en-IN')}</div>`;
 }

@@ -21,6 +21,8 @@ import { canOfferCancel, renderCancelBill, renderCancelledBills } from '../modul
 import { abdmOn } from '../modules/abdm/comingSoon.js';   // Session 379a
 import { exitPowers, exitOpen, exitTimeBounds, exitTimeProblem } from '../modules/ipd/ipdExit.js';   // Session 381 (§471)
 import { loadOpenChargeIssues, renderOpenChargeIssues, askInPage } from '../modules/billing/unpricedItems.js';   // Session 386a (§538)
+import { loadChargeRequests, renderChargeRequests } from '../modules/billing/chargeRequests.js';   // Session 386b-1 (§547)
+import { canRequestCharge } from '../utils/chargeRights.js';   // Session 386b-1 (§547)
 
 /*
   SQL to run in Supabase (one time) before using this page:
@@ -1627,6 +1629,7 @@ async function _refreshBillPreview(adm) {
     if (notice) notice.style.display = '';
     await _refreshBillPreviewGst(adm);
     await _renderBillUnpriced(adm);
+    await _renderBillRequests(adm);   // Session 386b-1 (§547)
     return;
   }
 
@@ -1653,6 +1656,19 @@ async function _refreshBillPreview(adm) {
 
   await _loadBillCharges(adm.id);
   await _renderBillUnpriced(adm);
+  await _renderBillRequests(adm);   // Session 386b-1 (§547)
+}
+
+// Session 386b-1 (TODO §547, owner Q10 / Q11): after the lock a charge is cancelled / added only by a REQUEST the accountant / finance
+// manager / MS / Super Admin decides (never the person who asked). The server refuses the bill while one is open; it is decided here.
+async function _renderBillRequests(adm) {
+  const add = document.getElementById('bc-add-block');
+  if (add) add.hidden = !canRequestCharge(myProfile);
+  const { requests, error } = await loadChargeRequests(supabase, adm.id);
+  const clear = renderChargeRequests(document.getElementById('bill-requests'), {
+    supabase, profile: myProfile, requests, error, onChanged: () => _refreshBillPreview(adm),
+  });
+  if (!clear) document.getElementById('btn-generate-bill').disabled = true;
 }
 
 // Session 386a (TODO §538): items the server could not price (a Panchakarma session completed with no fee for its AYUSH code). The
@@ -1743,7 +1759,7 @@ function _renderBillCharges() {
           <div style="font-size:12.5px;font-weight:600">${_esc(r.description)}</div>
           <div style="font-size:10.5px;color:var(--text-muted)">${r.quantity} × ₹${Number(r.unit_price).toLocaleString('en-IN')} = ₹${Number(r.amount).toLocaleString('en-IN')}</div>
         </div>
-        <button class="icon-btn" data-onclick="voidBillCharge" data-onclick-a0="${r.id}" title="Cancel charge (reason required)" style="font-size:11px">&#10005;</button>
+        ${canRequestCharge(myProfile) ? `<button class="btn btn-secondary btn-sm" data-onclick="voidBillCharge" data-onclick-a0="${r.id}" title="Ask to cancel this charge (reason required; decided by the accountant, finance manager, MS or Super Admin)" style="font-size:11px;min-height:32px">Ask to cancel</button>` : ''}
       </div>`).join('')
     : '<div style="text-align:center;color:var(--text-muted);padding:12px;font-size:12.5px">No stay charges recorded.</div>';
   _updateBillGrandTotal();
@@ -1767,38 +1783,32 @@ window.addBillCharge = async function() {
   // Session 319 -- catches the "typed the amount into Description by mistake" pattern
   // (found live, Patient 6/KAY-95's stray "1000" charge) without being overly strict.
   if (/^\d+(\.\d+)?$/.test(description)) { _alert('error','Description looks like a number, not a description — did you mean to type that in Unit Price instead?'); return; }
-  const { error } = await supabase.from('ipd_stay_charges').insert({
-    tenant_id: tenantId, ipd_admission_id: admId, source: 'manual',
-    description, quantity: qty, unit_price: price, amount: qty * price,
-    status: 'confirmed', added_by: myProfile.id,
+  // Session 386b-1 (§547, owner Q11): the charges are locked -- a new line is a REQUEST (reason), added once another person approves it
+  const reason = await askInPage(document.getElementById('bill-ask'), { title: 'Reason for adding this line after the lock (the accountant, finance manager, MS or Super Admin decides it)', needReason: true, okLabel: 'Send the request' });
+  if (reason == null) return;
+  const { error } = await supabase.rpc('request_ipd_charge_add', {
+    p_admission_id: admId, p_description: description, p_quantity: qty, p_unit_price: price, p_reason: reason,
   });
-  if (error) { _alert('error', safeErrorMessage(error, 'Could not add charge.')); return; }
+  if (error) { _alert('error', safeErrorMessage(error, 'Could not send the request.')); return; }
   document.getElementById('bc-desc').value  = '';
   document.getElementById('bc-qty').value   = '1';
   document.getElementById('bc-price').value = '';
-  // GST Phase 2b -- a staged charge just changed. Under gst_v1 that changes the
-  // tax preview (new preview_ipd_bill call); under legacy, keep the original,
-  // narrower refresh (stay charges only, no tariff recompute, no RPC).
-  if (_billRegime === 'gst_v1') {
-    const adm = _admissions.find(a => a.id === admId);
-    if (adm) { await _refreshBillPreviewGst(adm); return; }
-  }
-  await _loadBillCharges(admId);
+  _alert('success', 'Request sent — the line is added when it is approved. The bill waits for the decision.');
+  const adm = _admissions.find(a => a.id === admId);
+  if (adm) await _refreshBillPreview(adm);
 };
 
 window.voidBillCharge = async function(chargeId) {
   const admId = document.getElementById('bill-adm-id').value;
   // Session 305: cancel with a reason (who/when/why recorded), never a silent void/delete.
-  // Session 386a: an in-page reason panel instead of the native prompt() (no native dialogs in money flows)
-  const reason = await askInPage(document.getElementById('bill-ask'), { title: 'Reason for cancelling this charge', needReason: true, okLabel: 'Cancel the charge' });
+  // Session 386b-1 (§547, owner Q10): the charges are locked -- a cancellation is a REQUEST, decided by another person; the bill waits
+  const reason = await askInPage(document.getElementById('bill-ask'), { title: 'Reason for cancelling this charge (the accountant, finance manager, MS or Super Admin decides it)', needReason: true, okLabel: 'Send the request' });
   if (reason == null) return;
-  const { error } = await supabase.rpc('cancel_ipd_stay_charge', { p_charge_id: chargeId, p_reason: reason });
-  if (error) { _alert('error', safeErrorMessage(error, 'Could not cancel the charge.')); return; }
-  if (_billRegime === 'gst_v1') {
-    const adm = _admissions.find(a => a.id === admId);
-    if (adm) { await _refreshBillPreviewGst(adm); return; }
-  }
-  await _loadBillCharges(admId);
+  const { error } = await supabase.rpc('request_ipd_charge_cancel', { p_charge_id: chargeId, p_reason: reason });
+  if (error) { _alert('error', safeErrorMessage(error, 'Could not send the request.')); return; }
+  _alert('success', 'Request sent — the charge is cancelled when it is approved. The bill waits for the decision.');
+  const adm = _admissions.find(a => a.id === admId);
+  if (adm) await _refreshBillPreview(adm);
 };
 
 window.confirmGenerateBill = async function() {

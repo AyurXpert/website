@@ -166,6 +166,18 @@ export function safeErrorMessage(error, fallback = 'Something went wrong. Please
   if (['P0002', '42501', '22023'].includes(error?.code) && S386A_MSGS.some(m => error?.message?.startsWith(m))) {
     return error.message;
   }
+  // Session 386b-1 (TODO §547 / §548 / §545): who may change an IPD charge, after-lock requests, the PK therapy from the list -- plain, schema-free
+  const S386B1_MSGS = ['Charges are locked — ask for the cancellation', 'Only the ward nurse, the nurse manager, the Medical Superintendent',
+    'This charge was added by the server', 'Only billing staff (receptionist, cashier', 'A request is needed only after the charges are locked',
+    'Give a reason (5 to 300 characters', 'A cancellation of this charge is already waiting', 'Enter a description (2 to 200 characters',
+    'The quantity must be more than 0 (at most', 'The price must be more than 0 (at most', 'Only the accountant, the finance manager, the Medical Superintendent or the Super Admin can decide',
+    'Request not found', 'This request is already decided', 'You cannot decide your own request', 'The note must be at most 300 characters',
+    'Give the reason for rejecting', 'The admission is no longer at "charges locked"', 'The charge is no longer open', 'A charge request is waiting for a decision',
+    'An IPD charge request is decided in IPD', 'Choose the therapy from the Panchakarma list', 'The therapy of a session is chosen when it is scheduled',
+    'Charge not found', 'Admission not found', 'This charge is ', 'Choose approve or reject'];
+  if (['P0002', '42501', '22023'].includes(error?.code) && S386B1_MSGS.some(m => error?.message?.startsWith(m))) {
+    return error.message;
+  }
   if (error?.code === '23514' && error?.message?.includes('patients_name_no_markup_chk')) {
     return 'A patient name cannot contain < or >.';
   }

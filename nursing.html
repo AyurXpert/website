@@ -739,6 +739,9 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
           <div id="disc-not-ready" style="text-align:center;color:var(--text-muted);padding:24px;font-size:13px">Select a patient whose discharge has been ordered by a doctor to begin reconciliation.</div>
 
           <div id="disc-recon-body" style="display:none">
+            <!-- Session 386b-1 (§548): only the ward nurse / nurse manager, the MS and the Super Admin add, cancel or lock; others see the list -->
+            <div id="recon-view-only" class="no-print" hidden style="padding:10px 12px;border:1px solid var(--border);border-left:4px solid var(--gold);border-radius:6px;background:#fff8e8;font-size:12.5px;margin-bottom:10px">Charges are added, cancelled and locked by the ward nurse, the nurse manager, the Medical Superintendent or the Super Admin. You can view them here.</div>
+            <div id="recon-add-block">
             <div class="sec">Add Manual Charge</div>
             <div class="field-row c2">
               <div class="field">
@@ -756,6 +759,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
             </div>
             <div style="margin-top:6px;display:flex;justify-content:flex-end" class="no-print">
               <button class="btn btn-secondary btn-sm" data-onclick="addManualCharge">+ Add Charge</button>
+            </div>
             </div>
 
             <div class="sec" style="margin-top:18px">Stay Charges — This Admission</div>

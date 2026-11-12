@@ -1009,10 +1009,12 @@ async function _rejectAndDeleteStaff(targetUserId){
 // no dedicated OT/CSSD role built yet).
 // Session 359 (Q15): designations with deliberately NO default role -- the Super Admin must choose one
 // Session 362 (TODO §312): the Office Superintendent (key opd_incharge, kept for old data) too -- an office post, not a doctor
-const DESIG_NO_DEFAULT_ROLE = ['administrative_officer', 'opd_incharge'];
+// Session 386b-1 (§556, owner Q13, 11 Nov 2026): the store keeper is never pre-set to accountant (no money rights) -- the Super Admin chooses;
+// a store-only role = session 386c
+const DESIG_NO_DEFAULT_ROLE = ['administrative_officer', 'opd_incharge', 'store_keeper'];
 // Session 362 (Q5): the staffing counts put these office posts in the "Office / Administration" group (role office_staff) --
 // a COUNT bucket only, never a pre-selected login role
-const STAFFING_ROLE_BUCKET = { opd_incharge: 'office_staff', administrative_officer: 'office_staff' };
+const STAFFING_ROLE_BUCKET = { opd_incharge: 'office_staff', administrative_officer: 'office_staff', store_keeper: 'accountant' };   // store_keeper: count bucket only (386b-1)
 const DESIG_ROLE_DEFAULT = {
   professor:'doctor', hod:'doctor', associate_professor:'doctor', assistant_professor:'doctor',
   senior_resident:'doctor', junior_resident:'doctor',
@@ -1047,7 +1049,7 @@ const DESIG_ROLE_DEFAULT = {
   // Finance & Accounts NCISM_XX_ROWS rows below were fixed to use their own distinct
   // keys instead of all sharing 'accountant' -- before that, this row's key was never
   // actually reachable via any real Schedule XX row.
-  accountant:'accountant', finance_manager:'finance_manager', store_keeper:'accountant',
+  accountant:'accountant', finance_manager:'finance_manager',   // store_keeper: no default role (386b-1, §556)
   receptionist:'receptionist', registration_clerk:'receptionist', billing_clerk:'receptionist', cashier:'cashier',   // cashier: session 383 (owner, 9 Nov)
   medical_record_officer:'mrd_staff', medical_record_technician:'mrd_staff',
   pharmacist:'pharmacist', chief_pharmacist:'pharmacist', pharmacy_assistant:'pharmacist',

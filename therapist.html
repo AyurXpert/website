@@ -344,34 +344,11 @@ input[type="checkbox"]{width:16px;height:16px;accent-color:var(--green-deep);ver
       </div>
 
       <div class="field">
-        <label>Therapy Name <span class="req">*</span></label>
-        <input id="sched-therapy" type="text" list="therapy-list" placeholder="e.g. Abhyanga, Shirodhara…"/>
-        <datalist id="therapy-list">
-          <option value="Abhyanga (Oil Massage)"/>
-          <option value="Swedana (Steam Therapy)"/>
-          <option value="Shirodhara"/>
-          <option value="Pizhichil"/>
-          <option value="Navarakizhi"/>
-          <option value="Pinda Sweda"/>
-          <option value="Elakizhi (Podikizhi)"/>
-          <option value="Vamana (Emesis)"/>
-          <option value="Virechana (Purgation)"/>
-          <option value="Basti – Anuvasana (Oil Enema)"/>
-          <option value="Basti – Niruha (Decoction Enema)"/>
-          <option value="Nasya (Nasal Administration)"/>
-          <option value="Raktamokshana"/>
-          <option value="Akshi Tarpana (Eye Treatment)"/>
-          <option value="Karna Purana (Ear Treatment)"/>
-          <option value="Udwartana (Powder Massage)"/>
-          <option value="Takradhara"/>
-          <option value="Kashyadhara"/>
-          <option value="Netra Dhara"/>
-          <option value="Greeva Basti"/>
-          <option value="Kati Basti"/>
-          <option value="Janu Basti"/>
-          <option value="Hrid Basti"/>
-          <option value="Raktamokshana (Leech therapy)"/>
-        </datalist>
+        <label for="sched-therapy">Therapy <span class="req">*</span></label>
+        <!-- Session 386b-1 (§545, owner Q16 / Q16b): picked from the organisation's Panchakarma fees, or the standard Panchakarma list (no fee
+             yet: the session is scheduled normally and priced when completed) -- never free text; the server checks it and names the therapy -->
+        <select id="sched-therapy" aria-describedby="sched-therapy-note" style="min-height:40px"><option value="">Loading the Panchakarma list…</option></select>
+        <div id="sched-therapy-note" style="font-size:11px;color:var(--text-muted);margin-top:3px">With a price: the organisation's own Panchakarma fees. "No price yet": the standard list — the session is scheduled normally; billing chooses its fee when it is completed.</div>
       </div>
 
       <div class="field">
@@ -1255,6 +1232,13 @@ input[type="checkbox"]{width:16px;height:16px;accent-color:var(--green-deep);ver
     <input class="date-input" type="date" id="date-picker" data-onchange="onDatePick"/>
     <span class="today-badge" data-onclick="goToday">Today</span>
     <div class="filter-spacer"></div>
+    <!-- Session 386b-1 (§551): patient name / UHID search + a date range for the list (the room grid and the week view keep the day) -->
+    <input class="filter-select" id="filter-search" type="search" placeholder="Patient name or UHID" aria-label="Search by patient name or UHID" data-oninput="applyFilters" style="min-width:180px"/>
+    <select class="filter-select" id="filter-range" aria-label="Which days to list" data-onchange="onRangeChange">
+      <option value="day">This day</option>
+      <option value="next7">Next 7 days</option>
+      <option value="last7">Last 7 days</option>
+    </select>
     <select class="filter-select" id="filter-therapist" data-onchange="applyFilters">
       <option value="">All Therapists</option>
     </select>

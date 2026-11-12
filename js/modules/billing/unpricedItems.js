@@ -6,9 +6,11 @@
 // ipd.html (Generate Bill). DOM nodes + textContent only (therapy names and reasons are entered text); no native confirm() / prompt().
 import { safeErrorMessage } from '../../utils/errors.js'
 import { el } from './invoiceLayout.js'
+import { NO_CHARGE_POWER_DESIGS } from '../../utils/chargeRights.js'
 
 const TRAINEE_DESIGS = ['pg_scholar', 'intern', 'nursing_intern']
 const TRAINEE_ROLES = ['trainee_doctor', 'student']
+
 const fmtD = d => d ? new Date(String(d).slice(0, 10) + 'T00:00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'
 const rupee = n => '₹' + Number(n || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })
 const WARN = 'padding:10px 12px;border:1px solid var(--gold, #c9902a);border-left-width:4px;border-radius:6px;background:#fff8e8;font-size:12.5px;margin:6px 0'
@@ -20,6 +22,8 @@ const todayIst = () => new Date(Date.now() + 5.5 * 3600 * 1000).toISOString().sl
 export function canResolveUnpriced(p) {
   if (!p || p.status && p.status !== 'active') return false
   if (TRAINEE_DESIGS.includes(p.designation) || TRAINEE_ROLES.includes(p.role) || TRAINEE_ROLES.includes(p.secondary_role)) return false
+  // Session 386b-1 (§556): never the no-charge designations (e.g. a store keeper holding role accountant) -- js/utils/chargeRights.js
+  if (p.role !== 'super_admin' && NO_CHARGE_POWER_DESIGS.includes(p.designation)) return false
   return p.role === 'super_admin' || ['accountant', 'finance_manager'].includes(p.role)
     || ['accountant', 'finance_manager'].includes(p.secondary_role) || p.designation === 'medical_superintendent'
 }

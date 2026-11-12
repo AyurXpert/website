@@ -99,6 +99,19 @@ function _thisWeekBounds() {
 }
 
 // ── Load ──────────────────────────────────────────────────────────────────────
+// Session 386b-1 (§551): one column list for the day load and the range load
+const _SESSION_COLS = `
+        id, therapy_phase, therapy_name, scheduled_date, scheduled_time,
+        actual_start, actual_end, status, therapist_notes, doctor_clearance,
+        therapy_room_number, samsarjana_stage, room_id, ipd_admission_id,
+        planned_duration_minutes, special_instructions, skip_reason,
+        patients(id, name, phone, age, gender, uhid),
+        profiles!therapist_id(id, full_name, gender),
+        ordering_doctor:profiles!ordering_doctor_id(id, full_name),
+        departments(id, name),
+        pk_treatment_rooms(id, room_name),
+        pk_therapy_session_therapists(profiles(id, full_name, gender))
+      `;
 async function loadAll() {
   _updateDateDisplay();
 
@@ -106,18 +119,7 @@ async function loadAll() {
   const [sessRes, admRes, thRes, deptRes, tenantRes, roomRes, blocksRes, prepStaffRes, formularyRes, prepLogRes, pkSettingsRes, pkCyclePendingRes, pkShiftPendingRes, pkDutyRes, pkPrepRes, pkPrepLeaveRes, myShiftsRes] = await Promise.all([
     supabase
       .from('pk_therapy_sessions')
-      .select(`
-        id, therapy_phase, therapy_name, scheduled_date, scheduled_time,
-        actual_start, actual_end, status, therapist_notes, doctor_clearance,
-        therapy_room_number, samsarjana_stage, room_id, ipd_admission_id,
-        planned_duration_minutes, special_instructions, skip_reason,
-        patients(id, name, phone, age, gender),
-        profiles!therapist_id(id, full_name, gender),
-        ordering_doctor:profiles!ordering_doctor_id(id, full_name),
-        departments(id, name),
-        pk_treatment_rooms(id, room_name),
-        pk_therapy_session_therapists(profiles(id, full_name, gender))
-      `)
+      .select(_SESSION_COLS)
       .eq('tenant_id', tenantId)
       .eq('scheduled_date', _viewDate)
       .order('scheduled_time', { ascending: true, nullsFirst: false }),
@@ -2028,13 +2030,37 @@ window.applyFilters = function() {
   const ft = document.getElementById('filter-therapist').value;
   const fd = document.getElementById('filter-dept').value;
   const fs = document.getElementById('filter-status').value;
+  const q  = (document.getElementById('filter-search')?.value || '').trim().toLowerCase();
 
-  let rows = _sessions;
+  // Session 386b-1 (§551): "Next / Last 7 days" lists the sessions of that range (the same columns + the date); "This day" = the day above
+  let rows = _rangeMode() ? _rangeSessions : _sessions;
   if (ft) rows = rows.filter(s => s.profiles?.id === ft);
   if (fd) rows = rows.filter(s => s.departments?.id === fd);
   if (fs) rows = rows.filter(s => s.status === fs);
+  if (q)  rows = rows.filter(s => (s.patients?.name || '').toLowerCase().includes(q) || (s.patients?.uhid || '').toLowerCase().includes(q));
 
   renderTable(rows);
+};
+
+// Session 386b-1 (§551): the list's date range (the room grid, the stats and the week view keep the chosen day)
+let _rangeSessions = [];
+function _rangeMode() { return (document.getElementById('filter-range')?.value || 'day') !== 'day'; }
+function _shortDate(d) { return d ? new Date(d + 'T00:00:00').toLocaleDateString('en-IN', { weekday: 'short', day: '2-digit', month: 'short' }) : ''; }
+window.onRangeChange = async function() {
+  const r = document.getElementById('filter-range').value;
+  if (r === 'day') { _rangeSessions = []; applyFilters(); return; }
+  const today = todayISTStr();
+  const shift = n => { const d = new Date(today + 'T00:00:00'); d.setDate(d.getDate() + n); return istDateStr(d); };
+  const [from, to] = r === 'next7' ? [today, shift(6)] : [shift(-6), today];
+  const { data, error } = await supabase.from('pk_therapy_sessions').select(_SESSION_COLS)
+    .eq('tenant_id', tenantId).gte('scheduled_date', from).lte('scheduled_date', to)
+    .order('scheduled_date', { ascending: r === 'next7' }).order('scheduled_time', { ascending: true, nullsFirst: false });
+  if (error) { _alert('error', safeErrorMessage(error, 'Could not load the sessions of that range.')); return; }
+  let rows = data || [];
+  rows.forEach(s => { _normGenderOf(s.patients); _normGenderOf(s.profiles); });
+  if (role === 'therapist' && !_isPkRosterAdmin() && !_isRoomAdmin()) rows = rows.filter(s => s.profiles?.id === myProfile?.id);
+  _rangeSessions = rows;
+  applyFilters();
 };
 
 // Session 229 -- some procedures genuinely need 2-4 therapists at once (e.g. Pizhichil,
@@ -2056,7 +2082,7 @@ function renderTable(rows) {
     const td = document.createElement('td');
     td.colSpan = 11;
     td.className = 'table-empty';
-    td.textContent = 'No sessions for this date.';
+    td.textContent = _rangeMode() ? 'No sessions in these days.' : 'No sessions for this date.';
     if (_isPkRosterAdmin()) td.append(document.createElement('br'), 'Use "+ Schedule Session" to add one.');
     tr.append(td);
     tbody.replaceChildren(tr);
@@ -2130,6 +2156,8 @@ function renderTable(rows) {
            ${s.actual_start ? `<div class="time-end">Started ${s.actual_start.slice(11,16)}</div>` : ''}`
         : `<div class="time-cell">${timeStr}</div>
            ${s.actual_start ? `<div class="time-end">Started ${s.actual_start.slice(11,16)}</div>` : ''}`;
+    // Session 386b-1 (§551): in a 7-day list every row shows its date
+    const dateTag = _rangeMode() && s.scheduled_date ? `<div class="pt-meta" style="font-weight:600">${_esc(_shortDate(s.scheduled_date))}</div>` : '';
 
     const durationCell = _canEditSlot && _editSessionCell?.id === s.id && _editSessionCell.field === 'duration'
       ? `<input type="number" min="0" value="${s.planned_duration_minutes || ''}" placeholder="min"
@@ -2143,7 +2171,7 @@ function renderTable(rows) {
 
     return `<tr${isMine ? ' style="background:var(--gold-light)"' : ''}>
       <td>
-        ${timeCell}
+        ${dateTag}${timeCell}
       </td>
       <td>
         <div class="pt-name">${_esc(pt.name||'—')}</div>
@@ -2244,6 +2272,7 @@ window.openSchedDrawer = function(prefillAdmId) {
   document.getElementById('sched-source').value    = 'ipd';
   document.getElementById('sched-phase').value     = 'purvakarma';
   document.getElementById('sched-therapy').value   = '';
+  _loadTherapyChoices();   // Session 386b-1 (§545)
   document.getElementById('sched-therapist').value = '';
   document.getElementById('sched-clearance').checked = false;
   document.getElementById('sched-clearance-field').style.display = _canGiveClearance() ? '' : 'none';
@@ -2453,17 +2482,45 @@ window.onSchedExtraTherapistChange = async function(idx, value) {
   _renderExtraTherapistRows('sched-extra-therapists', _schedExtraTherapistIds, 'onSchedExtraTherapistChange', 'removeSchedExtraTherapist', document.getElementById('sched-therapist').value, ctx.gender);
 };
 
+// Session 386b-1 (§545, owner Q16 / Q16b): the therapy of a hand-scheduled session comes from the organisation's Panchakarma fees or the
+// standard Panchakarma list (pk_therapy_choices) -- never free text. The SERVER checks the choice and names the therapy.
+let _therapyChoices = null;
+async function _loadTherapyChoices() {
+  const sel = document.getElementById('sched-therapy');
+  if (!_therapyChoices) {
+    const { data, error } = await supabase.rpc('pk_therapy_choices');
+    if (error) { sel.replaceChildren(new Option('Could not load the Panchakarma list — reload the page', '')); return; }
+    _therapyChoices = data || [];
+  }
+  const withFee = _therapyChoices.filter(c => c.has_fee), noFee = _therapyChoices.filter(c => !c.has_fee);
+  const grp = (label, list) => {
+    const g = document.createElement('optgroup'); g.label = label;
+    list.forEach(c => g.appendChild(new Option(c.has_fee ? `${c.name} — ₹${Number(c.amount || 0).toLocaleString('en-IN')} (${c.ayush_code})` : `${c.name} (${c.ayush_code}) — no price yet`,
+                                               c.has_fee ? 'fee:' + c.fee_id : 'code:' + c.ayush_code)));
+    return g;
+  };
+  sel.replaceChildren(new Option('Choose the therapy…', ''));
+  if (withFee.length) sel.appendChild(grp('With a price (this organisation\'s fees)', withFee));
+  if (noFee.length) sel.appendChild(grp('Standard list — no price yet', noFee));
+}
+function _therapyPick() {
+  const v = document.getElementById('sched-therapy').value || '';
+  const c = (_therapyChoices || []).find(x => (x.has_fee ? 'fee:' + x.fee_id : 'code:' + x.ayush_code) === v);
+  return c ? { name: c.name, feeId: c.has_fee ? c.fee_id : null, code: c.ayush_code } : null;
+}
+
 window.saveSession = async function() {
   const source    = document.getElementById('sched-source').value;
   const phase     = document.getElementById('sched-phase').value;
-  const therapy   = document.getElementById('sched-therapy').value.trim();
+  const pick      = _therapyPick();   // Session 386b-1 (§545)
+  const therapy   = pick?.name || '';
   const therapist = document.getElementById('sched-therapist').value;
   const deptId    = document.getElementById('sched-dept').value;
   const date      = document.getElementById('sched-date').value;
   const time      = document.getElementById('sched-time').value;
   const clearance = _canGiveClearance() && document.getElementById('sched-clearance').checked;
 
-  if (!therapy)   { _alert('error','Enter therapy name.'); return; }
+  if (!pick)      { _alert('error','Choose the therapy from the Panchakarma list.'); return; }
   if (!therapist) { _alert('error','Select a therapist.'); return; }
   if (!deptId)    { _alert('error','Select a department.'); return; }
   if (!date)      { _alert('error','Enter a date.'); return; }
@@ -2561,7 +2618,9 @@ window.saveSession = async function() {
     therapist_id:        therapist,
     department_id:       deptId,
     therapy_phase:       phase,
-    therapy_name:        therapy,
+    therapy_name:        therapy,   // the server sets the name from the fee / the standard list (§545)
+    fee_structure_id:    pick.feeId,
+    ayush_code:          pick.code,
     scheduled_date:      date,
     scheduled_time:      time || null,
     doctor_clearance:    clearance,
