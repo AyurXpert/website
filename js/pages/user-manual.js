@@ -19,13 +19,14 @@ const ROLE_SECTION = {
   nurse_manager: 'nursing-admin',
   therapist: 'therapy',
   accountant: 'reports',
+  store_keeper: 'role-store',   // Session 386c
 };
 const ROLE_LABEL = {
   super_admin: 'Super Admin', dept_admin: 'Dept Admin', doctor: 'Doctor',
   trainee_doctor: 'PG Scholar / Intern', receptionist: 'Receptionist', pharmacist: 'Pharmacist',
   nurse: 'Nurse', nurse_manager: 'Nursing Superintendent', lab_tech: 'Lab Technician',
   accountant: 'Accountant', cashier: 'Cashier', finance_manager: 'Finance Manager',
-  therapist: 'Therapist', student: 'Student', diet_staff: 'Diet / Pathya Staff', mrd_staff: 'Medical Records Staff',
+  therapist: 'Therapist', student: 'Student', diet_staff: 'Diet / Pathya Staff', mrd_staff: 'Medical Records Staff', store_keeper: 'Store Keeper (General Store)',   // Session 386c
 };
 
 // ?role= (set by navbar.js's Help/User Guide links, which already know the logged-in role) takes

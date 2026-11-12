@@ -150,7 +150,7 @@ function _buildGroups(role, type, secondaryRole, hasMonitoringAccess, isDeptScop
         { href:'dispensaryPOS.html',  label:'Dispensary POS',  roles:RX_ROLES.concat(['cashier']),      types:null, module:'pharmacy'},
         // Session 365a: the pharmacy dashboard -- = pharmacy-dashboard.js requireAuth (the MS, as dept_admin, views only)
         { href:'pharmacy-dashboard.html', label:'Pharmacy Dashboard', roles:RX_ROLES.concat(['accountant','finance_manager']), types:null, module:'pharmacy'},
-        { href:'inventory.html',      label:'Inventory',       roles:RX_ROLES,                          types:null, module:'pharmacy'},
+        { href:'inventory.html',      label:'Inventory',       roles:RX_ROLES.concat(['accountant','finance_manager']),   types:null, module:'pharmacy'},   // 386c (owner 4a): accountant / finance manager view + Change MRP
         { href:'aushadha-nirman.html',label:'Aushadha Nirman', roles:RX_ROLES.concat(ADMIN_ROLES),      types:null, module:'pharmacy'},
         // Session 305: accountant / pharmacist links removed -- those pages' requireAuth()
         // bounced them straight back (purchase*: pharmacist+admins; formulary: admins only).
@@ -173,6 +173,8 @@ function _buildGroups(role, type, secondaryRole, hasMonitoringAccess, isDeptScop
         // message, no explanation. Narrowed to ADMIN_ROLES to match the destination exactly.
         { href:'admin.html',             label:'Dashboard',        roles:ADMIN_ROLES,                                          types:null  },
         { href:'office.html',            label:'Office',           roles:['office_staff'],                                     types:null  },   // Session 362
+        // Session 386c (owner 12 Nov 2026, option A): the GENERAL store keeper -- the general store is not in AyurXpert yet; no pharmacy page
+        { href:'office.html',            label:'General Store',    roles:['store_keeper'],                                     types:null  },
         { href:'finance.html',           label:'Finance',          roles:['super_admin','dept_admin','accountant','cashier','finance_manager','receptionist'], types:null, module:'finance'  },
         { href:'insurance-claims.html',  label:'Insurance Claims', roles:['super_admin','dept_admin','accountant'],             types:null, module:'finance'  },
         { href:'hr.html',                label:'HR',               roles:['super_admin','dept_admin'],                         types:null, module:'hr'       },
@@ -249,7 +251,9 @@ function _injectNavbar(profile, tenant, role, secondaryRole, hasMonitoringAccess
   const _SHIFT_ROLES = ['receptionist', 'nurse', 'cashier', 'accountant', 'finance_manager', 'dept_admin', 'super_admin', 'lab_tech', 'pharmacist'];
   const shiftOk = _SHIFT_ROLES.includes(role) || _SHIFT_ROLES.includes(secondaryRole);
   // Session 377a: the Reference shelf -- the server shows it only to teaching organisations, and not to office-only staff
-  const refShelfOk = NCISM.includes(tenant.type) && !(role === 'office_staff' && !secondaryRole);
+  // Session 386c: not to store-keeper-only staff either (the same server default deny)
+  const _dd = r => r === 'office_staff' || r === 'store_keeper';   // the server's default-deny account (_office_staff_only)
+  const refShelfOk = NCISM.includes(tenant.type) && !(_dd(role) && (!secondaryRole || _dd(secondaryRole)));
 
   const logoHTML = tenant.logo_url
     ? `<img src="${tenant.logo_url}" alt="${tenant.name}" class="ax-logo"/>`
@@ -604,7 +608,7 @@ function _roleLabel(role) {
   return { super_admin:'Super Admin', dept_admin:'Dept. Admin', doctor:'Doctor', receptionist:'Receptionist',
     pharmacist:'Pharmacist', nurse:'Nurse', nurse_manager:'Nurse Manager', lab_tech:'Lab Technician', accountant:'Accountant',
     cashier:'Cashier', finance_manager:'Finance Manager', student:'Student', therapist:'Therapist',
-    diet_staff:'Diet / Pathya Staff', mrd_staff:'Medical Records Staff', office_staff:'Office Staff' }[role] || role;
+    diet_staff:'Diet / Pathya Staff', mrd_staff:'Medical Records Staff', office_staff:'Office Staff', store_keeper:'Store Keeper (General Store)' }[role] || role;
 }
 
 // Session 113 -- role alone ("Receptionist") was showing for a Registration Clerk / Billing

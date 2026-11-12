@@ -8,13 +8,20 @@ import { localDateStr, todayLocalStr } from '../utils/dateUtils.js';
 import { notify } from '../components/notify.js';
 import { mountMedicineTaxPanel, mountBulkItemTax, mountItemTaxApprovals, isTaxMaker } from '../modules/pharmacy/itemTax.js';
 
-await requireAuth(['pharmacist', 'dept_admin', 'super_admin']);
+// Session 386c (owner 4a): + accountant / finance manager -- view only, and "Change MRP" (the server decides)
+await requireAuth(['pharmacist', 'dept_admin', 'super_admin', 'accountant', 'finance_manager']);
 initNavbar();
 wireDelegatedEvents();
 
 const tenantId = getCurrentTenantId();
 const profile  = getCurrentProfile();
 const canItemMaster = ITEM_MASTER_ROLES.includes(profile?.role) || profile?.secondary_role === 'dept_admin';
+// Session 386c (owner 4a), display only -- the server decides: who may change an MRP after it is entered (set_inventory_mrp), and who
+// writes stock rows at all (_pharmacy_writer_ok); an accountant without a pharmacy role only views + "Change MRP"
+const _has = r => profile?.role === r || profile?.secondary_role === r;
+const canChangeMrp = profile?.role === 'super_admin' || _has('accountant') || _has('finance_manager') || (profile?.designation === 'chief_pharmacist' && _has('pharmacist'));
+const pharmacyWriter = ['pharmacist', 'super_admin', 'dept_admin'].includes(profile?.role) || profile?.secondary_role === 'dept_admin';
+if (!pharmacyWriter) ['btn-add-med', 'btn-import-csv'].forEach(id => { const b = document.getElementById(id); if (b) b.style.display = 'none'; });   // hidden, not removed: the page wires them below
 let _items  = [];
 let _adjType = 'remove';   // Session 332: adding stock is a goods receipt (Purchase / GRN), never an adjustment
 // Session 332: the shared medicine catalogue (name, category, brand, unit, barcode, image, indications, active,
@@ -229,6 +236,7 @@ function renderTable() {
     `;
   }).join('');
 
+  if (!pharmacyWriter) tbody.querySelectorAll('.btn-del, .btn-adj, .btn-practical').forEach(b => b.remove());   // Session 386c: view only
   tbody.querySelectorAll('.btn-edit').forEach(btn => btn.addEventListener('click', () => openEdit(btn.dataset.id)));
   tbody.querySelectorAll('.btn-adj').forEach(btn => btn.addEventListener('click', () => openAdjust(btn.dataset.id, btn.dataset.name)));
   tbody.querySelectorAll('.btn-del').forEach(btn => btn.addEventListener('click', () => deleteMedicine(btn.dataset.id, btn.dataset.name)));
@@ -483,6 +491,15 @@ function openPanel(invId) {
   const editItem = isEdit ? _items.find(i => i.id === invId) : null;
   const receivedBatch = editItem?.batch_source === 'received';
   RECEIVED_BATCH_FIELDS.forEach(id => { document.getElementById(id).disabled = receivedBatch; });
+  // Session 386c (owner 4a): an entered MRP is read-only here for everyone; "Change MRP" (Chief Pharmacist / accountant, a reason) changes it
+  document.getElementById('f-mrp').disabled = isEdit;
+  document.getElementById('mrp-change').hidden = !(isEdit && canChangeMrp);
+  document.getElementById('mrp-change-form').hidden = true;
+  document.getElementById('btn-mrp-change').style.display = '';
+  const mrpNote = document.getElementById('mrp-note');
+  mrpNote.hidden = !isEdit || canChangeMrp;
+  mrpNote.textContent = 'The MRP is entered when the stock is received; a later change is made by the Chief Pharmacist, an accountant or the finance manager.';
+  document.getElementById('btn-save-med').style.display = (isEdit && !pharmacyWriter) ? 'none' : '';   // (.btn sets a display: the hidden attribute would not hide it)
   document.getElementById('f-is-student-batch').disabled = isEdit;   // fixed once the row exists
 
   // Session 345b: the medicine's tax details (HSN + OP / IP profile) -- a change is a request that needs approval
@@ -587,6 +604,35 @@ document.getElementById('f-active').addEventListener('change', e => {
   document.getElementById('deact-reason-wrap').style.display = e.target.value === 'false' ? '' : 'none';
 });
 
+// ── Change MRP (Session 386c, owner 4a) ─────────────────
+document.getElementById('btn-mrp-change').addEventListener('click', () => {
+  document.getElementById('btn-mrp-change').style.display = 'none';
+  document.getElementById('mrp-change-form').hidden = false;
+  document.getElementById('f-mrp-new').value = document.getElementById('f-mrp').value;
+  document.getElementById('f-mrp-reason').value = '';
+  document.getElementById('f-mrp-new').focus();
+});
+document.getElementById('btn-mrp-cancel').addEventListener('click', () => {
+  document.getElementById('mrp-change-form').hidden = true;
+  document.getElementById('btn-mrp-change').style.display = '';
+});
+document.getElementById('btn-mrp-save').addEventListener('click', async () => {
+  const invId = document.getElementById('edit-inv-id').value;
+  const newMrp = Number(document.getElementById('f-mrp-new').value);
+  const reason = document.getElementById('f-mrp-reason').value.trim();
+  const btn = document.getElementById('btn-mrp-save');
+  btn.disabled = true;
+  const { error } = await supabase.rpc('set_inventory_mrp', { p_inventory_id: invId, p_mrp: newMrp, p_reason: reason });
+  btn.disabled = false;
+  if (error) { _alert('error', safeErrorMessage(error, 'The MRP could not be changed.')); return; }
+  document.getElementById('f-mrp').value = newMrp.toFixed(2);
+  document.getElementById('mrp-change-form').hidden = true;
+  document.getElementById('btn-mrp-change').style.display = '';
+  calcPricing();
+  _alert('success', `MRP changed to ₹${newMrp.toFixed(2)} (recorded with your reason).`);
+  await loadInventory();
+});
+
 // ── Save medicine ────────────────────────────────────
 document.getElementById('btn-save-med').addEventListener('click', async () => {
   const name    = document.getElementById('f-name').value.trim();
@@ -654,7 +700,8 @@ document.getElementById('btn-save-med').addEventListener('click', async () => {
                       is_gmp_certified: isGmp, gmp_certificate_no: gmpCert, medicine_type: medType,
                       is_high_risk: isHighRisk, is_lasa: isLasa, lasa_pair: lasaPair, is_schedule_h: isScheduleH,
                       is_schedule_h1: isScheduleH1, is_schedule_e1: isScheduleE1, is_ndps: isNdps };
-      if (editItem?.batch_source === 'received') { delete patch.mrp; delete patch.cost_price; delete patch.expiry_date; delete patch.batch_number; }
+      delete patch.mrp;   // Session 386c (owner 4a): the MRP changes only through "Change MRP"
+      if (editItem?.batch_source === 'received') { delete patch.cost_price; delete patch.expiry_date; delete patch.batch_number; }
       const { error: ie } = await supabase.from('inventory').update(patch).eq('id', invId).eq('tenant_id', tenantId);
       if (ie) throw ie;
       _alert('success', `"${name}" updated.`);

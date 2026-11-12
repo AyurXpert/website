@@ -1010,8 +1010,8 @@ async function _rejectAndDeleteStaff(targetUserId){
 // Session 359 (Q15): designations with deliberately NO default role -- the Super Admin must choose one
 // Session 362 (TODO §312): the Office Superintendent (key opd_incharge, kept for old data) too -- an office post, not a doctor
 // Session 386b-1 (§556, owner Q13, 11 Nov 2026): the store keeper is never pre-set to accountant (no money rights) -- the Super Admin chooses;
-// a store-only role = session 386c
-const DESIG_NO_DEFAULT_ROLE = ['administrative_officer', 'opd_incharge', 'store_keeper'];
+// Session 386c (§556; owner 12 Nov 2026 option A): the GENERAL store keeper defaults to its own plain role store_keeper (default-deny, no pharmacy)
+const DESIG_NO_DEFAULT_ROLE = ['administrative_officer', 'opd_incharge'];
 // Session 362 (Q5): the staffing counts put these office posts in the "Office / Administration" group (role office_staff) --
 // a COUNT bucket only, never a pre-selected login role
 const STAFFING_ROLE_BUCKET = { opd_incharge: 'office_staff', administrative_officer: 'office_staff', store_keeper: 'accountant' };   // store_keeper: count bucket only (386b-1)
@@ -1049,7 +1049,8 @@ const DESIG_ROLE_DEFAULT = {
   // Finance & Accounts NCISM_XX_ROWS rows below were fixed to use their own distinct
   // keys instead of all sharing 'accountant' -- before that, this row's key was never
   // actually reachable via any real Schedule XX row.
-  accountant:'accountant', finance_manager:'finance_manager',   // store_keeper: no default role (386b-1, §556)
+  accountant:'accountant', finance_manager:'finance_manager',
+  store_keeper:'store_keeper',   // Session 386c (§556): the plain store role (386b-1 had no default)
   receptionist:'receptionist', registration_clerk:'receptionist', billing_clerk:'receptionist', cashier:'cashier',   // cashier: session 383 (owner, 9 Nov)
   medical_record_officer:'mrd_staff', medical_record_technician:'mrd_staff',
   pharmacist:'pharmacist', chief_pharmacist:'pharmacist', pharmacy_assistant:'pharmacist',
@@ -2365,7 +2366,7 @@ const totalOrgStaff = await _count('profiles',[['tenant_id',tenantId],['is_activ
 // pre-selected default so the common case needs no extra click.
 // Session 362 (TODO §312): + office_staff (the server's three lists of roles that may be given: signup / invite / Change role)
 const INVITE_ROLES = ['doctor','trainee_doctor','receptionist','pharmacist','nurse','nurse_manager','lab_tech',
-  'therapist','accountant','cashier','finance_manager','student','diet_staff','mrd_staff','office_staff','dept_admin'];
+  'therapist','accountant','cashier','finance_manager','student','diet_staff','mrd_staff','office_staff','store_keeper','dept_admin'];   // Session 386c: + store_keeper
 
 // Apex admin-zone designations whose dept_admin option shows their own title
 // (e.g. "Medical Director (Dean/Principal/Director)") instead of the generic
@@ -6361,7 +6362,7 @@ async function _collectedToday(){
   }catch{return 0;}
 }
 function _fmt(n){if(!n)return'₹0';if(n>=100000)return'₹'+(n/100000).toFixed(1)+'L';if(n>=1000)return'₹'+(n/1000).toFixed(1)+'K';return'₹'+Math.round(n);}
-function _roleLabel(r){return{super_admin:'Super Admin',dept_admin:'Dept. Admin',doctor:'Doctor',trainee_doctor:'Trainee Doctor (PG/Intern)',receptionist:'Receptionist',pharmacist:'Pharmacist',nurse:'Nurse',nurse_manager:'Nurse Manager',lab_tech:'Lab Technician',accountant:'Accountant',cashier:'Cashier',finance_manager:'Finance Manager',therapist:'Therapist',student:'Student',diet_staff:'Diet / Pathya Staff',mrd_staff:'Medical Records Staff',office_staff:'Office Staff'}[r]||r;}
+function _roleLabel(r){return{super_admin:'Super Admin',dept_admin:'Dept. Admin',doctor:'Doctor',trainee_doctor:'Trainee Doctor (PG/Intern)',receptionist:'Receptionist',pharmacist:'Pharmacist',nurse:'Nurse',nurse_manager:'Nurse Manager',lab_tech:'Lab Technician',accountant:'Accountant',cashier:'Cashier',finance_manager:'Finance Manager',therapist:'Therapist',student:'Student',diet_staff:'Diet / Pathya Staff',mrd_staff:'Medical Records Staff',office_staff:'Office Staff',store_keeper:'Store Keeper (General Store)'}[r]||r;}
 function _tenantLabel(t){return{clinic:'Clinic',hospital:'Hospital',teaching_hospital:'Teaching Hospital',pk_center:'PK Centre',dispensary:'Dispensary',college:'Ayurveda College',pharma:'Pharmaceutical Co.',supplier:'Supplier',dealer:'Dealer',journal:'Journal'}[t]||'Healthcare';}
 function _relDate(iso){if(!iso)return'—';const d=Math.floor((Date.now()-new Date(iso))/60000);if(d<60)return d+'m ago';if(d<1440)return Math.floor(d/60)+'h ago';return Math.floor(d/1440)+'d ago';}
 function _esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}

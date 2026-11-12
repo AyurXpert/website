@@ -523,6 +523,21 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
       <div class="field">
         <label>MRP (₹) <span style="color:var(--red)">*</span></label>
         <input id="f-mrp" type="number" min="0" step="0.01" placeholder="0.00"/>
+        <!-- Session 386c (owner 4a): after it is entered, the MRP changes only here -- the Chief Pharmacist, an accountant or the finance manager, with a reason -->
+        <div id="mrp-change" hidden>
+          <button type="button" class="btn btn-ghost btn-xs" id="btn-mrp-change">Change MRP…</button>
+          <div id="mrp-change-form" hidden>
+            <label for="f-mrp-new">New MRP (₹)</label>
+            <input id="f-mrp-new" type="number" min="0.01" step="0.01"/>
+            <label for="f-mrp-reason">Reason</label>
+            <input id="f-mrp-reason" type="text" maxlength="300" placeholder="e.g. new MRP printed on the pack"/>
+            <div style="display:flex;gap:6px;margin-top:6px">
+              <button type="button" class="btn btn-primary btn-xs" id="btn-mrp-save">Save MRP</button>
+              <button type="button" class="btn btn-ghost btn-xs" id="btn-mrp-cancel">Cancel</button>
+            </div>
+          </div>
+        </div>
+        <div id="mrp-note" class="rp-muted" hidden></div>
       </div>
       <div class="field">
         <label>GST %</label>

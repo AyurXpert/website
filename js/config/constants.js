@@ -29,6 +29,7 @@ export const ROLES = {
   NURSE_MANAGER:   'nurse_manager',
   TRAINEE_DOCTOR:  'trainee_doctor',
   OFFICE_STAFF:    'office_staff',   // Session 362 (TODO §312): office work only -- no patient, money or clinical access
+  STORE_KEEPER:    'store_keeper',   // Session 386c (owner 12 Nov 2026, option A): the GENERAL store keeper -- no pharmacy access, no money; default-deny like office_staff
 };
 
 // ── Where each role lands after login ──
@@ -52,6 +53,7 @@ export const ROLE_HOME = {
   nurse_manager:   'nursing-admin.html',
   trainee_doctor:  'doctor.html',
   office_staff:    'office.html',
+  store_keeper:    'office.html',   // Session 386c: "the general store is not in AyurXpert yet" (office.js)
 };
 
 // ── Roles required to enroll in MFA (CERT-In §4.1 — privileged/sensitive accounts) ──

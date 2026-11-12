@@ -45,10 +45,11 @@ html,body{min-height:100%;font-family:'DM Sans',sans-serif;background:var(--crea
     <a class="card" href="account-settings.html"><span class="card-ttl">👤 My profile</span><span class="card-sub">Your contact details and photo</span></a>
     <a class="card" href="account-settings.html?tab=leave"><span class="card-ttl">🌴 Apply for leave</span><span class="card-sub">Request leave and see your requests</span></a>
     <a class="card" href="account-settings.html?tab=security"><span class="card-ttl">🔒 Security</span><span class="card-sub">Two-step sign-in and backup codes</span></a>
-    <a class="card" href="roster.html"><span class="card-ttl">📅 Duty roster</span><span class="card-sub">Who is on duty this week (view only)</span></a>
+    <a class="card" href="roster.html" id="office-roster-card"><span class="card-ttl">📅 Duty roster</span><span class="card-sub">Who is on duty this week (view only)</span></a>
     <a class="card" href="user-manual.html"><span class="card-ttl">📖 User manual</span><span class="card-sub">How the system works</span></a>
   </nav>
-  <p class="note">Your login role is <strong>Office Staff</strong>. It does not show patient, clinical, lab, billing or other staff records. If your work needs more, ask your Super Admin to give you a second role.</p>
+  <p class="note" id="store-note" hidden><strong>No module yet — the general store is not in AyurXpert.</strong> Keep the general store's stock, issues and indents in the paper register for now. The pharmacy store and all medicine stock are kept by the Pharmacist.</p>
+  <p class="note" id="office-note">Your login role is <strong id="office-role">Office Staff</strong>. It does not show patient, clinical, lab, billing or other staff records. If your work needs more, ask your Super Admin to give you a second role.</p>
 </main>
 <script type="module" src="./js/pwa/register-sw.js"></script>
 <script type="module" src="js/pages/office.js"></script>

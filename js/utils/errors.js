@@ -178,6 +178,12 @@ export function safeErrorMessage(error, fallback = 'Something went wrong. Please
   if (['P0002', '42501', '22023'].includes(error?.code) && S386B1_MSGS.some(m => error?.message?.startsWith(m))) {
     return error.message;
   }
+  // Session 386c (owner 4a): the MRP rule -- plain, schema-free
+  const S386C_MSGS = ['The MRP is changed with "Change MRP"', 'Only the Chief Pharmacist, an accountant or the finance manager can change an MRP',
+    'That stock row is not in this organisation', 'Enter the new MRP in rupees', 'The MRP is already', 'Give the reason for the new MRP'];
+  if (['42501', '22023'].includes(error?.code) && S386C_MSGS.some(m => error?.message?.startsWith(m))) {
+    return error.message;
+  }
   if (error?.code === '23514' && error?.message?.includes('patients_name_no_markup_chk')) {
     return 'A patient name cannot contain < or >.';
   }

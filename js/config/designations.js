@@ -47,7 +47,7 @@ export const DESIGS = [
   {v:'public_relations_officer',    l:'Public Relations Officer',        cat:'Admin Staff',    lv:3, d:'Handles patient grievances, feedback and external communications.'},
   {v:'finance_manager',             l:'Finance Manager / Accounts Officer', cat:'Admin Staff',  lv:1, d:'Heads the finance department under the Administrator — owns billing, payroll and insurance claims oversight; Clerks/Accounts Staff and Store Keepers work under this position (Sch XX/7, XX/8).'},
   {v:'accountant',                  l:'Accountant',                      cat:'Admin Staff',    lv:2, d:'Books, reconciles and reports hospital finances — billing, payroll, insurance claims (Sch XX/7, XX/8).'},
-  {v:'store_keeper',                l:'Store Keeper (Main / Pharmacy Store)', cat:'Admin Staff', lv:3, d:'Manages stock receipt, storage and issue for the main or pharmacy store, under the Finance Manager.'},
+  {v:'store_keeper',                l:'Store Keeper (General Store)', cat:'Admin Staff', lv:3, d:'Keeps the general store (stationery, linen, housekeeping, non-medical consumables): receipt, storage and issue, under the Finance Manager. The general store is not in AyurXpert yet; the pharmacy store is kept by the Pharmacist.'},
   {v:'lab_incharge',                l:'Lab In-charge',                   cat:'Diagnostics',    lv:1, d:'Heads the pathology lab — quality control, staffing, report sign-off.'},
   {v:'roganidana_pg',               l:'PG Roganidana (Report Signatory)', cat:'Diagnostics',   lv:1, d:'PG-qualified Roganidana faculty who signs off Ayurvedic diagnostic interpretations.'},
   {v:'pathologist',                 l:'Pathologist (Part-time)',          cat:'Diagnostics',    lv:1, d:'Part-time specialist validating pathology reports.'},
@@ -127,6 +127,7 @@ export const ROLE_DUTY_FALLBACK = {
   diet_staff:      'Ayurvedic Pathya-Apathya diet planning and kitchen indent fulfilment.',
   mrd_staff:       'Medical records filing, retrieval and MLC register upkeep.',
   office_staff:    'Office administration — own profile, leave and the duty roster (view only); no patient, money or clinical records.',
+  store_keeper:    'General store (stationery, linen, housekeeping, non-medical consumables) — not in AyurXpert yet: own profile, leave and the manual only; no pharmacy, billing or patient records.',
 };
 
 // Session 350 (TODO §214): a DISPLAY copy of the server's single list _is_powerful_position()
