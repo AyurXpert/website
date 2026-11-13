@@ -469,6 +469,22 @@ tr:hover td{background:rgba(232,245,238,.4)}
         </div>
       </div>
 
+      <!-- Session 386b-2a (owner, 13 Nov 2026): each register (Major OT, Minor OT, Kriya Kalpa ...) offers ONLY its own fees -->
+      <div class="field" id="m-register-wrap" style="display:none">
+        <label for="m-register">Register <span style="font-weight:400;color:var(--text-muted);font-size:11px">— where this procedure fee is offered; with no register it is offered nowhere</span></label>
+        <select id="m-register">
+          <option value="">— No register (not offered in any register) —</option>
+          <option value="major_ot">Major OT</option>
+          <option value="minor_ot">Minor OT</option>
+          <option value="kriya_kalpa">Kriya Kalpa</option>
+          <option value="anushastra">Anushastra</option>
+          <option value="kshara_sutra">Kshara Sutra</option>
+          <option value="ipd_ot_procedure">IPD OT procedure (ipd.html)</option>
+          <option value="panchakarma">Panchakarma</option>
+          <option value="other">Other</option>
+        </select>
+      </div>
+
       <div class="field" id="m-type-wrap">
         <label>Fee Type <span class="req">*</span></label>
         <select id="m-type-select" style="display:none"></select>

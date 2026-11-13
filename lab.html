@@ -458,7 +458,7 @@ button.adv-item:focus-visible{outline:2px solid var(--blue);outline-offset:-2px}
               <span id="i-mod-badge" class="modality-pill"></span>
               <span id="i-priority-badge" class="priority-badge"></span>
               <button class="btn btn-secondary btn-sm" data-onclick="printImagingReport">🖨 Print Report</button>
-              <button class="btn btn-sm" style="background:#1a4080;color:#fff" data-onclick="saveImaging" data-onclick-a0="completed">✅ Release Report</button>
+              <button id="i-release-btn" class="btn btn-sm" style="background:#1a4080;color:#fff" data-onclick="saveImaging" data-onclick-a0="completed">✅ Release Report</button>
             </div>
           </div>
           <div class="result-body imaging-form" id="img-form-body"></div>
@@ -607,6 +607,8 @@ button.adv-item:focus-visible{outline:2px solid var(--blue);outline-offset:-2px}
         <div class="field"><label>Study Name</label><select id="ni-study"></select></div>
       </div>
       <div class="field"><label>Clinical Indication</label><input id="ni-indication" type="text" placeholder="Reason for investigation…"/></div>
+      <div class="field"><label for="ni-fee">Fee (optional)</label><select id="ni-fee"><option value="">No fee chosen — billing will be asked to price it</option></select>
+        <div style="font-size:11px;color:var(--text-muted,#666);margin-top:3px">For an admitted patient the fee is charged to the IPD bill when the study is completed.</div></div>
       <div id="ni-outside-fields" style="display:none;background:var(--blue-light);border:1.5px solid #9ab8e0;border-radius:8px;padding:12px 14px;margin-top:8px">
         <div style="font-size:11px;font-weight:700;color:#1a4080;margin-bottom:8px">Outside Referral Details</div>
         <div class="field-row c2">

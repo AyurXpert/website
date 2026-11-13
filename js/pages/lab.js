@@ -6,6 +6,7 @@ import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
 import { localDateStr, todayLocalStr, monthEndStr, istMonthStr, istDateTimeLocalStr, istInputToISO } from '../utils/dateUtils.js';
 import { stageIpdLabCharges } from '../modules/billing/labBilling.js';
+import { loadFeeSelect, feeIdOf } from '../modules/billing/feeSelect.js';   // Session 386b-2a
 import { canWriteRegister, hideRegisterWrites, showViewOnlyNote } from '../utils/registerAccess.js';
 import { initCorrections, defineCorrection, corrRowClass, corrCell } from '../modules/registers/corrections.js';
 import { uhidOf } from '../utils/uhid.js';
@@ -53,6 +54,16 @@ const _isReceptionist = profile?.role === 'receptionist';
 const _isLabWriter = profile?.role === 'lab_tech' || profile?.secondary_role === 'lab_tech' || profile?.role === 'super_admin';
 const _isLabSigner = _isLabWriter || ['pathologist', 'lab_incharge'].includes(profile?.designation);
 const LAB_ONLY_MSG = 'Only lab staff can enter or change results.';
+// Session 386b-2a (Q17): only the lab / radiology staff mark a study performed / completed or enter its report -- page copy of the
+// server's _imaging_performer_ok() (role lab_tech, primary or second; designation radiographer / radiologist / pathologist /
+// lab_incharge; or the super_admin). A doctor's outside-report entry stays open. The server refuses everyone else anyway.
+const _isImagingPerformer = profile?.role === 'lab_tech' || profile?.secondary_role === 'lab_tech' || profile?.role === 'super_admin'
+  || ['radiographer', 'radiologist', 'pathologist', 'lab_incharge'].includes(profile?.designation);
+// owner 13 Nov 2026: a Sonologist (role doctor, primary or second, + designation sonologist) reports ULTRASOUND studies only -- page copy
+// of _imaging_sonologist_ok() in the server's imaging guard
+const _isSonologist = (profile?.role === 'doctor' || profile?.secondary_role === 'doctor') && profile?.designation === 'sonologist';
+const _canPerformImaging = o => _isImagingPerformer || (_isSonologist && o?.modality === 'usg');
+const IMG_ONLY_MSG = 'Only the lab / radiology staff mark a study done or enter its report.';
 
 let _orders      = [];
 let _activeOrder = null;
@@ -586,20 +597,28 @@ window.saveResults = async function(status) {
     _abdmCareContextLabReport(_activeOrder).catch(() => {});
   }
 
-  // Session 297 -- an IPD order (doctor.html's IPD Orders panel) is charged to the stay
-  // once its report is actually released, not at order time -- see stageIpdLabCharges().
+  // Session 297 -- an IPD order (doctor.html's IPD Orders panel) is charged to the stay once its report is released.
+  // Session 386b-2a (§539): the server posts the lines (stage_ipd_lab_charges) and the answer is SHOWN -- a test with no price
+  // is named in a red message (billing has been alerted; the bill waits for it), never only in the console.
+  let billingMsg = null;
   if (realRelease && _activeOrder.ipd_admission_id) {
-    const staged = await stageIpdLabCharges({
-      supabase, tenantId, ipdAdmissionId: _activeOrder.ipd_admission_id,
-      labOrderId: _activeOrder.id, items: _activeItems, userId,
-    });
-    if (staged.error) console.warn('[lab] stageIpdLabCharges:', staged.error.message);
-    else if (staged.unmatched?.length) console.warn('[lab] stageIpdLabCharges unmatched:', staged.unmatched);
+    const staged = await stageIpdLabCharges({ supabase, tenantId, labOrderId: _activeOrder.id, items: _activeItems });
+    if (staged.error) {
+      billingMsg = ['error', safeErrorMessage(staged.error, 'The report was released, but the lab charges could not be sent to the IPD bill.')];
+    } else if (staged.unpriced.length) {
+      billingMsg = ['error', 'No price set for: ' + staged.unpriced.join(', ') + ' — billing has been alerted; the bill waits for it.'
+        + (staged.charged ? ' Charged: ' + staged.charged + ' line' + (staged.charged === 1 ? '' : 's') + '.' : '')];
+    } else if (staged.charged) {
+      billingMsg = ['success', 'Lab charges sent to the IPD bill: ' + staged.charged + ' line' + (staged.charged === 1 ? '' : 's') + ' charged.'];
+    } else if (staged.already) {
+      billingMsg = ['info', 'Lab charges for this order are already on the IPD bill.'];
+    }
   }
 
   _alert('success', releasing
     ? 'Report released and Tech Verified -- awaiting the pathologist / lab in-charge sign-off.' + (criticals.length ? ' Doctor notified of critical values.' : '') + (unverified.length ? ' No result yet (still pending): ' + unverified.join(', ') + '.' : '')
     : status === 'completed' ? 'Results saved.' : 'Results saved as in-progress.');
+  if (billingMsg) _alert(billingMsg[0], billingMsg[1]);
   await loadOrders();
   if (_activeOrder) selectOrder(_activeOrder.id);
 };
@@ -1021,14 +1040,22 @@ function renderImgDetail() {
     </select>
   </div>`;
 
-  if (!isDone) {
+  // Session 386b-2a (Q17): the performed / release buttons only for the lab / radiology staff (an outside report: anyone who may write)
+  const canReport = isOutside || _canPerformImaging(o);
+  if (!isDone && canReport) {
     html += `<div class="no-print" style="margin-top:16px;display:flex;gap:10px;justify-content:flex-end">
       <button class="btn btn-secondary btn-sm" data-onclick="saveImaging" data-onclick-a0="performed">Save as Performed</button>
       <button class="btn btn-sm" style="background:#1a4080;color:#fff" data-onclick="saveImaging" data-onclick-a0="completed">✅ Release Report</button>
     </div>`;
+  } else if (!isDone) {
+    html += `<div class="no-print" id="img-only-note" style="margin-top:16px;font-size:12px;color:var(--text-muted,#666)"></div>`;
   }
 
   document.getElementById('img-form-body').innerHTML = html;
+  const onlyNote = document.getElementById('img-only-note');
+  if (onlyNote) onlyNote.textContent = IMG_ONLY_MSG;
+  const hdrRelease = document.getElementById('i-release-btn');
+  if (hdrRelease) hdrRelease.hidden = isDone || !canReport;
 
   // Pre-fill USG indication if exists
   if (o.modality === 'usg') {
@@ -1045,6 +1072,7 @@ window.togglePcpndtFields = function(val) {
 
 window.saveImaging = async function(status) {
   if (!_activeImgOrder) return;
+  if (!_activeImgOrder.is_outside_referral && !_canPerformImaging(_activeImgOrder)) { _alert('error', IMG_ONLY_MSG); return; }
   const findings   = document.getElementById('img-findings')?.value?.trim() || null;
   const impression = document.getElementById('img-impression')?.value?.trim() || null;
   const isCritical = document.getElementById('img-critical')?.value === 'yes';
@@ -1118,6 +1146,9 @@ window.openNewImgOrder = function() {
   document.getElementById('ni-outside-fields').style.display = 'none';
   updateStudyOptions();
   document.getElementById('new-img-overlay').style.display = 'flex';
+  // Session 386b-2a (§540): the optional fee of the study (the organisation's active radiology fees); charged when completed
+  const feeSel = document.getElementById('ni-fee');
+  if (feeSel) { feeSel.value = ''; loadFeeSelect(supabase, tenantId, feeSel, ['radiology'], { keep: false }); }
 };
 
 window.closeNewImgOrder = function() { document.getElementById('new-img-overlay').style.display = 'none'; };
@@ -1175,6 +1206,7 @@ window.submitNewImgOrder = async function() {
     outside_centre_contact:document.getElementById('ni-centre-contact')?.value?.trim() || null,
     referred_date:       mod==='outside' ? document.getElementById('ni-ref-date')?.value || null : null,
     expected_date:       mod==='outside' ? document.getElementById('ni-exp-date')?.value || null : null,
+    fee_structure_id:    mod === 'outside' ? null : feeIdOf('ni-fee'),   // Session 386b-2a: an outside study is never charged here
     status:              'ordered',
   });
   if (error) { _alert('error', safeErrorMessage(error, 'Could not create imaging order.')); return; }

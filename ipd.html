@@ -1040,6 +1040,18 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
       </div>
 
       <div class="field">
+        <label for="ot-case">Major OT case</label>
+        <select id="ot-case"><option value="">None — not a Major OT operation</option></select>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:3px">If this operation is recorded in Major OT, choose its case: Major OT bills it, not this record.</div>
+      </div>
+
+      <div class="field">
+        <label for="ot-fee">Fee (optional)</label>
+        <select id="ot-fee"><option value="">No fee chosen — billing will be asked to price it</option></select>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:3px">Charged to the IPD bill when the procedure is completed (not when a Major OT case is chosen).</div>
+      </div>
+
+      <div class="field">
         <label class="check-label">
           <input type="checkbox" id="ot-safety-checklist"/>
           NCISM / WHO Surgical Safety Checklist completed

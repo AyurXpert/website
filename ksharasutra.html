@@ -217,6 +217,15 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
         </div>
       </div>
       <div class="mfield">
+        <label for="reg-fee">Application fee (optional)</label>
+        <select id="reg-fee"><option value="">No fee chosen — billing will be asked to price it</option></select>
+      </div>
+      <div class="mfield">
+        <label for="reg-thread-fee">Thread-change fee (used for every change, optional)</label>
+        <select id="reg-thread-fee"><option value="">No fee chosen — billing will be asked to price it</option></select>
+        <div style="font-size:11px;color:var(--text-muted,#666);margin-top:3px">For an admitted patient the application and each thread change are charged to the IPD bill. Both fees are fixed once the case is registered.</div>
+      </div>
+      <div class="mfield">
         <label>Initial Assessment / Notes</label>
         <textarea id="reg-notes" placeholder="Thread size, track details, initial examination findings…"></textarea>
       </div>

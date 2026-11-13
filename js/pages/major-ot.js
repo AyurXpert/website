@@ -8,6 +8,7 @@ import { notify } from '../components/notify.js';
 import { escapeHtml as _esc } from '../utils/validators.js';
 import { printDocument, docHeader } from '../utils/printDocument.js';
 import { identityLines, identityOrLive } from '../utils/signerIdentity.js';
+import { loadFeeSelect, feeIdOf } from '../modules/billing/feeSelect.js';   // Session 386b-2a
 
 await requireAuth(['super_admin','dept_admin','doctor','nurse']);
 initNavbar();
@@ -173,6 +174,8 @@ window.openNewCase = function() {
   [...document.getElementById('n-asst-ids').options].forEach(o => { o.selected = false; });
   document.getElementById('n-anaes-type').value  = 'general';
   document.getElementById('n-notes').value       = '';
+  // Session 386b-2a (§540): the optional fee (own active procedure fees) -- charged to the IPD bill when the case is completed
+  loadFeeSelect(supabase, tenantId, document.getElementById('n-fee'), ['procedure'], { keep: false, register: 'major_ot' });
   if (profile?.role==='doctor') document.getElementById('n-surgeon').value = userId;
   ['chk-consent','chk-npo','chk-iv','chk-site'].forEach(id=>document.getElementById(id).checked=true);
   ['chk-blood','chk-allergy','chk-implant','chk-xray'].forEach(id=>document.getElementById(id).checked=false);
@@ -241,6 +244,7 @@ window.saveNewCase = async function() {
     scheduled_time:  document.getElementById('n-time').value || null,
     preop_checklist: preop,
     notes:           document.getElementById('n-notes').value.trim() || null,
+    fee_structure_id: feeIdOf('n-fee'),   // Session 386b-2a
     status:          'scheduled',
   });
   if (error) { alert(safeErrorMessage(error, 'Could not save case.')); return; }

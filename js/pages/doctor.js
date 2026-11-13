@@ -11,6 +11,7 @@ import { addOpdBillFeeItems } from '../modules/billing/opdBillItems.js';
 import { getOpdBillingRegime } from '../modules/billing/opdGstBilling.js';
 import { getEffectivePrice } from '../modules/billing/effectivePrice.js';
 import { LAB_PANELS, computeLabBillingLines, findUnpricedTests } from '../modules/billing/labBilling.js';
+import { loadFeeSelect, feeIdOf } from '../modules/billing/feeSelect.js';   // Session 386b-2a
 import { openIpdRound, closeIpdRound, getOpenIpdAdmission, refreshIpdInvestigations } from '../modules/ipd/wardRounds.js';
 import { computeRoomTariff } from '../modules/billing/roomTariff.js';
 import { renderPromoBanner } from '../components/promoBanner.js';
@@ -8779,6 +8780,9 @@ function openImgOrderModal() {
   window.onImgWhenChange();
   document.getElementById('io-when-row').style.display = ipdAdm ? 'none' : '';
   document.getElementById('io-ipd-note').style.display = ipdAdm ? '' : 'none';
+  // Session 386b-2a (§540): the optional fee of the study (own active radiology fees) -- charged when the study is completed
+  const feeSel = document.getElementById('io-fee');
+  if (feeSel) { feeSel.value = ''; loadFeeSelect(supabase, tenantId, feeSel, ['radiology'], { keep: false }); }
   document.getElementById('img-order-overlay').style.display = 'flex';
 }
 // Session 295 -- was a bare function: the "Order Imaging" button's delegated
@@ -8828,6 +8832,7 @@ window.submitImgOrder = async function() {
     is_outside_referral: mod === 'outside',
     outside_centre_name: document.getElementById('io-centre')?.value?.trim() || null,
     expected_date:       document.getElementById('io-exp-date')?.value || null,
+    fee_structure_id:    mod === 'outside' ? null : feeIdOf('io-fee'),   // Session 386b-2a
     status:              'ordered',
     due_timing:          nextVisit ? 'next_visit' : 'today',
     due_by:              nextVisit ? (document.getElementById('io-due-by').value || null) : null,

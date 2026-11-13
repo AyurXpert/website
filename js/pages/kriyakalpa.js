@@ -6,6 +6,7 @@ import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
 import { todayLocalStr } from '../utils/dateUtils.js';
 import { notify } from '../components/notify.js';
+import { loadFeeSelect, feeIdOf } from '../modules/billing/feeSelect.js';   // Session 386b-2a
 
 await requireAuth(['doctor','nurse','super_admin','dept_admin','therapist']);
 initNavbar();
@@ -169,6 +170,8 @@ window.openModal = function() {
   if (!_patient) return;
   document.getElementById('m-date').value  = todayLocalStr();
   renderProcChips();
+  // Session 386b-2a (§540): the optional fee (own active procedure fees) -- charged to the IPD bill when the session is completed
+  loadFeeSelect(supabase, tenantId, document.getElementById('m-fee'), ['procedure'], { keep: false, register: 'kriya_kalpa' });
   document.getElementById('sess-overlay').style.display = 'flex';
 };
 
@@ -199,7 +202,9 @@ window.saveSession = async function() {
     session_time:     document.getElementById('m-time').value || null,
     duration_minutes: parseInt(document.getElementById('m-duration').value) || null,
     therapist_name:   document.getElementById('m-therapist').value.trim() || null,
-    status:           document.getElementById('m-status').value,
+    // Session 386b-2a (D5, owner 12 Nov 2026): created as scheduled; the person who performs it marks it completed (✓ Complete)
+    status:           'scheduled',
+    fee_structure_id: feeIdOf('m-fee'),
     medicine_used:    document.getElementById('m-medicine').value.trim() || null,
     quantity_used:    document.getElementById('m-qty').value.trim() || null,
     pre_findings:     document.getElementById('m-pre-findings').value.trim() || null,

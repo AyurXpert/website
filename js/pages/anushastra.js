@@ -5,6 +5,7 @@ import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
 import { localDateStr, istMonthStr, istDayStartUTC } from '../utils/dateUtils.js';
 import { notify } from '../components/notify.js';
+import { loadFeeSelect, feeIdOf } from '../modules/billing/feeSelect.js';   // Session 386b-2a
 
 await requireAuth(['super_admin','dept_admin','doctor','nurse','therapist','receptionist']);
 initNavbar();
@@ -84,7 +85,7 @@ window.searchPatient = async function() {
   const { data } = await supabase.from('patients').select('id,name,phone').eq('tenant_id',tenantId)
     .or(`phone.ilike.%${q}%,name.ilike.%${q}%`).limit(8);
   if (!data?.length) { res.style.display='none'; return; }
-  res.style.display = '';
+  res.style.display = 'block';   // §594 (386b-2a): '' fell back to the stylesheet's .search-results{display:none} -- the list never showed
   res.innerHTML = data.map(p=>`<div class="pt-item" data-onclick="selectPatient" data-onclick-a0="${p.id}" data-onclick-a1="${_esc(p.name)}" data-onclick-a2="${_esc(p.phone||'')}">
     <div><div class="pt-name">${_esc(p.name)}</div><div class="pt-meta">${_esc(p.phone||'—')}</div></div>
     <span style="font-size:11px;color:var(--green-mid)">Select →</span>
@@ -135,7 +136,10 @@ window.saveSession = async function() {
     procedure_type: _curProc,
     session_date: document.getElementById('f-date').value,
     session_time: document.getElementById('f-time').value || null,
-    status:       document.getElementById('f-status').value,
+    // Session 386b-2a (D5, owner 12 Nov 2026): created as scheduled; the conducting doctor / HOD / the named therapist marks it
+    // completed later (✓ on the row). completed_at is set then, not here.
+    status:       'scheduled',
+    fee_structure_id: feeIdOf('f-fee'),   // Session 386b-2a: charged to the IPD bill of an admitted patient when completed
     affected_site:document.getElementById('f-site').value.trim() || null,
     side:         document.getElementById('f-side').value || null,
     duration_minutes: parseInt(document.getElementById('f-duration').value) || null,
@@ -148,10 +152,6 @@ window.saveSession = async function() {
     remarks:      document.getElementById('f-remarks').value.trim() || null,
     created_by:   profile.id,
   };
-
-  if (document.getElementById('f-status').value === 'completed') {
-    payload.completed_at = new Date().toISOString();
-  }
 
   // Procedure-specific fields
   if (_curProc === 'agnikarma') {
@@ -203,7 +203,7 @@ window.saveSession = async function() {
 window.resetForm = function() {
   document.getElementById('f-date').value = todayStr;
   document.getElementById('f-time').value = new Date().toTimeString().slice(0,5);
-  document.getElementById('f-status').value = 'scheduled';
+  const feeSel = document.getElementById('f-fee'); if (feeSel) feeSel.value = '';
   ['f-site','f-pre','f-post','f-adverse','f-meds','f-consent-notes','f-remarks',
    'f-duration','ag-count','rm-leech-count','rm-leech-site','rm-leech-time',
    'rm-leech-paste','rm-sira-site','rm-sira-vol','kk-neutralise','kk-duration',
@@ -371,4 +371,5 @@ function _esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;'
 function _toast(msg,isErr=false) { notify(msg, typeof isErr === 'string' ? isErr : (isErr ? 'error' : 'success')); }   // Session 323: shared top-layer notify()
 
 // ─── Boot ─────────────────────────────────────────────────
-await Promise.all([loadStaff(), loadStats()]);
+await Promise.all([loadStaff(), loadStats(),
+  loadFeeSelect(supabase, tenantId, document.getElementById('f-fee'), ['procedure'], { keep: false, register: 'anushastra' })]);   // Session 386b-2a

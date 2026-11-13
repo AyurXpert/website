@@ -213,13 +213,11 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
       <div class="fg c2">
         <div class="field"><label>Therapist / Doctor</label><input id="m-therapist" type="text" placeholder="Assigned therapist / doctor name"/></div>
         <div class="field">
-          <label>Status</label>
-          <select id="m-status">
-            <option value="scheduled">Scheduled</option>
-            <option value="completed">Completed</option>
-          </select>
+          <label for="m-fee">Fee (optional)</label>
+          <select id="m-fee"><option value="">No fee chosen — billing will be asked to price it</option></select>
         </div>
       </div>
+      <div style="font-size:11px;color:var(--text-muted,#666);margin:-4px 0 8px">The session is saved as Scheduled; the person who performs it marks it completed (✓ Complete). For an admitted patient the fee is charged to the IPD bill then.</div>
 
       <div class="section-title">Medication / Materials</div>
       <div class="fg c2">

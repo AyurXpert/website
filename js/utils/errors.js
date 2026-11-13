@@ -178,6 +178,26 @@ export function safeErrorMessage(error, fallback = 'Something went wrong. Please
   if (['P0002', '42501', '22023'].includes(error?.code) && S386B1_MSGS.some(m => error?.message?.startsWith(m))) {
     return error.message;
   }
+  // Session 386b-2a (§539 / §540 / Q7 / Q17 / D5): lab, imaging and procedure charges posted by the server; the fee on the form;
+  // who completes a study; sessions created as scheduled -- plain, schema-free, shown word for word
+  const S386B2A_MSGS = ['Lab, imaging and procedure charges are added by the server', 'The admission or the fee is not of this organisation',
+    "This record's admission is not of this organisation", 'That fee is not an active ', 'That thread-change fee is not an active',
+    'The fee can no longer be changed here', 'The thread-change fee is chosen once', 'Create the session as scheduled',
+    "That Major OT case is not this patient's", 'This operation is recorded in Major OT', 'Only the lab / radiology staff mark a study',
+    'Only the lab staff can stage lab charges', 'Lab order not found', 'This lab order is not for an admitted patient',
+    'Release the report first', "This order's admission is not of this organisation", 'The lab charge lines are not in the expected form',
+    'Each charge line needs a fee and its tests', 'The same fee is sent twice for this order', 'Every test of the order must be charged once',
+    'The lab order is no longer completed', 'This fee is already charged on this lab order', 'The record is no longer completed',
+    'Only the accountant, the finance manager, the Medical Superintendent or the Super Admin can change this fee', 'Unknown record',
+    'Record not found', 'This record has no price yet', 'The charges are locked or billed', 'An unpriced item cannot be deleted',
+    'This unpriced item is already resolved', 'Only the resolution of an unpriced item can be recorded',
+    'Your designation does not choose fees', 'A thread change uses the thread-change fee', 'The Major OT case of a completed procedure',
+    'Choose the Major OT case of the same day', 'A study already performed or completed cannot', 'This lab order belongs to another patient',
+    'The lab stages these charges when it releases', 'A Sonologist reports ultrasound studies only',
+    "Give the doctor's clearance first"];   // rehearsal fix 3 (owner, 13 Nov 2026): Kriya Kalpa completed only after the clearance
+  if (['P0002', '42501', '22023'].includes(error?.code) && S386B2A_MSGS.some(m => error?.message?.startsWith(m))) {
+    return error.message;
+  }
   // Session 386c (owner 4a): the MRP rule -- plain, schema-free
   const S386C_MSGS = ['The MRP is changed with "Change MRP"', 'Only the Chief Pharmacist, an accountant or the finance manager can change an MRP',
     'That stock row is not in this organisation', 'Enter the new MRP in rupees', 'The MRP is already', 'Give the reason for the new MRP'];

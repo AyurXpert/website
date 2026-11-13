@@ -34,6 +34,7 @@ export function canDecideCharge(p) {
   return _base(p) && (p.role === 'super_admin' || _has(p, ['accountant', 'finance_manager']) || _isMs(p))
 }
 
-/** a line the server posted -- never cancelled directly (server: cancel_ipd_stay_charge) */
-export const SERVER_POSTED_SOURCES = ['pk_session', 'pharmacy']
+/** a line the server posted -- never cancelled directly (server: cancel_ipd_stay_charge); Session 386b-2a adds lab, imaging,
+ *  procedure (corrected at their source before the lock, by request after it) */
+export const SERVER_POSTED_SOURCES = ['pk_session', 'pharmacy', 'lab', 'imaging', 'procedure']
 export const isServerPosted = c => SERVER_POSTED_SOURCES.includes(String(c?.source || '').toLowerCase())

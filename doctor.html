@@ -4604,6 +4604,11 @@ body.final-mode .tab-body{padding-bottom:130px}   /* the banner's height on top 
         <label>Clinical Indication</label>
         <input id="io-indication" type="text" placeholder="Reason for this study…" style="width:100%;height:34px;border:1.5px solid var(--border);border-radius:7px;padding:0 10px;font-size:13px;font-family:'DM Sans',sans-serif"/>
       </div>
+      <div class="mha-field">
+        <label for="io-fee">Fee (optional)</label>
+        <select id="io-fee" style="width:100%;height:34px;border:1.5px solid var(--border);border-radius:7px;padding:0 10px;font-size:13px;font-family:'DM Sans',sans-serif"><option value="">No fee chosen — billing will be asked to price it</option></select>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:3px">For an admitted patient the fee is charged to the IPD bill when radiology completes the study.</div>
+      </div>
       <div id="io-outside-fields" style="display:none;background:var(--blue-light);border:1.5px solid var(--blue-border);border-radius:8px;padding:12px 14px;margin-top:8px">
         <div style="font-size:11px;font-weight:700;color:var(--blue);margin-bottom:8px">Outside Referral Details</div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">

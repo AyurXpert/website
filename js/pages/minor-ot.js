@@ -8,6 +8,7 @@ import { localDateStr, todayLocalStr } from '../utils/dateUtils.js';
 import { notify } from '../components/notify.js';
 import { printDocument } from '../utils/printDocument.js';
 import { identityLines, identityOrLive } from '../utils/signerIdentity.js';
+import { loadFeeSelect, feeIdOf } from '../modules/billing/feeSelect.js';   // Session 386b-2a
 
 await requireAuth(['super_admin','dept_admin','doctor','nurse']);
 initNavbar();
@@ -115,6 +116,8 @@ window.openNewModal = function() {
   const fu = new Date(_viewDate); fu.setDate(fu.getDate()+7);
   document.getElementById('n-followup').value = localDateStr(fu);
   document.getElementById('n-pt-result').classList.remove('show');
+  // Session 386b-2a (§540): the optional fee (own active procedure fees) -- charged to the IPD bill of an admitted patient
+  loadFeeSelect(supabase, tenantId, document.getElementById('n-fee'), ['procedure'], { keep: false, register: 'minor_ot' });
   document.getElementById('new-overlay').style.display = 'flex';
 };
 window.closeNewModal = () => { document.getElementById('new-overlay').style.display = 'none'; };
@@ -161,6 +164,7 @@ window.saveProcedure = async function() {
     complications:        document.getElementById('n-complications').value.trim() || null,
     post_op_instructions: document.getElementById('n-post-instr').value.trim() || null,
     follow_up_date:       document.getElementById('n-followup').value || null,
+    fee_structure_id:     feeIdOf('n-fee'),   // Session 386b-2a
     status:               'completed'
   });
   if (error) { alert(safeErrorMessage(error, 'Could not save procedure record.')); return; }

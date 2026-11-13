@@ -23,6 +23,7 @@ import { exitPowers, exitOpen, exitTimeBounds, exitTimeProblem } from '../module
 import { loadOpenChargeIssues, renderOpenChargeIssues, askInPage } from '../modules/billing/unpricedItems.js';   // Session 386a (§538)
 import { loadChargeRequests, renderChargeRequests } from '../modules/billing/chargeRequests.js';   // Session 386b-1 (§547)
 import { canRequestCharge } from '../utils/chargeRights.js';   // Session 386b-1 (§547)
+import { loadFeeSelect, feeIdOf } from '../modules/billing/feeSelect.js';   // Session 386b-2a (§540)
 
 /*
   SQL to run in Supabase (one time) before using this page:
@@ -2933,9 +2934,40 @@ window.openOtDrawer = async function(admId) {
     sel.appendChild(o);
   });
 
+  // Session 386b-2a (§540, Q7): the optional fee (own active procedure fees) and the patient's Major OT case. An operation on
+  // the day of a Major OT case names that case (then Major OT bills it); the server refuses an unlinked one on that day.
+  await Promise.all([
+    loadFeeSelect(supabase, tenantId, document.getElementById('ot-fee'), ['procedure'], { keep: false, register: 'ipd_ot_procedure' }),
+    _loadOtCaseChoices(),
+  ]);
   await _loadOtProcedures();
   document.getElementById('ot-overlay').classList.add('open');
 };
+
+// Session 386b-2a (Q7): this patient's Major OT cases (own organisation, not cancelled) for the "Major OT case" select.
+// Labels are built with textContent ("12 Nov — Laparotomy"), never HTML.
+async function _loadOtCaseChoices() {
+  const sel = document.getElementById('ot-case');
+  if (!sel) return;
+  sel.replaceChildren();
+  const none = document.createElement('option');
+  none.value = ''; none.textContent = 'None — not a Major OT operation';
+  sel.appendChild(none);
+  if (!_otPatientId) return;
+  const { data, error } = await supabase.from('ot_cases')
+    .select('id, procedure_name, scheduled_date, status')
+    .eq('tenant_id', tenantId).eq('patient_id', _otPatientId).neq('status', 'cancelled')
+    .order('scheduled_date', { ascending: false }).limit(50);
+  if (error) return;
+  for (const c of data || []) {
+    const o = document.createElement('option');
+    o.value = c.id;
+    const d = c.scheduled_date ? new Date(c.scheduled_date + 'T00:00:00') : null;
+    const dd = d && !isNaN(d) ? d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) : '—';
+    o.textContent = dd + ' — ' + (c.procedure_name || 'Major OT case');
+    sel.appendChild(o);
+  }
+}
 
 window.closeOtDrawer = function() {
   document.getElementById('ot-overlay').classList.remove('open');
@@ -3014,6 +3046,8 @@ window.saveOtProcedure = async function() {
     aseptic_confirmed:      aseptic,
     pre_op_notes:           preop || null,
     post_op_notes:          postop || null,
+    ot_case_id:             feeIdOf('ot-case'),   // Session 386b-2a (Q7): linked to its Major OT case -> never charged here
+    fee_structure_id:       feeIdOf('ot-fee'),    // Session 386b-2a (§540): charged to the IPD bill when completed
   });
 
   btn.disabled = false; btn.textContent = 'Save Procedure';
@@ -3027,6 +3061,8 @@ window.saveOtProcedure = async function() {
   document.getElementById('ot-safety-checklist').checked = false;
   document.getElementById('ot-aseptic-confirmed').checked = false;
   document.getElementById('ot-uttarabasti-note').style.display = 'none';
+  document.getElementById('ot-fee').value = '';
+  document.getElementById('ot-case').value = '';
 
   _alert('success', 'OT procedure saved.');
   await _loadOtProcedures();

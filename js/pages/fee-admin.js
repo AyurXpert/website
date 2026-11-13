@@ -8,6 +8,7 @@ import { safeErrorMessage } from '../utils/errors.js';
 import { todayLocalStr } from '../utils/dateUtils.js';
 import { BED_TYPE_LABELS, bedTypeLabel } from '../config/bedTypes.js';
 import { notify } from '../components/notify.js';
+import { registerName } from '../modules/billing/feeSelect.js';   // Session 386b-2a: a procedure fee's register
 
 // accountant = maker: creates fees as pending, edits/deletes only their own pending ones;
 // an admin approves (sql/session305c_fee_admin_accountant_maker.sql enforces this in RLS).
@@ -792,7 +793,8 @@ function renderTable() {
         ${f.notes ? `<div class="fee-notes">${_esc(f.notes)}</div>` : ''}
         <div class="fee-notes" style="margin-top:2px;color:var(--text-muted)">By ${_esc(creator)}</div>
       </td>
-      <td><span class="cat-badge ${catCls}">${catLabel}</span></td>
+      <td><span class="cat-badge ${catCls}">${catLabel}</span>${f.category === 'procedure'
+        ? `<div class="fee-notes" style="margin-top:3px">${f.procedure_register ? 'Register: ' + _esc(registerName(f.procedure_register)) : '⚠ No register — not offered in any register'}</div>` : ''}</td>
       <td style="color:var(--text-mid);font-size:13px">${_esc(opdDeptLabel)}</td>
       <td><span class="fee-amount">${amount}</span></td>
       <td><span class="status-badge status-${status}">${statusLabel}</span></td>
@@ -1024,6 +1026,7 @@ window.openModal = function() {
   document.getElementById('m-category').value = '';
   document.getElementById('m-amount').value  = '';
   document.getElementById('m-notes').value   = '';
+  document.getElementById('m-register').value = '';
   document.getElementById('m-opd-wrap').style.display = 'none';
   document.getElementById('m-type-wrap').style.display = 'none';
   document.getElementById('m-tiered').checked = false;
@@ -1060,6 +1063,7 @@ window.openEdit = function(id) {
   if (deptSel) deptSel.value = f.department_id || '';
   const groupSel = document.getElementById('m-group');
   if (groupSel) groupSel.value = f.service_group || '';
+  document.getElementById('m-register').value = f.procedure_register || '';   // Session 386b-2a
   onCategoryChange();
   document.getElementById('m-opd').value      = f.opd_id || '';
   document.getElementById('m-tiered').checked = _lockedRoomBedType ? false : f.pricing_mode === 'tiered';
@@ -1104,6 +1108,8 @@ window.onCategoryChange = function() {
   const sel      = document.getElementById('m-type-select');
   const inp      = document.getElementById('m-type-input');
 
+  // Session 386b-2a: the register applies to procedure fees only (the server refuses it on any other category)
+  document.getElementById('m-register-wrap').style.display = cat === 'procedure' ? 'block' : 'none';
   if (!cat) { typeWrap.style.display = 'none'; opdWrap.style.display = 'none'; tierWrap.style.display = 'none'; return; }
 
   typeWrap.style.display = 'block';
@@ -1196,6 +1202,8 @@ window.saveFee = async function() {
     department_id:   deptId,
     service_group:   groupTag,
     pricing_mode:    tiered ? 'tiered' : 'flat',
+    // Session 386b-2a (owner, 13 Nov 2026): the register a procedure fee is offered in (audited by the server; keeps the approval)
+    procedure_register: category === 'procedure' ? (document.getElementById('m-register').value || null) : null,
     ...(!before ? { approval_status: 'pending', is_active: false, created_by: userId } : {}),
     ...(before?.approval_status === 'rejected' ? { approval_status: 'pending' } : {}),
   };

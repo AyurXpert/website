@@ -7,6 +7,7 @@
 import { safeErrorMessage } from '../../utils/errors.js'
 import { el } from './invoiceLayout.js'
 import { NO_CHARGE_POWER_DESIGS } from '../../utils/chargeRights.js'
+import { TABLE_REGISTER } from './feeSelect.js'   // rehearsal fix 2 (386b-2a): a procedure item -> its register's fees only
 
 const TRAINEE_DESIGS = ['pg_scholar', 'intern', 'nursing_intern']
 const TRAINEE_ROLES = ['trainee_doctor', 'student']
@@ -31,7 +32,7 @@ export function canResolveUnpriced(p) {
 /** what is still open for an admission: { items: open unpriced items, notDone: PK sessions that block the lock (Q2) } */
 export async function loadOpenChargeIssues(supabase, admissionId) {
   const [{ data: items, error: e1 }, { data: sessions, error: e2 }] = await Promise.all([
-    supabase.from('ipd_unpriced_items').select('id, source, item_name, item_date, detail, raised_at')
+    supabase.from('ipd_unpriced_items').select('id, source, source_table, item_name, item_date, detail, raised_at')
       .eq('ipd_admission_id', admissionId).is('resolved_at', null).order('raised_at'),
     supabase.from('pk_therapy_sessions').select('id, therapy_name, scheduled_date, status')
       .eq('ipd_admission_id', admissionId).in('status', ['in_progress', 'scheduled']).order('scheduled_date'),
@@ -44,14 +45,26 @@ export async function loadOpenChargeIssues(supabase, admissionId) {
   }
 }
 
-let _fees = null
-async function _procedureFees(supabase, tenantId) {
-  if (_fees) return _fees
-  const { data, error } = await supabase.from('fee_structures').select('id, label, amount, promo_price, promo_valid_until')
-    .eq('tenant_id', tenantId).eq('is_active', true).eq('category', 'procedure').order('label')
+// Session 386b-2a (§539 / §540): the kind of each item, by its source, and the fee categories the server accepts for it
+// (resolve_ipd_unpriced_item: procedure fees for a Panchakarma session or a procedure, radiology fees for an imaging study,
+// lab fees for a lab test -- rehearsal fix 2, owner 13 Nov 2026; a procedure only its own register's fees, TABLE_REGISTER).
+export const SOURCE_LABEL = { pk_session: 'Panchakarma session', lab: 'Lab test', imaging: 'Imaging study', procedure: 'Procedure' }
+export const SOURCE_FEE_CATEGORIES = { pk_session: ['procedure'], procedure: ['procedure'], imaging: ['radiology'], lab: ['lab'] }
+export const sourceLabel = s => SOURCE_LABEL[s] || String(s || 'Item')
+export const feeCategoriesFor = s => SOURCE_FEE_CATEGORIES[s] || ['procedure']
+
+// cache per (organisation, category set, register) -- a lab item and a procedure item on the same screen get different lists
+const _feeCache = new Map()
+async function _feesFor(supabase, tenantId, categories, register) {
+  const key = tenantId + '|' + [...categories].sort().join(',') + '|' + (register || '')
+  if (_feeCache.has(key)) return _feeCache.get(key)
+  let q = supabase.from('fee_structures').select('id, label, category, amount, promo_price, promo_valid_until')
+    .eq('tenant_id', tenantId).eq('is_active', true).in('category', categories)
+  if (register) q = q.eq('procedure_register', register)
+  const { data, error } = await q.order('label')
   if (error) return []
-  _fees = data || []
-  return _fees
+  _feeCache.set(key, data || [])
+  return data || []
 }
 
 /**
@@ -77,16 +90,16 @@ export async function renderOpenChargeIssues(container, { supabase, tenantId, pr
   if (!items?.length) return false
 
   const allowed = canResolveUnpriced(profile)
-  const fees = allowed ? await _procedureFees(supabase, tenantId) : []
   const box = el('div', { style: ERR, role: 'alert' },
     el('strong', null, 'No price set for these items — the charges cannot be locked and the bill cannot be made until each one is priced or cancelled:'))
   for (const it of items) {
     const row = el('div', { style: 'margin-top:8px;padding:8px;border:1px solid var(--border);border-radius:6px;background:#fff' },
-      el('div', { style: 'font-weight:600' }, `${it.item_name} (${it.source === 'pk_session' ? 'Panchakarma session' : it.source}, ${fmtD(it.item_date)})`),
+      el('div', { style: 'font-weight:600' }, `${it.item_name} (${sourceLabel(it.source)}, ${fmtD(it.item_date)})`),
       el('div', { style: 'font-size:11.5px;color:var(--text-muted)' }, it.detail || ''))
     if (!allowed) {
       row.appendChild(el('div', { style: 'font-size:11.5px;margin-top:4px' }, 'The accountant, the finance manager, the Medical Superintendent or the Super Admin chooses its fee or cancels it.'))
     } else {
+      const fees = await _feesFor(supabase, tenantId, feeCategoriesFor(it.source), it.source === 'procedure' ? TABLE_REGISTER[it.source_table] : null)
       const sel = el('select', { 'aria-label': 'Fee for ' + it.item_name, style: 'min-height:36px;max-width:100%' },
         el('option', { value: '' }, 'Choose its fee…'),
         fees.map(f => el('option', { value: f.id }, `${f.label} — ${rupee(f.amount)}`)))

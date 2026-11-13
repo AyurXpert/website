@@ -6,6 +6,7 @@ import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
 import { localDateStr, todayLocalStr } from '../utils/dateUtils.js';
 import { notify } from '../components/notify.js';
+import { loadFees, fillFeeSelect, feeIdOf } from '../modules/billing/feeSelect.js';   // Session 386b-2a
 
 await requireAuth(['super_admin','dept_admin','doctor','nurse']);
 initNavbar();
@@ -147,6 +148,12 @@ window.openRegisterModal = function() {
   document.getElementById('reg-planned').value      = '';
   document.getElementById('reg-notes').value         = '';
   document.getElementById('reg-pt-result').classList.remove('show');
+  // Session 386b-2a (§540, Q18): the application fee and the thread-change fee (used for every change), chosen once here --
+  // own active procedure fees; both are fixed once the case is registered
+  loadFees(supabase, tenantId, ['procedure'], { register: 'kshara_sutra' }).then(({ fees, error }) => {
+    fillFeeSelect(document.getElementById('reg-fee'), error ? [] : fees, { keep: false });
+    fillFeeSelect(document.getElementById('reg-thread-fee'), error ? [] : fees, { keep: false });
+  });
   document.getElementById('reg-overlay').style.display = 'flex';
 };
 window.closeRegModal = () => { document.getElementById('reg-overlay').style.display = 'none'; };
@@ -188,6 +195,8 @@ window.saveKsCase = async function() {
     start_date:       document.getElementById('reg-start-date').value || _today(),
     planned_sittings: parseInt(document.getElementById('reg-planned').value) || null,
     notes:            document.getElementById('reg-notes').value.trim(),
+    fee_structure_id:        feeIdOf('reg-fee'),          // Session 386b-2a: charged at the application
+    thread_fee_structure_id: feeIdOf('reg-thread-fee'),   // charged at every thread change
     status:           'active'
   });
   if (error) { alert(safeErrorMessage(error, 'Could not save case.')); return; }
