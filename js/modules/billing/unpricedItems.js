@@ -58,10 +58,11 @@ const _feeCache = new Map()
 async function _feesFor(supabase, tenantId, categories, register) {
   const key = tenantId + '|' + [...categories].sort().join(',') + '|' + (register || '')
   if (_feeCache.has(key)) return _feeCache.get(key)
-  let q = supabase.from('fee_structures').select('id, label, category, amount, promo_price, promo_valid_until')
-    .eq('tenant_id', tenantId).eq('is_active', true).in('category', categories)
-  if (register) q = q.eq('procedure_register', register)
-  const { data, error } = await q.order('label')
+  // Session 386b-2b M2 (§596): a procedure item's fees = the procedures of the groups shown on its register (procedure_choices)
+  const { data, error } = register
+    ? await supabase.rpc('procedure_choices', { p_register: register })
+    : await supabase.from('fee_structures').select('id, label, category, amount, promo_price, promo_valid_until')
+        .eq('tenant_id', tenantId).eq('is_active', true).in('category', categories).order('label')
   if (error) return []
   _feeCache.set(key, data || [])
   return data || []
@@ -95,7 +96,8 @@ export async function renderOpenChargeIssues(container, { supabase, tenantId, pr
   for (const it of items) {
     const row = el('div', { style: 'margin-top:8px;padding:8px;border:1px solid var(--border);border-radius:6px;background:#fff' },
       el('div', { style: 'font-weight:600' }, `${it.item_name} (${sourceLabel(it.source)}, ${fmtD(it.item_date)})`),
-      el('div', { style: 'font-size:11.5px;color:var(--text-muted)' }, it.detail || ''))
+      el('div', { style: 'font-size:11.5px;color:var(--text-muted)' }, it.detail === 'No fee was chosen for it.'   // 386b-2b (F15): rows stored before M2b
+        ? 'Not in the fee list — waiting for the Fee committee (or choose its fee here).' : (it.detail || '')))
     if (!allowed) {
       row.appendChild(el('div', { style: 'font-size:11.5px;margin-top:4px' }, 'The accountant, the finance manager, the Medical Superintendent or the Super Admin chooses its fee or cancels it.'))
     } else {

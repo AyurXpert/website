@@ -224,9 +224,15 @@ tr:hover td{background:#fbfdfb}
       </div>
     </div>
 
-    <div class="field">
+    <div class="field" id="m-treatment-row">
       <label>Treatment Type *</label>
       <input id="m-treatment" type="text" placeholder="e.g. Ultrasound therapy, SWD, TENS, Cervical traction, Gait training…"/>
+    </div>
+    <!-- Session 386b-2b M2 (§596, G4): the treatment IS a fee of the Physiotherapy group (Fee Structure → Procedures); for an admitted patient
+         the server charges it to the IPD bill when the session is completed -->
+    <div class="field">
+      <label for="m-fee">Treatment (from the fee list) *</label>
+      <select id="m-fee"><option value="">Loading…</option></select>
     </div>
 
     <div class="field">

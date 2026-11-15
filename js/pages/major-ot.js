@@ -8,7 +8,7 @@ import { notify } from '../components/notify.js';
 import { escapeHtml as _esc } from '../utils/validators.js';
 import { printDocument, docHeader } from '../utils/printDocument.js';
 import { identityLines, identityOrLive } from '../utils/signerIdentity.js';
-import { loadFeeSelect, feeIdOf } from '../modules/billing/feeSelect.js';   // Session 386b-2a
+import { mountProcedurePicker } from '../modules/billing/procedurePicker.js';   // Session 386b-2b M2 (§596): the fee list IS the procedure list
 
 await requireAuth(['super_admin','dept_admin','doctor','nurse']);
 initNavbar();
@@ -174,8 +174,10 @@ window.openNewCase = function() {
   [...document.getElementById('n-asst-ids').options].forEach(o => { o.selected = false; });
   document.getElementById('n-anaes-type').value  = 'general';
   document.getElementById('n-notes').value       = '';
-  // Session 386b-2a (§540): the optional fee (own active procedure fees) -- charged to the IPD bill when the case is completed
-  loadFeeSelect(supabase, tenantId, document.getElementById('n-fee'), ['procedure'], { keep: false, register: 'major_ot' });
+  // Session 386b-2a (§540) / 386b-2b M2 (§596): the procedure IS a fee of the Major OT groups (M2c: always from the list) -- charged to the IPD
+  // bill when the case is completed; the server sets the name from the fee
+  _picker = mountProcedurePicker({ supabase, tenantId, register: 'major_ot', select: document.getElementById('n-fee'),
+    hide: [document.getElementById('n-proc-row')] });
   if (profile?.role==='doctor') document.getElementById('n-surgeon').value = userId;
   ['chk-consent','chk-npo','chk-iv','chk-site'].forEach(id=>document.getElementById(id).checked=true);
   ['chk-blood','chk-allergy','chk-implant','chk-xray'].forEach(id=>document.getElementById(id).checked=false);
@@ -203,10 +205,12 @@ window.searchPt = function() {
   }, 350);
 };
 
+let _picker = null;   // Session 386b-2b M2
 window.saveNewCase = async function() {
   if (!_foundPt) { alert('Please search and select a patient.'); return; }
-  const proc = document.getElementById('n-proc').value.trim();
-  if (!proc)    { alert('Please enter the procedure name.'); return; }
+  const pv = _picker ? _picker.value() : { error: 'The procedure list is not loaded — reload the page.' };
+  if (pv.error) { alert(pv.error); return; }
+  const proc = pv.name;
   const surgId = document.getElementById('n-surgeon').value;
   if (!surgId)  { alert('Please select the surgeon.'); return; }
 
@@ -225,7 +229,7 @@ window.saveNewCase = async function() {
     imaging_available: document.getElementById('chk-xray').checked,
   };
 
-  const { error } = await supabase.from('ot_cases').insert({
+  const { data: saved, error } = await supabase.from('ot_cases').insert({
     tenant_id:       tenantId,
     patient_id:      _foundPt.id,
     serial_no:       serial,
@@ -244,10 +248,12 @@ window.saveNewCase = async function() {
     scheduled_time:  document.getElementById('n-time').value || null,
     preop_checklist: preop,
     notes:           document.getElementById('n-notes').value.trim() || null,
-    fee_structure_id: feeIdOf('n-fee'),   // Session 386b-2a
+    fee_structure_id: pv.feeId,          // Session 386b-2a / 386b-2b M2: the procedure from the fee list
+    procedure_detail: pv.detail,
     status:          'scheduled',
-  });
+  }).select('id').single();
   if (error) { alert(safeErrorMessage(error, 'Could not save case.')); return; }
+  if (!saved?.id) { alert('Not saved: the server did not confirm the record. Reload the page and check.'); return; }   // no false "saved" (353A)
 
   // NABH — Save surgical consent record
   const consentBy = document.getElementById('ot-consent-by').value.trim();

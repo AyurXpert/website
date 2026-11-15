@@ -2977,6 +2977,8 @@ await loadAll();
 // the same tab and neither one deep-linked to Bed Matrix/Quick Setup where beds actually
 // get reviewed or added).
 const _requestedTab = new URLSearchParams(window.location.search).get('tab');
+// Session 386b-2b M2c (I2): opened from Fee Structure → show "← Back to Fee Structure"
+if (new URLSearchParams(window.location.search).get('from') === 'fee-admin') { const _b = document.getElementById('back-to-fee-admin'); if (_b) _b.style.display = 'inline-flex'; }
 if (_requestedTab && ['dept','beds','quick'].includes(_requestedTab)) {
   window.switchTab(_requestedTab);
 }

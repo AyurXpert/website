@@ -20,6 +20,7 @@ import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
 import { logAudit } from '../core/auditLogger.js';
 import { loadOpenChargeIssues, renderOpenChargeIssues, askInPage } from '../modules/billing/unpricedItems.js';   // Session 386a
+import { renderLockedCharges } from '../modules/billing/lockedCharges.js';   // Session 386b-2b (§564, D3)
 import { renderPromoBanner } from '../components/promoBanner.js';
 import { checkRosterChanged } from '../modules/roster/scheduleChangeIndicator.js';
 import { fetchMyDuty, renderMyDutyHtml, renderTodayHtml } from '../modules/roster/myDutyWidget.js';
@@ -615,7 +616,7 @@ function loadTabData(tab) {
   if (tab === 'io')        loadIo();
   if (tab === 'notes')     loadNotes();
   if (tab === 'handover')  loadHandovers();
-  if (tab === 'discharge') loadDischargeReconciliation();
+  if (tab === 'discharge') { loadDischargeReconciliation(); renderLockedCharges(document.getElementById('recon-locked'), { supabase, tenantId, profile }); }
   if (tab === 'pk')        loadPkCarePlan();
 }
 

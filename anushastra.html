@@ -88,6 +88,8 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
 .form-card{background:var(--white);border:1.5px solid var(--border);border-radius:var(--radius);overflow:hidden;margin-bottom:16px}
 .form-card-hd{padding:12px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px}
 .form-card-title{font-size:14px;font-weight:600;color:var(--text-dark)}
+/* Session 386b-2b M2c (H7, owner 15 Nov 2026): the form says which procedure it records -- large, bold, with its icon */
+#form-title{font-family:'Cormorant Garamond',serif;font-size:26px;font-weight:700;color:var(--green-deep)}
 .form-body{padding:18px}
 .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .form-grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
@@ -240,7 +242,7 @@ tr:hover td{background:#fafff8}
   <!-- Session form -->
   <div class="form-card" id="session-form-card" style="display:none">
     <div class="form-card-hd" id="form-hd">
-      <span class="form-card-title" id="form-title">New Agnikarma Session</span>
+      <h2 class="form-card-title" id="form-title" style="margin:0">🔥 New Agnikarma Session</h2>
       <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
         <input type="checkbox" id="consent-check" checked style="accent-color:var(--green-mid);width:15px;height:15px"/>
         ✅ Informed consent obtained
@@ -259,7 +261,8 @@ tr:hover td{background:#fafff8}
           <input type="time" class="form-control" id="f-time"/>
         </div>
         <div class="form-group">
-          <label class="form-label" for="f-fee">Fee (optional)</label>
+          <!-- Session 386b-2b M2 (§596): the fee list IS the procedure list (Fee Structure → Procedures → Anushastra) -->
+          <label class="form-label" for="f-fee">Procedure (from the fee list) <span style="color:var(--red)">*</span></label>
           <select class="form-control" id="f-fee"><option value="">No fee chosen — billing will be asked to price it</option></select>
           <div style="font-size:11px;color:var(--text-muted,#666);margin-top:3px">Saved as Scheduled; mark it completed on its row after it is done. For an admitted patient the fee is charged to the IPD bill then.</div>
         </div>

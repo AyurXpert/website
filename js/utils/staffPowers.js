@@ -24,6 +24,7 @@ export const DESIG_REQUIRED_ROLE = {
   medical_director: 'dept_admin',
   principal: 'dept_admin',
   chief_pharmacist: 'pharmacist',   // Session 365: the pharmacy in-charge needs the role pharmacist (sql/session365_*.sql)
+  physiotherapist: 'therapist',     // Session 386b-2b: completes physiotherapy sessions (sql/session386b2b2_*.sql)
 };
 const ROLE_LABEL = { finance_manager: 'Finance Manager', nurse_manager: 'Nurse Manager', mrd_staff: 'MRD Staff', dept_admin: 'Dept Admin',
   pharmacist: 'Pharmacist' };

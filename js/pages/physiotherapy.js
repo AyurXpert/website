@@ -5,6 +5,7 @@ import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
 import { todayLocalStr, monthEndStr } from '../utils/dateUtils.js';
 import { notify } from '../components/notify.js';
+import { mountProcedurePicker } from '../modules/billing/procedurePicker.js';   // Session 386b-2b M2 (§596): the fee list IS the procedure list
 
 await requireAuth(['super_admin','dept_admin','doctor','nurse','therapist','receptionist']);
 initNavbar();
@@ -88,7 +89,7 @@ async function searchPatients(q, resultsId, onSelectFnName) {
     .or(`name.ilike.%${q}%,phone.ilike.%${q}%`).limit(8);
   const el = document.getElementById(resultsId);
   if (!data?.length) { el.style.display='none'; return; }
-  el.style.display = '';
+  el.style.display = 'block';   // 386b-2b M2b (F19): the CSS hides .search-results
   if (resultsId === 'search-results') _registerSearchResults = data;
   else _modalSearchResults = data;
   el.innerHTML = data.map(p => `
@@ -132,7 +133,7 @@ async function searchReferralDoctors(q) {
   const el = document.getElementById('m-referral-results');
   if (!data?.length) { el.style.display='none'; return; }
   _referralSearchResults = data;
-  el.style.display = '';
+  el.style.display = 'block';   // 386b-2b M2b (F19): the CSS hides .search-results
   el.innerHTML = data.map(d => `
     <div class="search-item" data-onclick="selectReferralDoctor" data-onclick-a0="${d.id}">
       <div class="pt-name">${_esc(d.full_name)}</div>
@@ -180,8 +181,11 @@ async function loadPatientSessions(p) {
 }
 
 // ── New session modal ─────────────────────────────────────────────────────────
+let _picker = null;   // Session 386b-2b M2
 window.openNewSessionModal = function() {
   document.getElementById('session-modal').style.display = 'flex';
+  _picker = mountProcedurePicker({ supabase, tenantId, register: 'physiotherapy', select: document.getElementById('m-fee'),
+    hide: [document.getElementById('m-treatment-row')] });
   document.getElementById('m-date').value = today;
   document.getElementById('m-session-no').value = '1';
   document.getElementById('m-total-sessions').value = '';
@@ -210,11 +214,12 @@ window.closeSessionModal = function() { document.getElementById('session-modal')
 
 window.saveSession = async function() {
   const patId = document.getElementById('m-patient-id').value;
-  const treat = document.getElementById('m-treatment').value.trim();
   if (!patId)  { _alert('error','Select a patient first'); return; }
-  if (!treat)  { _alert('error','Treatment type is required'); return; }
+  const pv = _picker ? _picker.value() : { error: 'The treatment list is not loaded — reload the page.' };   // Session 386b-2b M2
+  if (pv.error) { _alert('error', pv.error); return; }
+  const treat = pv.name;
 
-  const { error } = await supabase.from('physiotherapy_sessions').insert({
+  const { data: saved, error } = await supabase.from('physiotherapy_sessions').insert({
     tenant_id:            tenantId,
     patient_id:           patId,
     session_date:         document.getElementById('m-date').value,
@@ -222,14 +227,18 @@ window.saveSession = async function() {
     total_sessions_planned: parseInt(document.getElementById('m-total-sessions').value)||1,
     duration_minutes:     parseInt(document.getElementById('m-duration').value)||30,
     treatment_type:       treat,
+    procedure_name:       treat,           // Session 386b-2b M2 (the server sets it from the fee)
+    fee_structure_id:     pv.feeId,
+    procedure_detail:     pv.detail,
     referral_by:          document.getElementById('m-referral-id').value||null,
     physiotherapist_id:   profile.id,
     outcome:              document.getElementById('m-outcome').value.trim()||null,
     notes:                document.getElementById('m-notes').value.trim()||null,
     status:               document.getElementById('m-status').value,
-  });
+  }).select('id').single();
 
   if (error) { _alert('error', safeErrorMessage(error, 'Could not save session.')); return; }
+  if (!saved?.id) { _alert('error', 'Not saved: the server did not confirm the record. Reload the page and check.'); return; }   // no false "saved" (353A)
   closeSessionModal();
   _alert('success','Session saved');
   loadQueue();

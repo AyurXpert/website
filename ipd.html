@@ -756,14 +756,21 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
 <div class="drawer-overlay" id="bill-overlay">
   <div class="drawer">
     <div class="drawer-header">
-      <span class="drawer-title">Generate IPD Bill</span>
+      <span class="drawer-title" id="bill-drawer-title">Generate IPD Bill</span>
       <button class="drawer-close" data-onclick="closeGenerateBillDrawer">&#x2715;</button>
     </div>
     <div class="drawer-body">
       <input type="hidden" id="bill-adm-id"/>
       <div class="adm-detail-card" id="bill-detail-card"></div>
+      <!-- Session 386b-2b (§583 / O1 / D6): the billing deciders open this window before the lock too, in "decide only" mode -->
+      <div id="bill-mode-note" style="display:none;padding:10px 12px;border:1px solid var(--gold, #c9902a);border-left-width:4px;border-radius:6px;background:#fff8e8;font-size:12.5px;margin-bottom:10px" role="status"></div>
+      <!-- Session 386b-2b (§564, N2): reception / the cashier ask the ward in-charge (after the lock only the in-charge and the deciders ask for a change) -->
+      <div id="bill-query-block" class="no-print" style="display:none;margin-bottom:10px">
+        <button type="button" class="btn btn-secondary btn-sm" data-onclick="askWardIncharge" style="min-height:44px">💬 Ask the ward in-charge</button>
+        <div id="bill-query" style="margin-top:6px"></div>
+      </div>
 
-      <div class="field">
+      <div class="field" id="bill-payer-field">
         <label>Payer Type <span class="req">*</span></label>
         <select id="bill-payer-type">
           <option value="self_pay">Self-Pay</option>
@@ -787,7 +794,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
            MS / Super Admin decides (never the person who asked) -->
       <div id="bc-add-block">
       <div class="sec" style="margin-top:14px">Ask to add a line</div>
-      <div style="font-size:11.5px;color:var(--text-muted);margin-bottom:6px">The charges are locked: a new line needs a reason and is added once the accountant, the finance manager, the Medical Superintendent or the Super Admin approves it.</div>
+      <div style="font-size:11.5px;color:var(--text-muted);margin-bottom:6px">The charges are locked: a new line needs a reason type and a reason, and is added once another person (the accountant, the finance manager, the Medical Superintendent or the Super Admin) approves it.</div>
       <div class="field-row" style="display:grid;grid-template-columns:2fr 1fr;gap:8px">
         <div class="field">
           <label>Description</label>
@@ -816,7 +823,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
       <div id="bill-ask" class="no-print"></div>
 
       <div style="margin-top:14px;padding:12px 14px;background:var(--green-light);border-radius:8px;display:flex;justify-content:space-between;align-items:center">
-        <span style="font-size:13px;font-weight:600;color:var(--green-deep)">Bill Total (incl. GST)</span>
+        <span style="font-size:13px;font-weight:600;color:var(--green-deep)" id="bill-total-label">Bill Total (incl. GST)</span>
         <strong id="bill-grand-total" style="font-size:16px;color:var(--green-deep)">₹0</strong>
       </div>
     </div>
@@ -936,7 +943,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
       <!-- Add new procedure form -->
       <div class="ot-divider">Schedule / Record New Procedure</div>
 
-      <div class="field">
+      <div class="field" id="ot-proc-name-row">
         <label>Procedure Name <span class="req">*</span></label>
         <input id="ot-proc-name" type="text" list="ot-proc-list-dl"
           placeholder="Type or select procedure…" data-oninput="onOtProcChange"/>
@@ -1046,7 +1053,8 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
       </div>
 
       <div class="field">
-        <label for="ot-fee">Fee (optional)</label>
+        <!-- Session 386b-2b M2 (§596): the fee list IS the procedure list (Major OT + Minor OT groups) -->
+        <label for="ot-fee">Procedure (from the fee list) <span class="req">*</span></label>
         <select id="ot-fee"><option value="">No fee chosen — billing will be asked to price it</option></select>
         <div style="font-size:11px;color:var(--text-muted);margin-top:3px">Charged to the IPD bill when the procedure is completed (not when a Major OT case is chosen).</div>
       </div>
@@ -1137,10 +1145,11 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
     <select id="filter-dept" data-onchange="applyFilters">
       <option value="">All Departments</option>
     </select>
-    <select id="filter-status" data-onchange="applyFilters">
+    <!-- Session 386b-2b M2c (H10, owner 15 Nov 2026): opens on All Statuses (current + awaiting billing first); the last choice is remembered -->
+    <select id="filter-status" data-onchange="applyFilters" aria-label="Admission status" title="Show admissions of this status (your last choice is remembered on this device)">
+      <option value="" selected>All Statuses</option>
       <option value="admitted">Current Admissions</option>
       <option value="in_billing">Awaiting Billing/Release</option>
-      <option value="">All Statuses</option>
       <option value="discharged">Discharged</option>
       <option value="lama">LAMA</option>
       <option value="transferred">Transferred</option>

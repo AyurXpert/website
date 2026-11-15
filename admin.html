@@ -774,6 +774,8 @@ tr:hover td{background:#fafff8}
       <div id="opd-workflow-setting" hidden></div>
       <!-- Session 366 (TODO §352): staff self-signup ON / OFF -- set_self_signup(), saved at once (js/modules/staff/selfSignupSetting.js) -->
       <div id="self-signup-setting" hidden></div>
+      <!-- Session 386b-2b M2b (F24): "Not in list" for procedures ON / OFF -- set_procedure_not_in_list(), saved at once (js/modules/billing/notInListSetting.js) -->
+      <div id="not-in-list-setting" hidden></div>
       <!-- Session 367 (TODO §332): share health records via ABDM ON / OFF -- set_abdm_share_records(), saved at once (js/modules/abdm/abdmShareSetting.js) -->
       <div id="abdm-share-setting" hidden></div>
       <!-- Session 374B (plan B9): 🎯 OPD department targets -- hospital targets, not an NCISM rule; set_opd_dept_targets(), Super Admin, reason (js/modules/screening/deptTargetsSetting.js) -->
@@ -1239,7 +1241,7 @@ tr:hover td{background:#fafff8}
         <label for="pinv-deptscope-check" style="font-size:12.5px;color:var(--text-mid)">Scope to this department only <span style="color:var(--text-muted)">(HOD/Professor — gets a department dashboard + roster editing for this department alone, e.g. Kayachikitsa HOD)</span></label>
       </div>
       <div><label for="pinv-name" style="font-size:11px;font-weight:600;color:var(--text-mid);display:block;margin-bottom:5px;text-transform:uppercase;letter-spacing:.5px">Full name <span style="font-weight:400;text-transform:none">(required — the join request is compared with it)</span></label>
-        <input id="pinv-name" type="text" required aria-required="true" autocomplete="off" placeholder="Dr. Priya Nair" style="width:100%;height:40px;border:1.5px solid var(--border);border-radius:8px;padding:0 12px;font-size:14px"></div>
+        <input id="pinv-name" type="text" required aria-required="true" autocomplete="off" placeholder="Priya Nair" style="width:100%;height:40px;border:1.5px solid var(--border);border-radius:8px;padding:0 12px;font-size:14px"></div>
       <div style="font-size:12px;color:var(--text-mid);background:#f5faf7;border:1px solid var(--border);border-radius:8px;padding:8px 10px">Enter a phone and / or an email (at least one). <strong>Email recommended:</strong> only an invite with an email can be approved together with others ("Approve selected"); a phone-only invite is approved one by one.</div>
       <div><label for="pinv-phone" style="font-size:11px;font-weight:600;color:var(--text-mid);display:block;margin-bottom:5px;text-transform:uppercase;letter-spacing:.5px">Phone</label>
         <input id="pinv-phone" type="tel" placeholder="+91 98765 43210" style="width:100%;height:40px;border:1.5px solid var(--border);border-radius:8px;padding:0 12px;font-size:14px"></div>

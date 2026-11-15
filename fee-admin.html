@@ -42,46 +42,41 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
 .role-badge.super_admin{background:var(--gold-light);color:#7a5a10;border:1px solid #e8d08a}
 
 /* ── Stats ─────────────────────────────────────── */
-.stats-row{display:grid;grid-template-columns:repeat(5,1fr);gap:16px;margin-bottom:24px}
-@media(max-width:700px){.stats-row{grid-template-columns:repeat(2,1fr)}}
-.stat-card{background:var(--white);border-radius:12px;padding:16px 18px;box-shadow:0 1px 8px rgba(0,0,0,0.05)}
 /* Session 362 (TODO §313): the count cards are buttons that filter the list by status */
-button.stat-card{font:inherit;text-align:left;width:100%;min-height:44px;border:2px solid transparent;cursor:pointer;color:inherit}
-button.stat-card:hover{border-color:var(--border)}
-button.stat-card:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
-button.stat-card[aria-pressed="true"]{border-color:var(--green-mid)}
-.stat-card.red .stat-val{color:#a01a1a}
-.status-filter{height:40px;border:1.5px solid var(--border);border-radius:8px;padding:0 10px;font:inherit;font-size:13px;background:var(--white);color:var(--text-dark)}
-.stat-val{font-family:'Cormorant Garamond',serif;font-size:28px;font-weight:600;color:var(--green-deep)}
-.stat-lbl{font-size:11px;color:var(--text-muted);margin-top:2px;text-transform:uppercase;letter-spacing:.6px}
-.stat-card.gold .stat-val{color:var(--gold)}
-.stat-card.blue .stat-val{color:var(--blue)}
 
 /* ── Toolbar ────────────────────────────────────── */
-.toolbar{display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap}
-.search-wrap{position:relative;flex:1;min-width:180px}
-.search-wrap input{width:100%;height:40px;padding:0 14px 0 38px;border:1.5px solid var(--border);border-radius:8px;font-family:'DM Sans',sans-serif;font-size:14px;color:var(--text-dark);background:var(--white);outline:none}
-.search-wrap input:focus{border-color:var(--green-mid);box-shadow:0 0 0 3px rgba(45,122,79,.1)}
-.search-icon{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--text-muted);font-size:14px}
 
-.cat-tabs{display:flex;gap:4px;flex-wrap:wrap}
-.cat-tab{height:36px;padding:0 14px;border:1.5px solid var(--border);border-radius:8px;background:var(--white);font-family:'DM Sans',sans-serif;font-size:13px;color:var(--text-mid);cursor:pointer;transition:all .15s;white-space:nowrap}
-.cat-tab:hover{border-color:var(--green-mid);color:var(--green-deep)}
-.cat-tab.active{background:var(--green-deep);border-color:var(--green-deep);color:var(--white)}
 
-.dept-tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
-.dept-tab{height:32px;padding:0 14px;border:1.5px solid var(--gold);border-radius:16px;background:var(--white);font-family:'DM Sans',sans-serif;font-size:12.5px;font-weight:500;color:#7a5a00;cursor:pointer;transition:all .15s;white-space:nowrap}
-.dept-tab:hover{background:#fff8e1}
-.dept-tab.active{background:var(--gold);border-color:var(--gold);color:var(--white)}
 
 /* ── Sub-item tabs (Session 109) — second level under a group tab ── */
-.sub-tabs{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:14px;padding-left:4px}
-.sub-tab{height:28px;padding:0 12px;border:1.5px solid var(--green-mid);border-radius:14px;background:var(--white);font-family:'DM Sans',sans-serif;font-size:12px;font-weight:500;color:var(--green-mid);cursor:pointer;transition:all .15s;white-space:nowrap}
-.sub-tab:hover{background:var(--green-light)}
-.sub-tab.active{background:var(--green-mid);border-color:var(--green-mid);color:var(--white)}
 
 .btn-add{height:40px;padding:0 20px;background:var(--green-deep);color:var(--white);border:none;border-radius:8px;font-family:'DM Sans',sans-serif;font-size:14px;font-weight:500;cursor:pointer;white-space:nowrap;transition:background .2s}
 .btn-add:hover{background:#1f5c37}
+/* 386b-2b (G1): the grouped Fee Structure list's controls look like the rest of AyurXpert (they were plain browser controls) */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:40px;padding:0 14px;border-radius:8px;border:1.5px solid var(--green-deep);font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;cursor:pointer;white-space:nowrap;transition:background .15s,color .15s}
+.btn-primary{background:var(--green-deep);color:var(--white)}
+.btn-primary:hover{background:#1f5c37}
+.btn-secondary{background:var(--white);color:var(--green-deep)}
+.btn-secondary:hover{background:var(--green-light)}
+.btn-sm{font-size:12.5px}
+.btn[aria-pressed="true"]{background:var(--green-light);border-color:var(--green-mid);font-weight:600}
+.btn:focus-visible,.fee-input:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
+.btn:disabled{opacity:.55;cursor:not-allowed}
+#fee-list-v2 input,#fee-list-v2 select,#fee-list-v2 textarea,.fee-input{border:1.5px solid var(--border);border-radius:8px;padding:0 10px;font-family:'DM Sans',sans-serif;font-size:13px;background:var(--white);color:var(--text-dark)}
+/* Session 386b-2b M2c (G1b, owner 15 Nov 2026): the list's buttons and boxes were white on a white page -- a light cream tint; the
+   buttons keep their green-deep border, the boxes get a visible green-mid one (5:1 on white, WCAG 1.4.11); focus keeps the gold ring */
+#fee-list-v2 .btn-secondary{background:var(--cream)}
+#fee-list-v2 .btn-secondary:hover{background:var(--green-light)}
+#fee-list-v2 input:not([type=checkbox]):not([type=radio]),#fee-list-v2 select,#fee-list-v2 textarea{border-color:var(--green-mid);background:var(--cream)}
+/* H3: a "Needs attention" number above 0 is red and bold (the number is in the text too; never colour alone) */
+.attn-n{font-weight:700}
+.attn-n.attn-hot{color:var(--red,#c0392b)}
+/* H4: the list opened from a chip is outlined for 2 seconds */
+.attn-flash{outline:3px solid var(--gold);outline-offset:3px;transition:outline-color .4s}
+#fee-list-v2 [data-attn-panel]:focus{outline:3px solid var(--gold);outline-offset:3px}
+#fee-list-v2 input[type=checkbox],#fee-list-v2 input[type=radio]{min-height:0;padding:0}
+#fee-list-v2 textarea{padding:8px 10px}
+#fee-list-v2 input:focus,#fee-list-v2 select:focus,#fee-list-v2 textarea:focus{border-color:var(--green-mid);outline:none;box-shadow:0 0 0 3px rgba(45,122,79,.1)}
 
 .export-bar{display:flex;gap:8px;align-items:center}
 .btn-export{height:36px;padding:0 14px;background:var(--white);color:var(--green-deep);border:1.5px solid var(--green-deep);border-radius:8px;font-family:'DM Sans',sans-serif;font-size:12.5px;font-weight:500;cursor:pointer;white-space:nowrap;transition:all .15s}
@@ -90,8 +85,6 @@ button.stat-card[aria-pressed="true"]{border-color:var(--green-mid)}
 .btn-export.all:hover{border-color:var(--green-mid);color:var(--green-deep)}
 
 /* ── Table card ─────────────────────────────────── */
-.table-card{background:var(--white);border-radius:16px;box-shadow:0 2px 16px rgba(0,0,0,0.06);overflow:hidden}
-.table-wrap{overflow-x:auto}
 table{width:100%;border-collapse:collapse}
 thead{background:var(--green-light)}
 th{padding:12px 16px;font-size:11px;font-weight:500;color:var(--text-mid);text-transform:uppercase;letter-spacing:.7px;text-align:left;white-space:nowrap}
@@ -99,18 +92,9 @@ td{padding:14px 16px;font-size:14px;color:var(--text-dark);border-bottom:1px sol
 tr:last-child td{border-bottom:none}
 tr:hover td{background:rgba(232,245,238,.4)}
 
-.fee-label{font-weight:500}
 .fee-notes{font-size:12px;color:var(--text-muted);margin-top:2px}
-.fee-amount{font-family:'Cormorant Garamond',serif;font-size:17px;font-weight:600;color:var(--green-deep)}
 
 /* ── Category badges ────────────────────────────── */
-.cat-badge{display:inline-block;padding:2px 10px;border-radius:20px;font-size:11px;font-weight:500}
-.cat-opd{background:#e8f5ee;color:#1a4a2e}
-.cat-ipd{background:#eff6ff;color:#1e40af}
-.cat-lab{background:#f5f3ff;color:#6d28d9}
-.cat-procedure{background:#fff7ed;color:#c2410c}
-.cat-radiology{background:#f0fdf4;color:#166534}
-.cat-custom{background:#fdf4ff;color:#7e22ce}
 
 /* ── Status badges ──────────────────────────────── */
 .status-badge{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:500;white-space:nowrap}
@@ -126,8 +110,6 @@ tr:hover td{background:rgba(232,245,238,.4)}
 .act-approve:hover{background:var(--green-mid);color:var(--white);border-color:var(--green-mid)}
 .act-activate{background:var(--green-deep);color:var(--white);border-color:var(--green-deep)}
 .act-activate:hover{background:#1f5c37}
-.act-bypass{background:var(--gold-light);color:#7a5a10;border-color:#e8d08a}
-.act-bypass:hover{background:var(--gold);color:var(--white);border-color:var(--gold)}
 .act-reject{background:var(--error-bg);color:var(--error-text);border-color:var(--error-border)}
 .act-reject:hover{background:#c0392b;color:var(--white);border-color:#c0392b}
 .act-edit{background:var(--cream);color:var(--text-mid);border-color:var(--border)}
@@ -137,7 +119,6 @@ tr:hover td{background:rgba(232,245,238,.4)}
 
 /* ── Empty state ────────────────────────────────── */
 .empty{text-align:center;padding:64px 20px}
-.empty-icon{font-size:40px;margin-bottom:12px}
 .empty-text{font-size:15px;color:var(--text-muted)}
 
 /* ── Modal ──────────────────────────────────────── */
@@ -213,11 +194,6 @@ tr:hover td{background:rgba(232,245,238,.4)}
 .btn-bedpricing:hover{background:var(--blue);color:var(--white);border-color:var(--blue)}
 
 /* ── Tiered pricing display (Session 109) ── */
-.tier-range{font-family:'Cormorant Garamond',serif;font-size:15px;font-weight:600;color:var(--green-deep)}
-.tier-expand{border:none;background:none;color:var(--text-muted);font-size:11px;cursor:pointer;margin-left:6px;padding:0;text-decoration:underline}
-.tier-expand:hover{color:var(--green-mid)}
-.tier-detail{margin-top:6px;font-size:12px;color:var(--text-mid);line-height:1.7;background:var(--cream);border-radius:6px;padding:8px 10px}
-.tier-tag{font-size:11px;color:var(--text-muted);font-weight:400}
 
 /* ── Add Service modal: bed-tier checkbox + preview ── */
 .field-check{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-dark)}
@@ -287,6 +263,12 @@ tr:hover td{background:rgba(232,245,238,.4)}
     </div>
   </div>
 
+  <!-- Session 386b-2b (F7): ⚙ Fee settings on their own small screen (the ⚙ button in the list); the advance card + the cards inserted after it -->
+  <section id="fee-settings" hidden aria-label="Fee settings" style="margin-bottom:16px">
+  <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:8px">
+    <div style="font-family:'Cormorant Garamond',serif;font-size:20px;font-weight:700;color:var(--green-deep)">⚙ Fee settings</div>
+    <button type="button" class="btn btn-secondary btn-sm" data-onclick="closeFeeSettings" title="Close the fee settings and go back to the fee list" style="min-height:44px">✕ Close</button>
+  </div>
   <!-- Session 205 (cont.): Admission Advance Policy -- editing tenants.ipd_advance_pct_self_pay/
        ipd_advance_pct_insurance directly (not a fee_structures row, so it lives here as a fixed
        card rather than inside the dynamic group-tabs system). Drives doctor.html's Admission
@@ -319,32 +301,23 @@ tr:hover td{background:rgba(232,245,238,.4)}
       </div>
     </div>
   </div>
+  </section>
 
   <!-- Add Service + Export buttons -->
   <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap">
     <div class="export-bar">
-      <button class="btn-export" data-onclick="exportCsv" data-onclick-a0="current" title="Export the currently filtered view">⬇ CSV (Current View)</button>
-      <button class="btn-export" data-onclick="exportPdf" data-onclick-a0="current" title="Export the currently filtered view">⬇ PDF (Current View)</button>
-      <button class="btn-export all" data-onclick="exportCsv" data-onclick-a0="all">⬇ Export All (CSV)</button>
-      <button class="btn-export all" data-onclick="exportPdf" data-onclick-a0="all">⬇ Export All (PDF)</button>
+      <button class="btn-export all" data-onclick="exportCsv" data-onclick-a0="all" title="Download every fee as one CSV file (opens in Excel)">⬇ Export All (CSV)</button>
+      <button class="btn-export all" data-onclick="exportPdf" data-onclick-a0="all" title="Print every fee, or save it as a PDF">⬇ Export All (PDF)</button>
     </div>
-    <div style="display:flex;gap:10px">
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
       <button class="btn-add" style="background:var(--white);color:var(--green-deep);border:1.5px solid var(--green-deep)" data-onclick="loadAyushCatalog" title="Adds every NCISM/Ministry of Ayush benchmark-rate procedure not already in your fee list, inactive by default — toggle individual procedures on as you offer them">📥 Load NCISM Procedure Catalog</button>
-      <button class="btn-add" id="btn-add-top" data-onclick="openModal">+ Add Service</button>
+      <button class="btn-add" id="btn-add-top" data-onclick="openModal" title="Add a new fee (OPD, IPD, lab, imaging, procedure …); it starts Pending">+ Add Service</button>
     </div>
   </div>
 
-  <!-- ── Group tabs (Session 109) — dynamic two-level nav: Administration/OPD/IPD/
-       Panchakarma/OT/Labour Room/Kriyakalpa/Swasthavritta & Yoga/Diet-Pathya/
-       Physiotherapy/Diagnostics/Pharmacy/Laundry + any other real department, each
-       shown only once it genuinely has >=1 linked fee. A second row of sub-item tabs
-       (e.g. the 7 real OPDs, or Administration's counters) appears under whichever
-       group is active, when that group has more than one sub-item. ── -->
   <!-- Session 319 -- persistent, independent of which tab is open -->
   <div id="room-rate-gap-banner" style="display:none;background:#fff6e5;border:1px solid #f0c36d;border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:13px;color:#8a5a00;font-weight:600"></div>
 
-  <div class="dept-tabs" id="group-tabs"></div>
-  <div class="sub-tabs" id="subgroup-tabs"></div>
 
   <!-- ── Facility profile banner ─────────────────── -->
   <div class="facility-banner" id="facility-banner">
@@ -352,10 +325,10 @@ tr:hover td{background:rgba(232,245,238,.4)}
       <div class="fac-type" id="fac-type">—</div>
       <div class="fac-cats" id="fac-cats"></div>
     </div>
-    <button class="btn-quicksetup" id="btn-quicksetup" data-onclick="openQuickSetup">
+    <button class="btn-quicksetup" id="btn-quicksetup" data-onclick="openQuickSetup" title="Add the usual fees for this type of organisation in one go (you choose which)">
       ⚡ Quick Setup
     </button>
-    <button class="btn-bedpricing" id="btn-bedpricing" data-onclick="openBedMultipliers">
+    <button class="btn-bedpricing" id="btn-bedpricing" data-onclick="openBedMultipliers" title="Set how much each bed category costs compared with the General Ward price">
       🛏️ Bed Category Pricing
     </button>
   </div>
@@ -369,68 +342,9 @@ tr:hover td{background:rgba(232,245,238,.4)}
     </div>
   </div>
 
-  <!-- ── Stats ────────────────────────────────────── -->
-  <!-- Session 362 (TODO §313): each card shows only fees of that status (Total = all) -->
-  <div class="stats-row" role="group" aria-label="Show fees by status">
-    <button type="button" class="stat-card" data-status-card="active" aria-pressed="false" data-onclick="setFeeStatusFilter" data-onclick-a0="active">
-      <div class="stat-val" id="stat-active">—</div>
-      <div class="stat-lbl">Active Fees</div>
-    </button>
-    <button type="button" class="stat-card gold" data-status-card="pending" aria-pressed="false" data-onclick="setFeeStatusFilter" data-onclick-a0="pending">
-      <div class="stat-val" id="stat-pending">—</div>
-      <div class="stat-lbl">Pending Review</div>
-    </button>
-    <button type="button" class="stat-card blue" data-status-card="dept_approved" aria-pressed="false" data-onclick="setFeeStatusFilter" data-onclick-a0="dept_approved">
-      <div class="stat-val" id="stat-dept">—</div>
-      <div class="stat-lbl">Dept. Approved</div>
-    </button>
-    <button type="button" class="stat-card red" data-status-card="rejected" aria-pressed="false" data-onclick="setFeeStatusFilter" data-onclick-a0="rejected">
-      <div class="stat-val" id="stat-rejected">—</div>
-      <div class="stat-lbl">Rejected</div>
-    </button>
-    <button type="button" class="stat-card" data-status-card="" aria-pressed="true" data-onclick="setFeeStatusFilter" data-onclick-a0="">
-      <div class="stat-val" id="stat-total">—</div>
-      <div class="stat-lbl">Total Services</div>
-    </button>
-  </div>
+  <!-- Session 386b-2b (F7): ONE grouped list (js/modules/billing/feeStructureList.js) -->
+  <div id="fee-list-v2" aria-label="Fees by section"><div style="font-size:13px;color:var(--text-muted)">Loading the fee list…</div></div>
 
-  <!-- ── Toolbar ───────────────────────────────────── -->
-  <div class="toolbar">
-    <div class="search-wrap">
-      <span class="search-icon">🔍</span>
-      <input type="search" id="search-input" placeholder="Search services…" data-oninput="filterFees"/>
-    </div>
-    <label for="status-filter" style="font-size:12px;color:var(--text-mid)">Status</label>
-    <select id="status-filter" class="status-filter" data-onchange="filterFees">
-      <option value="">All statuses</option>
-      <option value="pending">Pending</option>
-      <option value="dept_approved">Dept. Approved</option>
-      <option value="active">Active</option>
-      <option value="rejected">Rejected</option>
-    </select>
-    <span id="status-filter-count" role="status" style="font-size:12px;color:var(--text-mid)"></span>
-  </div>
-
-  <!-- ── Table ─────────────────────────────────────── -->
-  <div class="table-card">
-    <div class="table-wrap">
-      <table>
-        <thead>
-          <tr>
-            <th>Service / Label</th>
-            <th>Category</th>
-            <th>OPD / Dept / Group</th>
-            <th>Amount</th>
-            <th>Status</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody id="fee-tbody">
-          <tr><td colspan="6"><div class="empty"><div class="empty-icon">⏳</div><div class="empty-text">Loading fees…</div></div></td></tr>
-        </tbody>
-      </table>
-    </div>
-  </div>
 
 
 </div>
@@ -469,20 +383,10 @@ tr:hover td{background:rgba(232,245,238,.4)}
         </div>
       </div>
 
-      <!-- Session 386b-2a (owner, 13 Nov 2026): each register (Major OT, Minor OT, Kriya Kalpa ...) offers ONLY its own fees -->
+      <!-- Session 386b-2a / 386b-2b M2 (§596): where a procedure fee is offered = its procedure groups, set in 🧩 Procedures (the Fee committee) -->
       <div class="field" id="m-register-wrap" style="display:none">
-        <label for="m-register">Register <span style="font-weight:400;color:var(--text-muted);font-size:11px">— where this procedure fee is offered; with no register it is offered nowhere</span></label>
-        <select id="m-register">
-          <option value="">— No register (not offered in any register) —</option>
-          <option value="major_ot">Major OT</option>
-          <option value="minor_ot">Minor OT</option>
-          <option value="kriya_kalpa">Kriya Kalpa</option>
-          <option value="anushastra">Anushastra</option>
-          <option value="kshara_sutra">Kshara Sutra</option>
-          <option value="ipd_ot_procedure">IPD OT procedure (ipd.html)</option>
-          <option value="panchakarma">Panchakarma</option>
-          <option value="other">Other</option>
-        </select>
+        <label>Procedure groups</label>
+        <div id="m-groups-note" class="fee-notes" role="status"></div>
       </div>
 
       <div class="field" id="m-type-wrap">
@@ -598,7 +502,7 @@ tr:hover td{background:rgba(232,245,238,.4)}
   <div class="modal modal-2">
     <div class="modal-hdr">
       <div class="modal-title">Bed Category Pricing</div>
-      <button class="modal-close" data-onclick="closeBedMultipliers">✕</button>
+      <button class="modal-close" data-onclick="closeBedMultipliers" title="Close" aria-label="Close Bed Category Pricing">✕</button>
     </div>
     <div class="modal-body">
       <div class="qs-note">
@@ -607,10 +511,17 @@ tr:hover td{background:rgba(232,245,238,.4)}
         <strong>baseline × multiplier</strong>. Raise the baseline once and every tier updates.
       </div>
       <div id="bcm-grid"></div>
-      <button class="btn-save" id="btn-bcm-save" data-onclick="saveBedMultipliers">
+      <!-- Session 386b-2b M2c (G13, owner 15 Nov 2026): where the bed categories and the General Ward baseline fee are set -- always shown -->
+      <div class="qs-note" id="bcm-setup" style="margin-top:10px">
+        <a href="bed-admin.html?from=fee-admin" title="Bed types (General, Deluxe, Private …) are set in Bed Management — each bed type becomes a category here">Set up bed categories →</a>
+        (🛏️ Bed Management: the bed types)
+        · <button type="button" class="btn btn-secondary btn-sm" data-onclick="jumpToGeneralWardFee" title="Close this window and open IPD charges, where the General Ward baseline fee (Room — General Ward) is set" style="min-height:44px">General Ward baseline fee →</button>
+      </div>
+      <button class="btn-save" id="btn-bcm-save" data-onclick="saveBedMultipliers" title="Save the multipliers and go back to the Fee Structure">
         <span class="btn-text" id="btn-bcm-text">Save Multipliers</span>
         <span class="btn-spinner"><span class="spinner"></span></span>
       </button>
+      <button type="button" class="btn btn-secondary btn-sm" data-onclick="closeBedMultipliers" title="Close without saving" style="margin-top:10px;min-height:44px;width:100%">← Back to Fee Structure</button>
     </div>
   </div>
 </div>

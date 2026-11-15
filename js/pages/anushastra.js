@@ -5,7 +5,8 @@ import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
 import { localDateStr, istMonthStr, istDayStartUTC } from '../utils/dateUtils.js';
 import { notify } from '../components/notify.js';
-import { loadFeeSelect, feeIdOf } from '../modules/billing/feeSelect.js';   // Session 386b-2a
+import { mountProcedurePicker } from '../modules/billing/procedurePicker.js';   // Session 386b-2b M2 (§596): the fee list IS the procedure list
+let _picker = null;   // Session 386b-2b M2: set at boot (declared here: no use before its declaration)
 
 await requireAuth(['super_admin','dept_admin','doctor','nurse','therapist','receptionist']);
 initNavbar();
@@ -39,8 +40,10 @@ window.selectProc = function(btn) {
   document.querySelectorAll('.proc-panel').forEach(p => p.classList.remove('show'));
   document.getElementById('panel-' + _curProc)?.classList.add('show');
   // Update form title
-  const labels = { agnikarma:'Agnikarma', raktamokshana:'Raktamokshana', ksharakarma:'Ksharakarma', pain_management:'Pain Management' };
-  document.getElementById('form-title').textContent = 'New ' + labels[_curProc] + ' Session';
+  // Session 386b-2b M2c (H7): the icon of the procedure tab + "New … Session"
+  const labels = { agnikarma:'🔥 Agnikarma', raktamokshana:'🩸 Raktamokshana', ksharakarma:'⚗ Ksharakarma', pain_management:'💊 Pain Management' };
+  const [icon, ...name] = labels[_curProc].split(' ');
+  document.getElementById('form-title').textContent = `${icon} New ${name.join(' ')} Session`;
   if (_patientId) loadPastSessions();
 };
 
@@ -125,6 +128,8 @@ window.updateRaktaSubtype = function(v) {
 // ─── Save session ─────────────────────────────────────────
 window.saveSession = async function() {
   if (!_patientId) { showAlert('Select a patient first','error'); return; }
+  const pv = _picker ? _picker.value() : { error: 'The procedure list is not loaded — reload the page.' };   // Session 386b-2b M2
+  if (pv.error) { showAlert(pv.error, 'error'); return; }
   const btn = document.getElementById('save-btn');
   btn.disabled = true;
 
@@ -139,7 +144,9 @@ window.saveSession = async function() {
     // Session 386b-2a (D5, owner 12 Nov 2026): created as scheduled; the conducting doctor / HOD / the named therapist marks it
     // completed later (✓ on the row). completed_at is set then, not here.
     status:       'scheduled',
-    fee_structure_id: feeIdOf('f-fee'),   // Session 386b-2a: charged to the IPD bill of an admitted patient when completed
+    fee_structure_id: pv.feeId,   // Session 386b-2a / 386b-2b M2: the procedure from the fee list -- charged to the IPD bill when completed
+    procedure_name:   pv.name,    // (the server sets it from the fee)
+    procedure_detail: pv.detail,
     affected_site:document.getElementById('f-site').value.trim() || null,
     side:         document.getElementById('f-side').value || null,
     duration_minutes: parseInt(document.getElementById('f-duration').value) || null,
@@ -184,7 +191,7 @@ window.saveSession = async function() {
     payload.pain_score_post = parseInt(document.getElementById('pm-pain-post').value) || null;
   }
 
-  const { error } = await supabase.from('anushastra_sessions').insert(payload);
+  const { data: saved, error } = await supabase.from('anushastra_sessions').insert(payload).select('id').single();
   btn.disabled = false;
   if (error) {
     if (error.code === '42P01') {
@@ -194,7 +201,8 @@ window.saveSession = async function() {
     }
     return;
   }
-  showAlert('Session saved successfully ✓', 'success');
+  if (!saved?.id) { showAlert('Not saved: the server did not confirm the record. Reload the page and check.', 'error'); return; }   // no false "saved" (353A)
+  showAlert('Session saved successfully ✓', 'success');   // Session 386b-2b M2c: always a procedure from the list
   resetForm();
   loadPastSessions();
   loadStats();
@@ -203,7 +211,8 @@ window.saveSession = async function() {
 window.resetForm = function() {
   document.getElementById('f-date').value = todayStr;
   document.getElementById('f-time').value = new Date().toTimeString().slice(0,5);
-  const feeSel = document.getElementById('f-fee'); if (feeSel) feeSel.value = '';
+  if (_picker) _picker.reset();   // Session 386b-2b M2
+  { const d = document.getElementById('f-doctor'); if (d && [...d.options].some(o => o.value === profile?.id)) d.value = profile.id; }   // 386b-2b M2b (F16)
   ['f-site','f-pre','f-post','f-adverse','f-meds','f-consent-notes','f-remarks',
    'f-duration','ag-count','rm-leech-count','rm-leech-site','rm-leech-time',
    'rm-leech-paste','rm-sira-site','rm-sira-vol','kk-neutralise','kk-duration',
@@ -297,6 +306,8 @@ window.loadRegister = async function() {
     <td>
       <span class="ptype ptype-${s.procedure_type}">${_procLabel(s.procedure_type)}</span>
       ${s.procedure_subtype ? `<div style="font-size:11px;color:var(--text-muted);margin-top:3px">${_esc(s.procedure_subtype)}</div>` : ''}
+      ${s.procedure_name ? `<div style="font-weight:600;margin-top:3px">${_esc(s.procedure_name)}</div>` : ''}
+      ${s.procedure_name && !s.fee_structure_id ? '<div style="font-size:11px;color:#8a5a00;margin-top:2px">(no fee chosen)</div>' : ''}
     </td>
     <td style="font-size:12px">${_esc(s.affected_site||'—')}<br><span style="color:var(--text-muted)">${s.side||''}</span></td>
     <td style="font-size:12px">${s.profiles?.full_name ? 'Dr. '+_esc(s.profiles.full_name) : '—'}</td>
@@ -340,13 +351,19 @@ window.exportRegister = function() {
 
 // ─── Load doctors & therapists ────────────────────────────
 async function loadStaff() {
-  const { data } = await supabase.from('profiles').select('id,full_name,role')
-    .eq('tenant_id',tenantId).eq('is_active',true)
-    .in('role',['doctor','therapist','super_admin','dept_admin']).order('full_name');
-  const doctors   = (data||[]).filter(p=>['doctor','super_admin','dept_admin'].includes(p.role));
+  // Session 386b-2b M2b (F16, owner 14 Nov 2026): the conducting doctor = a Shalya doctor (the server's Shalya family: department code
+  // SHAL / SHALYA_TANTRA); the signed-in Shalya doctor is chosen by default (the creator may complete the session, the server allows it)
+  const [{ data }, { data: depts }] = await Promise.all([
+    supabase.from('profiles').select('id,full_name,role,secondary_role,department_id')
+      .eq('tenant_id',tenantId).eq('is_active',true)
+      .in('role',['doctor','therapist','super_admin','dept_admin']).order('full_name'),
+    supabase.from('departments').select('id').eq('tenant_id',tenantId).in('ncism_code',['SHAL','SHALYA_TANTRA'])]);
+  const shalya = new Set((depts||[]).map(d => d.id));
+  const doctors   = (data||[]).filter(p=>(p.role==='doctor' || p.secondary_role==='doctor') && shalya.has(p.department_id));
   const therapists= (data||[]).filter(p=>p.role==='therapist');
   const dSel = document.getElementById('f-doctor');
-  dSel.innerHTML = '<option value="">— Select Doctor —</option>' + doctors.map(d=>`<option value="${d.id}">Dr. ${_esc(d.full_name)}</option>`).join('');
+  dSel.replaceChildren(new Option('— Select Doctor —', ''), ...doctors.map(d => new Option(`Dr. ${d.full_name || ''}`, d.id)));   // DOM nodes (text, not HTML)
+  if (doctors.some(d => d.id === profile?.id)) dSel.value = profile.id;
   const tSel = document.getElementById('f-therapist');
   tSel.innerHTML = '<option value="">— Select (optional) —</option>' + therapists.map(t=>`<option value="${t.id}">${_esc(t.full_name)}</option>`).join('');
 }
@@ -371,5 +388,6 @@ function _esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;'
 function _toast(msg,isErr=false) { notify(msg, typeof isErr === 'string' ? isErr : (isErr ? 'error' : 'success')); }   // Session 323: shared top-layer notify()
 
 // ─── Boot ─────────────────────────────────────────────────
-await Promise.all([loadStaff(), loadStats(),
-  loadFeeSelect(supabase, tenantId, document.getElementById('f-fee'), ['procedure'], { keep: false, register: 'anushastra' })]);   // Session 386b-2a
+// Session 386b-2b M2 (§596): the procedure pick-list (the Anushastra group's fees; M2c: always from the list)
+_picker = mountProcedurePicker({ supabase, tenantId, register: 'anushastra', select: document.getElementById('f-fee') });
+await Promise.all([loadStaff(), loadStats(), _picker?.ready]);

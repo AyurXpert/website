@@ -27,10 +27,10 @@ import { mountTaxProfiles } from '../modules/tax/taxProfiles.js';
 import { mountTaxApprovals, TAX_APPROVAL_TYPES } from '../modules/tax/taxApprovals.js';
 import { printDocument, docHeader } from '../utils/printDocument.js';
 import { renderOpdWorkflowSettings } from '../modules/opd/opdWorkflowSettings.js';
-import { mountAlertBell } from '../components/alertBell.js';   // Session 357 (TODO §276)
 // Session 366 (TODO §350-§352, plan §0.1): bulk invite, self-signup switch, login email / phone in HR
 import { mountBulkInvite } from '../modules/staff/bulkInvite.js';
 import { renderSelfSignupSetting } from '../modules/staff/selfSignupSetting.js';
+import { renderAskToAddSetting } from '../modules/billing/askToAddSetting.js';   // Session 386b-2b M2b (F24) / M2c: "Ask to add a procedure"
 import { renderAbdmShareSetting } from '../modules/abdm/abdmShareSetting.js';
 import { abdmOn, closeAbdmPanel } from '../modules/abdm/comingSoon.js';   // Session 379a
 import { renderDeptTargetsSetting } from '../modules/screening/deptTargetsSetting.js';   // Session 374B
@@ -48,7 +48,7 @@ const tenant   = getCurrentTenant();
 const tenantId = getCurrentTenantId();
 const role     = getCurrentRole();
 if (!profile) { window.location.href = 'login.html'; }
-else mountAlertBell({ supabase, userId: profile.id });   // Session 357 (TODO §276): the MS / Super Admin get server alerts too
+// Session 357 (TODO §276): the 🔔 bell -- since Session 386b-2b (§554) mounted by the shared navbar on every page
 document.title = 'Master Control — ' + (tenant?.name || 'AyurXpert');
 
 const todayStr   = todayLocalStr();
@@ -7264,6 +7264,7 @@ window.loadModules = async function() {
   _renderReturnSettings();                                   // Session 344a
   renderOpdWorkflowSettings(document.getElementById('opd-workflow-setting'), { supabase, role, toast: m => _toast(m) });   // Session 347
   renderSelfSignupSetting(document.getElementById('self-signup-setting'), { supabase, role, tenantId, toast: m => _toast(m) });   // Session 366
+  renderAskToAddSetting(document.getElementById('not-in-list-setting'), { supabase, role, tenantId, toast: m => _toast(m) });   // Session 386b-2b M2b (F24)
   renderAbdmShareSetting(document.getElementById('abdm-share-setting'), { supabase, role, tenantId, toast: m => _toast(m) });   // Session 367
   renderDeptTargetsSetting(document.getElementById('opd-dept-targets'), { supabase, role, toast: m => _toast(m) });   // Session 374B
   renderOverflowSetting(document.getElementById('screening-overflow-setting'), { supabase, toast: m => _toast(m) });   // Session 375 (§407)

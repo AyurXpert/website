@@ -6,7 +6,7 @@ import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
 import { todayLocalStr } from '../utils/dateUtils.js';
 import { notify } from '../components/notify.js';
-import { loadFeeSelect, feeIdOf } from '../modules/billing/feeSelect.js';   // Session 386b-2a
+import { mountProcedurePicker } from '../modules/billing/procedurePicker.js';   // Session 386b-2b M2 (§596): the fee list IS the procedure list
 
 await requireAuth(['doctor','nurse','super_admin','dept_admin','therapist']);
 initNavbar();
@@ -89,7 +89,7 @@ window.selectPatient = async function(id) {
   document.getElementById('bar-name').textContent = p.name;
   document.getElementById('bar-meta').textContent = `${p.phone||'—'} · Age ${p.age||'—'} · ${(p.gender||'').charAt(0).toUpperCase()}`;
   document.getElementById('patient-bar').classList.add('show');
-  document.getElementById('new-sess-btn').disabled = false;
+  document.getElementById('new-sess-btn').setAttribute('aria-disabled', 'false');   // 386b-2b M2b (F14)
   await loadSessions();
 };
 
@@ -99,7 +99,7 @@ window.clearPatient = function() {
   document.getElementById('patient-bar').classList.remove('show');
   document.getElementById('stats-section').style.display = 'none';
   document.getElementById('sessions-list').innerHTML = '';
-  document.getElementById('new-sess-btn').disabled = true;
+  document.getElementById('new-sess-btn').setAttribute('aria-disabled', 'true');   // 386b-2b M2b (F14): still clickable -- the §599 message
 };
 
 window.setDept = function(el, dept) {
@@ -166,12 +166,16 @@ function updateStats() {
 }
 
 // ── Schedule modal ────────────────────────────────────────────────────────────
+let _picker = null;   // Session 386b-2b M2
 window.openModal = function() {
-  if (!_patient) return;
+  // Session 386b-2b (§599, owner 13 Nov 2026): say so instead of doing nothing
+  if (!_patient) { _alert('error', 'Select a patient first (search above), then press + Schedule Session.'); return; }
   document.getElementById('m-date').value  = todayLocalStr();
   renderProcChips();
-  // Session 386b-2a (§540): the optional fee (own active procedure fees) -- charged to the IPD bill when the session is completed
-  loadFeeSelect(supabase, tenantId, document.getElementById('m-fee'), ['procedure'], { keep: false, register: 'kriya_kalpa' });
+  // Session 386b-2a (§540) / 386b-2b M2 (§596): the procedure IS a fee of the Kriyakalpa group (M2c: always from the list) -- charged to the IPD
+  // bill when the session is completed; the server sets the name from the fee. The fixed procedure list is replaced by it.
+  _picker = mountProcedurePicker({ supabase, tenantId, register: 'kriya_kalpa', select: document.getElementById('m-fee'),
+    hide: [document.getElementById('m-procedure')?.closest('.field')] });
   document.getElementById('sess-overlay').style.display = 'flex';
 };
 
@@ -188,9 +192,10 @@ window.renderProcChips = function() {
 window.saveSession = async function() {
   if (!_patient) return;
   const dept   = document.getElementById('m-dept').value;
-  const proc   = document.getElementById('m-procedure').value;
-  if (!proc) { alert('Select a procedure.'); return; }
-  const { error } = await supabase.from('kriyakalpa_sessions').insert({
+  const pv = _picker ? _picker.value() : { error: 'The procedure list is not loaded — reload the page.' };
+  if (pv.error) { _alert('error', pv.error); return; }
+  const proc   = pv.name;
+  const { data: saved, error } = await supabase.from('kriyakalpa_sessions').insert({
     tenant_id:        tenantId,
     patient_id:       _patient.id,
     doctor_id:        userId,
@@ -204,15 +209,17 @@ window.saveSession = async function() {
     therapist_name:   document.getElementById('m-therapist').value.trim() || null,
     // Session 386b-2a (D5, owner 12 Nov 2026): created as scheduled; the person who performs it marks it completed (✓ Complete)
     status:           'scheduled',
-    fee_structure_id: feeIdOf('m-fee'),
+    fee_structure_id: pv.feeId,          // Session 386b-2b M2: the procedure from the fee list
+    procedure_detail: pv.detail,
     medicine_used:    document.getElementById('m-medicine').value.trim() || null,
     quantity_used:    document.getElementById('m-qty').value.trim() || null,
     pre_findings:     document.getElementById('m-pre-findings').value.trim() || null,
     post_observations:document.getElementById('m-post-obs').value.trim() || null,
     adverse_events:   document.getElementById('m-adverse').value.trim() || null,
     remarks:          document.getElementById('m-remarks').value.trim() || null,
-  });
+  }).select('id').single();
   if (error) { _alert('error', safeErrorMessage(error, 'Could not save session.')); return; }
+  if (!saved?.id) { _alert('error', 'Not saved: the server did not confirm the record. Reload the page and check.'); return; }   // no false "saved" (353A)
   _alert('success', 'Session saved.');
   closeModal();
   await loadSessions();

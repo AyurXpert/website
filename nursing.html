@@ -736,6 +736,9 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
         <div id="tab-discharge" class="rp-body" hidden>
           <div style="font-size:12px;color:var(--text-muted);margin-bottom:14px">Once a doctor orders discharge, confirm every chargeable service this patient received during the stay, then lock charges to free the bed. Billing generates the final invoice from what's confirmed here.</div>
 
+          <!-- Session 386b-2b (§564, D3): the ward in-charge's list of locked admissions (ask to cancel / add after the lock) -->
+          <div id="recon-locked" hidden></div>
+
           <div id="disc-not-ready" style="text-align:center;color:var(--text-muted);padding:24px;font-size:13px">Select a patient whose discharge has been ordered by a doctor to begin reconciliation.</div>
 
           <div id="disc-recon-body" style="display:none">

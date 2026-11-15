@@ -4,7 +4,7 @@
 // only formats and groups. Layout is the shared js/modules/billing/invoiceLayout.js; this file
 // is the IPD adapter that fills its model.
 import { supabase } from '../core/db/supabaseClient.js'
-import { getCurrentRole, getCurrentSecondaryRole, getCurrentTenantId } from '../core/auth.js'
+import { getCurrentRole, getCurrentSecondaryRole, getCurrentTenantId, getCurrentProfile } from '../core/auth.js'
 import { wireDelegatedEvents } from '../utils/domEvents.js'
 import { amountInWords } from '../utils/amountInWords.js'
 import { safeErrorMessage } from '../utils/errors.js'
@@ -335,8 +335,11 @@ function buildModel(d, copy) {
 // ── Audited per-bill "Bill to" override (decision 5) -- legacy bills, admins only ──
 function renderAdminBar(d) {
   const role = getCurrentRole(), sec = getCurrentSecondaryRole();
-  const isAdmin = ['super_admin', 'dept_admin'].includes(role) || sec === 'dept_admin';
-  if (!isAdmin || d.bill.tax_regime !== 'legacy') { adminBar.hidden = true; return; }
+  // 386b-2b M2b (F22, owner 14 Nov 2026): the accountant, the finance manager, the Medical Superintendent, the Super Admin -- NOT a plain
+  // Dept Admin; pre-GST (legacy) bills only (a GST bill's recipient is fixed). The server decides (set_bill_invoice_addressee).
+  const CAN = ['super_admin', 'accountant', 'finance_manager'];
+  const canChange = CAN.includes(role) || CAN.includes(sec) || getCurrentProfile()?.designation === 'medical_superintendent';
+  if (!canChange || d.bill.tax_regime !== 'legacy') { adminBar.hidden = true; return; }
   const dflt = d.tax?.invoice_addressee === 'payer' ? 'Payer' : 'Patient';
   const cur = d.bill.invoice_addressee || '';
   const sel = el('select', { id: 'addr-sel', 'aria-label': 'Bill to' },

@@ -210,12 +210,13 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
 
       <!-- Procedure -->
       <div class="msec">Procedure Details</div>
-      <div class="mfield">
+      <div class="mfield" id="n-proc-row">
         <label>Procedure Name <span style="color:var(--red)">*</span></label>
         <input id="n-proc" type="text" placeholder="e.g. Laparotomy, Appendectomy, Haemorrhoidectomy…"/>
       </div>
       <div class="mfield">
-        <label for="n-fee">Fee (optional)</label>
+        <!-- Session 386b-2b M2 (§596): the fee list IS the procedure list (Fee Structure → Procedures) -->
+        <label for="n-fee">Procedure <span style="color:var(--red)">*</span></label>
         <select id="n-fee"><option value="">No fee chosen — billing will be asked to price it</option></select>
         <div style="font-size:11px;color:var(--text-muted,#666);margin-top:3px">For an admitted patient the fee is charged to the IPD bill when the case is completed.</div>
       </div>

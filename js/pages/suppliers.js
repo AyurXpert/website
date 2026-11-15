@@ -105,7 +105,7 @@ window.renderTable = function() {
     const nameCell = _el('td', {}, _el('strong', {}, s.name));
     if (!s.is_active) nameCell.append(_el('br'), _el('span', { style: 'font-size:11px;color:var(--text-muted)' }, 'Inactive'));
     const actions = _el('td', { style: 'white-space:nowrap' },
-      _el('button', { class: 'btn btn-outline btn-sm', 'data-onclick': 'openEdit', 'data-onclick-a0': s.id, 'aria-label': `Edit ${s.name}` }, '✏'),
+      _el('button', { class: 'btn btn-outline btn-sm', 'data-onclick': 'openEdit', 'data-onclick-a0': s.id, 'aria-label': `Edit ${s.name}` }, '✏ Edit'),
       _el('button', { class: 'btn btn-danger btn-sm', 'data-onclick': 'deactivate', 'data-onclick-a0': s.id, style: 'margin-left:4px' }, s.is_active ? 'Deactivate' : 'Activate'));
     if (_viewOnly) actions.replaceChildren();
     return _el('tr', {}, nameCell, gst,

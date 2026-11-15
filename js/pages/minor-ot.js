@@ -8,7 +8,7 @@ import { localDateStr, todayLocalStr } from '../utils/dateUtils.js';
 import { notify } from '../components/notify.js';
 import { printDocument } from '../utils/printDocument.js';
 import { identityLines, identityOrLive } from '../utils/signerIdentity.js';
-import { loadFeeSelect, feeIdOf } from '../modules/billing/feeSelect.js';   // Session 386b-2a
+import { mountProcedurePicker } from '../modules/billing/procedurePicker.js';   // Session 386b-2b M2 (§596): the fee list IS the procedure list
 
 await requireAuth(['super_admin','dept_admin','doctor','nurse']);
 initNavbar();
@@ -44,7 +44,7 @@ window.goToday = () => { _viewDate = todayLocalStr(); renderDateNav(); loadData(
 async function loadData() {
   const { data, error } = await supabase
     .from('minor_ot_procedures')
-    .select(`id,procedure_name,procedure_type,anaesthesia,procedure_date,duration_minutes,
+    .select(`id,procedure_name,procedure_detail,procedure_type,anaesthesia,procedure_date,duration_minutes,
              pre_op_diagnosis,post_op_diagnosis,operative_findings,procedure_notes,
              instruments_used,complications,post_op_instructions,follow_up_date,status,created_at,surgeon_id,surgeon_identity,
              patients(id,name,phone,age,gender),
@@ -89,7 +89,7 @@ function renderTable() {
     const aCls = {local:'anaes-local',general:'anaes-general',none:'anaes-none'}[r.anaesthesia] || 'anaes-other';
     const aLabel = {local:'Local',general:'General',spinal:'Spinal',regional:'Regional',none:'None'}[r.anaesthesia] || r.anaesthesia;
     return `<tr>
-      <td><div class="proc-name">${_esc(r.procedure_name || '—')}</div><div class="proc-type">${_typeLabel(r.procedure_type)}</div></td>
+      <td><div class="proc-name">${_esc(r.procedure_name || '—')}</div>${r.procedure_detail ? `<div class="proc-type">${_esc(r.procedure_detail)}</div>` : ''}<div class="proc-type">${_typeLabel(r.procedure_type)}</div></td>
       <td>${_esc(r.patients?.name || '—')}<div style="font-size:11px;color:var(--text-muted)">${_esc(r.patients?.phone||'')}</div></td>
       <td><span class="anaes-chip ${aCls}">${_esc(aLabel)}</span></td>
       <td>${r.duration_minutes ? r.duration_minutes + ' min' : '—'}</td>
@@ -116,8 +116,10 @@ window.openNewModal = function() {
   const fu = new Date(_viewDate); fu.setDate(fu.getDate()+7);
   document.getElementById('n-followup').value = localDateStr(fu);
   document.getElementById('n-pt-result').classList.remove('show');
-  // Session 386b-2a (§540): the optional fee (own active procedure fees) -- charged to the IPD bill of an admitted patient
-  loadFeeSelect(supabase, tenantId, document.getElementById('n-fee'), ['procedure'], { keep: false, register: 'minor_ot' });
+  // Session 386b-2a (§540) / 386b-2b M2 (§596): the procedure IS a fee of the Minor OT groups (M2c: always from the list) -- charged to the IPD
+  // bill of an admitted patient; the server sets the name from the fee
+  _picker = mountProcedurePicker({ supabase, tenantId, register: 'minor_ot', select: document.getElementById('n-fee'),
+    hide: [document.getElementById('n-proc-name-row')] });
   document.getElementById('new-overlay').style.display = 'flex';
 };
 window.closeNewModal = () => { document.getElementById('new-overlay').style.display = 'none'; };
@@ -142,12 +144,14 @@ window.searchPatient = function() {
   }, 350);
 };
 
+let _picker = null;   // Session 386b-2b M2
 window.saveProcedure = async function() {
   if (!_foundPatient)   { alert('Please search and select a patient.'); return; }
-  const pname = document.getElementById('n-proc-name').value.trim();
-  if (!pname)           { alert('Please enter the procedure name.'); return; }
+  const pv = _picker ? _picker.value() : { error: 'The procedure list is not loaded — reload the page.' };
+  if (pv.error)         { alert(pv.error); return; }
+  const pname = pv.name;
 
-  const { error } = await supabase.from('minor_ot_procedures').insert({
+  const { data: saved, error } = await supabase.from('minor_ot_procedures').insert({
     tenant_id:            tenantId,
     patient_id:           _foundPatient.id,
     surgeon_id:           userId,
@@ -164,10 +168,12 @@ window.saveProcedure = async function() {
     complications:        document.getElementById('n-complications').value.trim() || null,
     post_op_instructions: document.getElementById('n-post-instr').value.trim() || null,
     follow_up_date:       document.getElementById('n-followup').value || null,
-    fee_structure_id:     feeIdOf('n-fee'),   // Session 386b-2a
+    fee_structure_id:     pv.feeId,          // Session 386b-2a / 386b-2b M2: the procedure from the fee list
+    procedure_detail:     pv.detail,
     status:               'completed'
-  });
+  }).select('id').single();
   if (error) { alert(safeErrorMessage(error, 'Could not save procedure record.')); return; }
+  if (!saved?.id) { _alert('error', 'Not saved: the server did not confirm the record. Reload the page and check.'); return; }   // no false "saved" (353A)
   closeNewModal();
   _alert('success', 'Procedure record saved.');
   loadData();
@@ -184,6 +190,7 @@ window.viewRecord = function(id) {
   const rows = [
     ['Patient',            _esc(r.patients?.name || '—')],
     ['Phone',              _esc(r.patients?.phone || '—')],
+    ['Details',            _esc(r.procedure_detail || '—')],   // 386b-2b (F13): side / site / size, saved since M2
     ['Procedure Type',     _typeLabel(r.procedure_type)],
     ['Anaesthesia',        _esc({local:'Local',general:'General',spinal:'Spinal',regional:'Regional Block',none:'None'}[r.anaesthesia]||r.anaesthesia)],
     ['Date',               _fmtDate(r.procedure_date)],

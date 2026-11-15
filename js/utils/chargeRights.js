@@ -1,7 +1,8 @@
 // chargeRights.js -- Session 386b-1 (TODO §547 / §548 / §556, owner answers 11 Nov 2026; docs/handoff/session386b_plan.md §0a).
 // PAGE COPY of the server rules in sql/session386b1_charge_rights_pk_fee.sql -- it only decides which buttons a page shows.
 // The SERVER decides every change (cancel_ipd_stay_charge, lock_ipd_charges, the stay_charges insert policy, request_ipd_charge_*,
-// decide_ipd_charge_request, resolve_ipd_unpriced_item). Keep this file and the SQL lists equal.
+// decide_ipd_charge_request, resolve_ipd_unpriced_item, send_ipd_charge_query, change_ipd_line_fee). Keep this file and the SQL lists
+// equal (Session 386b-2b: sql/session386b2b_charge_requests_alerts.sql).
 
 // designations that never hold a charge / money power, whatever their role (server: _no_charge_power_desig)
 export const NO_CHARGE_POWER_DESIGS = ['store_keeper', 'attender', 'ot_attendant', 'cssd_aya', 'cssd_technician', 'ot_technician',
@@ -24,9 +25,34 @@ export function canWardCharge(p) {
   return _base(p) && (p.role === 'super_admin' || _has(p, ['nurse', 'nurse_manager']) || _isMs(p))
 }
 
-/** after the lock, ask to cancel / add a line (server: _ipd_charge_requester_ok) */
+// Session 386b-2b (§564): the ward in-charge designations (server: _ipd_ward_incharge_ok)
+export const WARD_INCHARGE_DESIGS = ['ward_sister', 'deputy_nursing_superintendent', 'nursing_superintendent']
+
+/** the caller is a ward in-charge: an in-charge designation + role nurse / nurse_manager (server: _ipd_ward_incharge_ok) */
+export function isWardIncharge(p) {
+  return _base(p) && (p.role === 'super_admin' || (_has(p, ['nurse', 'nurse_manager']) && WARD_INCHARGE_DESIGS.includes(p.designation)))
+}
+
+/** after the lock, ask to cancel / add a line (server: _ipd_charge_requester_ok, Session 386b-2b): the ward in-charge, the accountant /
+ *  finance manager, the MS, the Super Admin. The receptionist / cashier / Dept Admin send a query instead (canSendChargeQuery). */
 export function canRequestCharge(p) {
-  return _base(p) && (p.role === 'super_admin' || _has(p, ['receptionist', 'cashier', 'accountant', 'finance_manager', 'dept_admin']) || _isMs(p))
+  return _base(p) && (isWardIncharge(p) || _has(p, ['accountant', 'finance_manager']) || _isMs(p))
+}
+
+/** the reason types this person may give (server: _ipd_charge_reason_type_ok, D1): 'clinical' = the ward in-charge;
+ *  'billing_error' = the accountant / finance manager; the MS and the Super Admin either */
+export function chargeReasonTypes(p) {
+  if (!_base(p)) return []
+  const t = []
+  if (isWardIncharge(p) || _isMs(p)) t.push('clinical')
+  if (p.role === 'super_admin' || _has(p, ['accountant', 'finance_manager']) || _isMs(p)) t.push('billing_error')
+  return t
+}
+export const REASON_TYPE_LABEL = { clinical: 'Clinical', billing_error: 'Billing error' }
+
+/** reception / the cashier ask the ward in-charge to check a locked admission's charges (server: send_ipd_charge_query) */
+export function canSendChargeQuery(p) {
+  return _base(p) && (p.role === 'super_admin' || _has(p, ['receptionist', 'cashier']))
 }
 
 /** decide those requests; price / cancel unpriced items (server: _ipd_charge_decider_ok) */

@@ -8,6 +8,7 @@ import '../utils/versionCheck.js';   // Session 357c (TODO §108 (c)): "AyurXper
 import { escapeHtml } from '../utils/validators.js';
 import { isRuleDHod } from '../utils/hodAccess.js';   // Session 350 (TODO §231): "My Department" = rule D
 import { tenantTypeLabel } from '../utils/tenantTypeLabel.js';   // TODO §140: shared with admin.js
+import { roleLabel } from '../config/roleLabels.js';   // 386b-2b (F9)
 
 export function initNavbar() {
   const profile = getCurrentProfile();
@@ -23,6 +24,17 @@ export function initNavbar() {
   _injectWatermark();
   _injectPopup();
   _injectDutiesModal(profile, role, designation);
+  _mountBell(profile);
+}
+
+// Session 386b-2b (§554): the 🔔 alert list on every signed-in page with this navbar, for every role (the server shows each person only
+// their OWN alerts -- doctor_alerts policies). Loaded on its own (a failure never blocks the page); skipped where the page has its own bell
+// (doctor.html #btn-alerts); mountAlertBell itself refuses a second bell. One place for it (admin.js / reception.js no longer mount it).
+function _mountBell(profile) {
+  if (!profile?.id || document.getElementById('btn-alerts')) return;
+  Promise.all([import('./alertBell.js'), import('../core/db/supabaseClient.js')])
+    .then(([bell, db]) => { if (!document.getElementById('btn-alerts')) bell.mountAlertBell({ supabase: db.supabase, userId: profile.id }); })
+    .catch(() => {});
 }
 
 // ── Type sets ────────────────────────────────────────────────────────────────
@@ -107,6 +119,7 @@ function _buildGroups(role, type, secondaryRole, hasMonitoringAccess, isDeptScop
         { href:'ksharasutra.html',   label:'Kshara Sutra',    roles:CLINICAL.concat(ADMIN_ROLES),            types:HOSP, module:'ipd'        },
         { href:'anc.html',           label:'ANC Register',    roles:CLINICAL,                                types:HOSP, module:'ipd'        },   // Session 371B (Q8): not in the receptionist's menu (server access unchanged)
         { href:'kriyakalpa.html',    label:'Kriya Kalpa',     roles:CLINICAL.concat(['therapist']),          types:HOSP, module:'ipd'        },
+        { href:'physiotherapy.html', label:'Physiotherapy',   roles:CLINICAL.concat(['therapist']),          types:HOSP, module:'ipd'        },   // 386b-2b M2b (F18): was in no menu
         { href:'therapist.html',     label:'Therapy Sessions',roles:CLINICAL.concat(['therapist']),          types:PK,   module:'panchakarma'},
         // Session 205 (cont.): palha-diet.js's requireAuth() already allows 'receptionist' and
         // 'diet_staff' (diet_staff's own ROLE_HOME is this page) -- confirmed not accidental,
@@ -176,7 +189,7 @@ function _buildGroups(role, type, secondaryRole, hasMonitoringAccess, isDeptScop
         // Session 386c (owner 12 Nov 2026, option A): the GENERAL store keeper -- the general store is not in AyurXpert yet; no pharmacy page
         { href:'office.html',            label:'General Store',    roles:['store_keeper'],                                     types:null  },
         { href:'finance.html',           label:'Finance',          roles:['super_admin','dept_admin','accountant','cashier','finance_manager','receptionist'], types:null, module:'finance'  },
-        { href:'insurance-claims.html',  label:'Insurance Claims', roles:['super_admin','dept_admin','accountant'],             types:null, module:'finance'  },
+        { href:'insurance-claims.html',  label:'Insurance Claims', roles:['super_admin','dept_admin','accountant','finance_manager'], types:null, module:'finance'  },   // 386b-2b (G11): the page allows the finance manager
         { href:'hr.html',                label:'HR',               roles:['super_admin','dept_admin'],                         types:null, module:'hr'       },
         { href:'recruitment.html',       label:'Recruitment',      roles:['super_admin','dept_admin'],                         types:null, module:'hr'       },
         // Session 128 -- Deputy MS's role is plain 'doctor' (same as every other
@@ -187,8 +200,8 @@ function _buildGroups(role, type, secondaryRole, hasMonitoringAccess, isDeptScop
         { href:'mrd.html',               label:'Medical Records',  roles:['super_admin','dept_admin'],                         types:null, module:'mrd'      },
         { href:'opd-register.html',      label:'OPD Register',     roles:['super_admin','dept_admin','doctor','receptionist'],    types:null, module:'opd'      },
         { href:'ipd-register.html',      label:'IPD Register',     roles:['super_admin','dept_admin','doctor','nurse'],            types:HOSP, module:'ipd'      },
-        { href:'reports.html',           label:'Reports',          roles:['super_admin','dept_admin','accountant','lab_tech'],  types:null, module:'finance', monitoringSafe:true },
-        { href:'fee-admin.html',         label:'Fee Management',   roles:['super_admin','dept_admin','accountant'],            types:null, module:'finance'  },
+        { href:'reports.html',           label:'Reports',          roles:['super_admin','dept_admin','accountant','finance_manager','lab_tech'],  types:null, module:'finance', monitoringSafe:true },   // 386b-2b (G11)
+        { href:'fee-admin.html',         label:'Fee Management',   roles:['super_admin','dept_admin','accountant','finance_manager'], types:null, module:'finance'  },   // 386b-2b (F8): + the finance manager (the page allows her)
         { href:'lab.html',               label:'Clinical Lab',     roles:['super_admin','dept_admin','lab_tech','doctor','nurse'], types:null, module:'lab' },   // 371B (Q8): reception collects in Lab Bills
         { href:'lab-nabl.html',          label:'NABL Quality',     roles:['super_admin','dept_admin','lab_tech','doctor'],       types:null, module:'lab'      },
         { href:'ncism-compliance.html',  label:'NCISM Compliance', roles:ADMIN_ROLES,                                          types:NCISM,module:'ncism', monitoringSafe:true },
@@ -604,12 +617,7 @@ function _toggleMenu() {
   document.getElementById('ax-hamburger').classList.toggle('open');
 }
 
-function _roleLabel(role) {
-  return { super_admin:'Super Admin', dept_admin:'Dept. Admin', doctor:'Doctor', receptionist:'Receptionist',
-    pharmacist:'Pharmacist', nurse:'Nurse', nurse_manager:'Nurse Manager', lab_tech:'Lab Technician', accountant:'Accountant',
-    cashier:'Cashier', finance_manager:'Finance Manager', student:'Student', therapist:'Therapist',
-    diet_staff:'Diet / Pathya Staff', mrd_staff:'Medical Records Staff', office_staff:'Office Staff', store_keeper:'Store Keeper (General Store)' }[role] || role;
-}
+function _roleLabel(role) { return roleLabel(role); }   // 386b-2b (F9): the shared names (js/config/roleLabels.js), never a raw code
 
 // Session 113 -- role alone ("Receptionist") was showing for a Registration Clerk / Billing
 // Clerk with no indication of their actual designation. Role stays the primary/authoritative

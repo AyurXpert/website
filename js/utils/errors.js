@@ -198,6 +198,32 @@ export function safeErrorMessage(error, fallback = 'Something went wrong. Please
   if (['P0002', '42501', '22023'].includes(error?.code) && S386B2A_MSGS.some(m => error?.message?.startsWith(m))) {
     return error.message;
   }
+  // Session 386b-2b (M1, §564 / §561 / D6): who asks after the lock, the reason type, the query, Change fee from a bill line -- plain, schema-free
+  const S386B2B_MSGS = ['Only the ward in-charge, the accountant, the finance manager, the Medical Superintendent or the Super Admin can ask',
+    'Choose the reason type you may give', 'Only reception or the cashier sends a charge query',
+    'A query is sent only while the charges are locked', 'Write the query (5 to 300 characters', 'This organisation has no active ward in-charge',
+    'Only a procedure or imaging line posted by the server', 'The record of this line was not found', 'Charge not found', 'Admission not found',
+    'A request is needed only after the charges are locked', 'This charge is ', 'Give a reason (5 to 300 characters',
+    'A cancellation of this charge is already waiting', 'Enter a description (2 to 200 characters', 'The quantity must be more than 0',
+    'The price must be more than 0', 'Choose an active, approved fee of this organisation'];
+  if (['P0002', '42501', '22023'].includes(error?.code) && S386B2B_MSGS.some(m => error?.message?.startsWith(m))) {
+    return error.message;
+  }
+  // Session 386b-2b M2 (§596): procedure groups, the Fee committee, import, auto-classify, "Not in list" -- plain, schema-free
+  const S386B2B2_MSGS = ['Nothing was changed: ', 'Choose the procedure from the list. "Not in list" is switched off', '"Not in list" is switched off', "Only the organisation's active Super Admin can switch", 'Choose on or off', 'Only the accountant, the finance manager, the Medical Superintendent or the Super Admin can change who a bill', 'A physiotherapy session dated after today', 'Only a Physiotherapist, the Medical Superintendent', "A fee's group is added or removed", 'A procedure group is never deleted',
+    "A procedure group's organisation", 'A request to add a procedure is decided in Fee Structure', 'A request to add this procedure is already waiting',
+    'A standard procedure group', 'A ticked proposal', 'At most 500 rows per import', 'Choose active or not', 'Choose approve or reject',
+    "Choose at least one register where this section's procedures appear", 'Choose the department of this section', 'Give the procedure a name',
+    "Give the procedure's name", 'Give the reason for deactivating this section', 'Give the reason for rejecting', 'Give the section a name',
+    'Only the Fee committee', 'Only the doctor, nurse or therapist who records the procedure', "Only the organisation's active Super Admin",
+    'Procedure group not found', 'Request not found', 'That department is not of this organisation', 'That procedure group is not shown on this register',
+    'The AYUSH code', 'The Register is replaced by procedure groups', 'The details must be at most 200 characters',
+    'The fee and the group must be a procedure fee', 'The file has ', 'The note must be at most 300 characters',
+    'The procedure group of this request is no longer active', 'This procedure is already in the fee list', 'This record already has its procedure',
+    'This request is already decided', 'This section is not active', 'Tick 1 to ', 'Unknown record', 'You cannot decide your own request'];
+  if (['P0002', '42501', '22023'].includes(error?.code) && S386B2B2_MSGS.some(m => error?.message?.startsWith(m))) {
+    return error.message;
+  }
   // Session 386c (owner 4a): the MRP rule -- plain, schema-free
   const S386C_MSGS = ['The MRP is changed with "Change MRP"', 'Only the Chief Pharmacist, an accountant or the finance manager can change an MRP',
     'That stock row is not in this organisation', 'Enter the new MRP in rupees', 'The MRP is already', 'Give the reason for the new MRP'];

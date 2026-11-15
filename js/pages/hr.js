@@ -9,6 +9,7 @@ import { localDateStr, todayLocalStr, istMonthStr } from '../utils/dateUtils.js'
 import { notify } from '../components/notify.js';
 import { canActOnStaff } from '../utils/staffActions.js';   // Session 351 (TODO §233): who sees the account actions (display only)
 import { loadLoginEmails, mountPhoneEditor, mountEmailChanger, BTN_OUT } from '../modules/staff/staffContacts.js';   // Session 366 (plan §0.1)
+import { roleLabel } from '../config/roleLabels.js';   // 386b-2b (F9)
 // Session 352: the statuses "Reactivate Staff" applies to (never an active or a relieved account -- relieved: admin.html Relieved Staff)
 const _REACTIVATABLE = ['suspended', 'on_leave', 'inactive', 'blocked'];
 
@@ -909,11 +910,7 @@ function _fmtD(s) {
   if (!s) return '—';
   return new Date(s+'T00:00:00').toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'});
 }
-function _roleLabel(r) {
-  return {super_admin:'Super Admin',dept_admin:'Dept Admin',doctor:'Doctor',receptionist:'Receptionist',
-    pharmacist:'Pharmacist',nurse:'Nurse',nurse_manager:'Nurse Manager',lab_tech:'Lab Tech',accountant:'Accountant',
-    therapist:'Therapist',student:'Student'}[r] || (r||'—');
-}
+function _roleLabel(r) { return roleLabel(r); }   // 386b-2b (F9): the shared names (js/config/roleLabels.js), never a raw code
 function _statusLabel(s) {
   return {
     active:'Active', pending_approval:'Pending', approved:'Approved',
@@ -1201,7 +1198,7 @@ window.openCredModal = async function(credId) {
   // Load staff for selector
   const { data: staff } = await supabase.from('profiles').select('id,full_name,role').eq('tenant_id',tenantId).eq('is_active',true).in('role',['doctor','trainee_doctor','pharmacist','nurse','therapist','lab_tech']);
   const sel = document.getElementById('cred-profile-sel');
-  sel.innerHTML = '<option value="">— Select staff member —</option>' + (staff||[]).map(s=>`<option value="${s.id}" data-role="${_esc(s.role)}">${_esc(s.full_name)} (${_esc(s.role)})</option>`).join('');
+  sel.innerHTML = '<option value="">— Select staff member —</option>' + (staff||[]).map(s=>`<option value="${s.id}" data-role="${_esc(s.role)}">${_esc(s.full_name)} (${_esc(roleLabel(s.role))})</option>`).join('');
   sel.onchange = () => _loadHprForProfile(sel.value);
   document.getElementById('cred-hpr-id').value = '';
   if (credId) {

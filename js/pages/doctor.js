@@ -2040,9 +2040,17 @@ async function _loadAdmProcedureOptions() {
   // column is called `label`, not `description` -- this select was 400ing on every
   // load, silently leaving the procedure dropdown empty.
   const { data } = await supabase.from('fee_structures')
-    .select('fee_type, label, amount, gst_percent, promo_price, promo_valid_until')
+    .select('id, fee_type, label, amount, gst_percent, promo_price, promo_valid_until')
     .eq('tenant_id', tenantId).eq('category', 'procedure').eq('is_active', true).order('fee_type');
   _admProcedures = data || [];
+  // Session 386b-2b M2 (§596 g): the procedures of the doctor's own department's sections first, then the rest (same list, same order)
+  const myDepts = new Set([profile?.department_id, profile?.scope_department_id].filter(Boolean));
+  if (myDepts.size && _admProcedures.length) {
+    const { data: gl } = await supabase.from('fee_procedure_groups').select('fee_id, procedure_groups(department_id, is_active)')
+      .eq('tenant_id', tenantId).range(0, 9999);
+    const mine = new Set((gl || []).filter(r => r.procedure_groups?.is_active && myDepts.has(r.procedure_groups.department_id)).map(r => r.fee_id));
+    if (mine.size) _admProcedures = [..._admProcedures.filter(p => mine.has(p.id)), ..._admProcedures.filter(p => !mine.has(p.id))];
+  }
   const sel = document.getElementById('adm-proc-select');
   if (sel) sel.innerHTML = '<option value="">— Select a procedure —</option>' +
     _admProcedures.map(p => `<option value="${_esc(p.fee_type)}">${_esc(p.label || p.fee_type)} — ₹${getEffectivePrice(p).toLocaleString('en-IN')}</option>`).join('');

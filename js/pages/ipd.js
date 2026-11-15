@@ -20,10 +20,12 @@ import { creditNoteLinks, creditNotesForBills, payoutBox, PAYOUT_ROLES } from '.
 import { canOfferCancel, renderCancelBill, renderCancelledBills } from '../modules/ipd/ipdBillCancel.js';
 import { abdmOn } from '../modules/abdm/comingSoon.js';   // Session 379a
 import { exitPowers, exitOpen, exitTimeBounds, exitTimeProblem } from '../modules/ipd/ipdExit.js';   // Session 381 (§471)
-import { loadOpenChargeIssues, renderOpenChargeIssues, askInPage } from '../modules/billing/unpricedItems.js';   // Session 386a (§538)
-import { loadChargeRequests, renderChargeRequests } from '../modules/billing/chargeRequests.js';   // Session 386b-1 (§547)
-import { canRequestCharge } from '../utils/chargeRights.js';   // Session 386b-1 (§547)
-import { loadFeeSelect, feeIdOf } from '../modules/billing/feeSelect.js';   // Session 386b-2a (§540)
+import { loadOpenChargeIssues, renderOpenChargeIssues } from '../modules/billing/unpricedItems.js';   // Session 386a (§538)
+import { loadChargeRequests, renderChargeRequests, askChargeReason, askChargeQuery } from '../modules/billing/chargeRequests.js';   // Session 386b-1 (§547), 386b-2b (§564)
+import { canRequestCharge, canDecideCharge, canSendChargeQuery, isServerPosted } from '../utils/chargeRights.js';   // Session 386b-1 (§547), 386b-2b
+import { el as _el } from '../modules/billing/invoiceLayout.js';   // Session 386b-2b: the Change fee panel (DOM nodes + textContent)
+import { feeIdOf, fillFeeSelect } from '../modules/billing/feeSelect.js';   // Session 386b-2a (§540)
+import { mountProcedurePicker } from '../modules/billing/procedurePicker.js';   // Session 386b-2b M2 (§596): the fee list IS the procedure list
 
 /*
   SQL to run in Supabase (one time) before using this page:
@@ -521,10 +523,22 @@ async function _loadEmergencyConsultants(deptId) {
 }
 
 // ── Filter + render table ─────────────────────────────────────────────────────
+// Session 386b-2b M2c (H10, owner 15 Nov 2026): the status filter opens on "All Statuses" and remembers the last choice on this device
+// (a per-viewer convenience only; storage may be unavailable -- then the default stands). In "All Statuses" the current admissions come
+// first, then those awaiting billing / release, then the rest (each newest first, as loaded).
+const IPD_STATUS_KEY = 'ax_ipd_status_filter';
+const _IPD_STATUS_RANK = s => (['admitted', 'clinically_discharged'].includes(s) ? 0 : ['charges_locked', 'bill_generated', 'paid_cleared'].includes(s) ? 1 : 2);
+(function _restoreIpdStatus() {
+  const sel = document.getElementById('filter-status');
+  let v = null;
+  try { v = window.localStorage.getItem(IPD_STATUS_KEY); } catch (e) { v = null; }
+  if (sel && v != null && [...sel.options].some(o => o.value === v)) sel.value = v;
+})();
 window.applyFilters = function() {
   const search     = document.getElementById('filter-search').value.toLowerCase();
   const deptFilter = document.getElementById('filter-dept').value;
   const statFilter = document.getElementById('filter-status').value;
+  try { window.localStorage.setItem(IPD_STATUS_KEY, statFilter); } catch (e) { /* storage unavailable: nothing remembered */ }
 
   // Session 114 -- status (lifecycle) and disposition (reason) are split.
   // 'admitted' spans both admitted and clinically_discharged; 'discharged'
@@ -540,6 +554,7 @@ window.applyFilters = function() {
   else if (statFilter)                  rows = rows.filter(a => a.disposition === statFilter);
   if (deptFilter) rows = rows.filter(a => a.departments?.id === deptFilter);
   if (search) rows = rows.filter(a => (a.patients?.name || '').toLowerCase().includes(search));
+  if (!statFilter) rows = rows.map((a, i) => [a, i]).sort((x, y) => _IPD_STATUS_RANK(x[0].status) - _IPD_STATUS_RANK(y[0].status) || x[1] - y[1]).map(x => x[0]);
 
   renderTable(rows);
 };
@@ -569,6 +584,9 @@ function renderTable(rows) {
     // Session 381 (§471): an exit can also be recorded after discharge was advised and until MRD's release
     const canRecordExit = exitOpen(a) && (_exitPowers.lamaTransfer || _exitPowers.deceased);
     const canGenerateBill = a.status === 'charges_locked' && BILLING_ROLES.includes(myRole);
+    // Session 386b-2b (§583 / O1 / D6): the billing deciders (accountant, finance manager, MS, Super Admin -- primary or second role) also
+    // open the 💰 window before the lock (and the MS after it) in "decide only" mode: unpriced items, Change fee, requests -- never the bill
+    const canDecideOnly = !canGenerateBill && canDecideCharge(myProfile) && ['admitted', 'clinically_discharged', 'charges_locked'].includes(a.status);
     const admittedHrsAgo = a.admitted_at ? (Date.now() - new Date(a.admitted_at)) / 3600000 : 999;
     const needsCarePlan  = canDischarge && !_carePlanAdmIds.has(a.id) && admittedHrsAgo < 48;
     const pkPlan          = _pkCarePlanByAdmId.get(a.id);
@@ -607,6 +625,7 @@ function renderTable(rows) {
           ${canOrderDischarge || (canDischarge && canRecordExit) ? `<button class="icon-btn danger" data-onclick="openDischargeDrawer" data-onclick-a0="${a.id}" title="Order Discharge / Exit" aria-label="Order discharge or record an exit">&#10006;</button>` : ''}
           ${!canDischarge && canRecordExit ? `<button class="icon-btn danger" data-onclick="openDischargeDrawer" data-onclick-a0="${a.id}" title="Record LAMA / transfer / death" aria-label="Record LAMA, transfer or death" style="font-size:10px;font-weight:700">Exit</button>` : ''}
           ${canGenerateBill ? `<button class="icon-btn" data-onclick="openGenerateBillDrawer" data-onclick-a0="${a.id}" title="Generate IPD Bill" style="font-size:10px;font-weight:700;color:#1a4a2e;border-color:#b8ddc6;background:#e8f5ee">💰</button>` : ''}
+          ${canDecideOnly ? `<button class="icon-btn" data-onclick="openGenerateBillDrawer" data-onclick-a0="${a.id}" title="Charges — decide only (unpriced items, Change fee, requests; the bill is made after the lock)" aria-label="Charges — decide only" style="font-size:10px;font-weight:700;color:#7a4a00;border-color:#e8d08a;background:#fffdf0">💰</button>` : ''}
           ${BILLING_ROLES.includes(myRole) ? `<button class="icon-btn" data-onclick="openAccountDrawer" data-onclick-a0="${a.id}" title="Account — deposits, payments, receipts" style="font-size:11px">💳</button>` : ''}
           ${BILLING_ROLES.includes(myRole) && a.payer_type && a.payer_type !== 'self_pay' ? `<button class="icon-btn" data-onclick="openInsuranceDrawer" data-onclick-a0="${a.id}" title="Insurance — pre-auth, enhancements, final approval (${_esc(a.payer_type)})" style="font-size:11px">🏥</button>` : ''}
         </div>
@@ -1588,9 +1607,35 @@ function _admIsGstRegime(adm) {
   return localDateStr(new Date(adm.admitted_at)) >= _taxSettings.gst_go_live_date;
 }
 
+// Session 386b-2b (§583 / O1 / D6): "decide only" -- a billing decider before the lock, or a decider who does not make bills (the MS) after
+// it. Shows the lines, the unpriced items (choose a fee / cancel), Change fee on server-posted procedure / imaging lines, the requests.
+// Never Generate Bill, never + Add, never the payer.
+let _billDecideOnly = false;
+function _billModeFor(adm) {
+  return !(adm.status === 'charges_locked' && BILLING_ROLES.includes(myRole));
+}
+
 window.openGenerateBillDrawer = async function(admId) {
   const adm = _admissions.find(a => a.id === admId);
   if (!adm) return;
+  _billDecideOnly = _billModeFor(adm);
+  if (_billDecideOnly && !canDecideCharge(myProfile)) return;
+  document.getElementById('bill-drawer-title').textContent = _billDecideOnly ? 'Charges — decide only (bill after the lock)' : 'Generate IPD Bill';
+  const modeNote = document.getElementById('bill-mode-note');
+  modeNote.style.display = _billDecideOnly ? '' : 'none';
+  modeNote.textContent = _billDecideOnly
+    ? (adm.status === 'charges_locked'
+        ? 'Decide only: approve or reject the requests and price the unpriced items here. Billing staff make the bill.'
+        : 'Decide only: the charges are not locked yet. Price or cancel the unpriced items and correct a procedure / imaging fee here. The bill is made after the ward locks the charges.')
+    : '';
+  document.getElementById('bill-payer-field').style.display = _billDecideOnly ? 'none' : '';
+  document.getElementById('btn-generate-bill').style.display = _billDecideOnly ? 'none' : '';
+  document.getElementById('bill-total-label').textContent = _billDecideOnly ? 'Lines so far (room charges are added on the bill)' : 'Bill Total (incl. GST)';
+  // Session 386b-2b (§564, N2): reception / the cashier send a query to the ward in-charge (they no longer ask for a change themselves)
+  document.getElementById('bill-query-block').style.display =
+    (adm.status === 'charges_locked' && canSendChargeQuery(myProfile) && !canRequestCharge(myProfile)) ? '' : 'none';
+  document.getElementById('bill-query').replaceChildren();
+  document.getElementById('bill-ask').replaceChildren();
 
   document.getElementById('bill-adm-id').value = admId;
   const pt   = adm.patients || {};
@@ -1625,6 +1670,17 @@ window.closeGenerateBillDrawer = function() {
 async function _refreshBillPreview(adm) {
   _billRegime = _admIsGstRegime(adm) ? 'gst_v1' : 'legacy';
   const notice = document.getElementById('bill-gst-notice');
+
+  // Session 386b-2b: decide only -- the plain lines (the bill preview needs the lock and a billing role), the unpriced items, the requests
+  if (_billDecideOnly) {
+    if (notice) notice.style.display = 'none';
+    document.getElementById('bill-room-tariff').textContent = 'Room charges are calculated when the bill is made.';
+    _billTariff = null;
+    await _loadBillCharges(adm.id);
+    await _renderBillUnpriced(adm);
+    await _renderBillRequests(adm);
+    return;
+  }
 
   if (_billRegime === 'gst_v1') {
     if (notice) notice.style.display = '';
@@ -1664,12 +1720,33 @@ async function _refreshBillPreview(adm) {
 // manager / MS / Super Admin decides (never the person who asked). The server refuses the bill while one is open; it is decided here.
 async function _renderBillRequests(adm) {
   const add = document.getElementById('bc-add-block');
-  if (add) add.hidden = !canRequestCharge(myProfile);
+  if (add) add.style.display = (!_billDecideOnly && adm.status === 'charges_locked' && canRequestCharge(myProfile)) ? '' : 'none';
   const { requests, error } = await loadChargeRequests(supabase, adm.id);
   const clear = renderChargeRequests(document.getElementById('bill-requests'), {
     supabase, profile: myProfile, requests, error, onChanged: () => _refreshBillPreview(adm),
   });
   if (!clear) document.getElementById('btn-generate-bill').disabled = true;
+}
+
+// Session 386b-2b: the buttons of one line (the server re-checks every one). Before the lock (decide only): Change fee on a server-posted
+// procedure / imaging line. After the lock: Ask to cancel (the ward in-charge / deciders, with a reason type) or, for reception / the
+// cashier, Ask the ward in-charge about this line. chargeId = the ipd_stay_charges id.
+function _billLineButtons(chargeId, source, admStatus) {
+  if (!chargeId) return '';
+  const b = [];
+  const src = String(source || '').toLowerCase();
+  if (admStatus !== 'charges_locked') {
+    if (_billDecideOnly && canDecideCharge(myProfile) && isServerPosted({ source: src }) && ['procedure', 'imaging'].includes(src)) {
+      b.push(`<button class="btn btn-secondary btn-sm" data-onclick="changeBillLineFee" data-onclick-a0="${_esc(chargeId)}" data-onclick-a1="${_esc(src)}" title="Change the fee of this procedure / imaging line (reason required; the line is re-posted)" style="font-size:11px;min-height:36px">Change fee</button>`);
+    }
+    return b.join('');
+  }
+  if (canRequestCharge(myProfile)) {
+    b.push(`<button class="btn btn-secondary btn-sm" data-onclick="voidBillCharge" data-onclick-a0="${_esc(chargeId)}" title="Ask to cancel this charge (reason type + reason; decided by another person: the accountant, finance manager, MS or Super Admin)" style="font-size:11px;min-height:36px">Ask to cancel</button>`);
+  } else if (canSendChargeQuery(myProfile)) {
+    b.push(`<button class="btn btn-secondary btn-sm" data-onclick="askWardInchargeLine" data-onclick-a0="${_esc(chargeId)}" title="Ask the ward in-charge to check this line" style="font-size:11px;min-height:36px">Ask the ward in-charge</button>`);
+  }
+  return b.join('');
 }
 
 // Session 386a (TODO §538): items the server could not price (a Panchakarma session completed with no fee for its AYUSH code). The
@@ -1707,6 +1784,12 @@ function _gstLineTaxNote(l) {
     : (TAX_CAT_LABEL[l.tax_category] || l.tax_category || '—');
 }
 
+// Session 386b-2b (O2, §558): a GST preview line made from a stay charge carries its id in tax_rule_snapshot.stay_charge_id (room lines do not)
+function _gstStayChargeId(l) {
+  const id = l?.tax_rule_snapshot?.stay_charge_id;
+  return l?.source_type !== 'room_day' && typeof id === 'string' && /^[0-9a-f-]{36}$/i.test(id) ? id : null;
+}
+
 function _renderGstPreview(data) {
   const notice = document.getElementById('bill-gst-notice');
   const warnings = (data.warnings || []).map(w => `<div style="color:#8a6d00;font-size:11.5px">⚠ ${_esc(w)}</div>`).join('');
@@ -1729,11 +1812,12 @@ function _renderGstPreview(data) {
   const el = document.getElementById('bill-charges-list');
   el.innerHTML = otherLines.length
     ? otherLines.map(l => `
-      <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;border:1px solid var(--border);border-radius:6px;margin-bottom:5px;background:#fafff7">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--border);border-radius:6px;margin-bottom:5px;background:#fafff7">
         <div>
           <div style="font-size:12.5px;font-weight:600">${_esc(l.description)}</div>
           <div style="font-size:10.5px;color:var(--text-muted)">${l.quantity} × ₹${Number(l.price||0).toLocaleString('en-IN')} · ${_gstLineTaxNote(l)} = ₹${Number(l.line_total||0).toLocaleString('en-IN')}</div>
         </div>
+        ${_billLineButtons(_gstStayChargeId(l), 'gst_line', 'charges_locked')}
       </div>`).join('')
     : '<div style="text-align:center;color:var(--text-muted);padding:12px;font-size:12.5px">No stay charges recorded.</div>';
 
@@ -1760,10 +1844,15 @@ function _renderBillCharges() {
           <div style="font-size:12.5px;font-weight:600">${_esc(r.description)}</div>
           <div style="font-size:10.5px;color:var(--text-muted)">${r.quantity} × ₹${Number(r.unit_price).toLocaleString('en-IN')} = ₹${Number(r.amount).toLocaleString('en-IN')}</div>
         </div>
-        ${canRequestCharge(myProfile) ? `<button class="btn btn-secondary btn-sm" data-onclick="voidBillCharge" data-onclick-a0="${r.id}" title="Ask to cancel this charge (reason required; decided by the accountant, finance manager, MS or Super Admin)" style="font-size:11px;min-height:32px">Ask to cancel</button>` : ''}
+        ${_billLineButtons(r.id, r.source, _billAdmStatus())}
       </div>`).join('')
     : '<div style="text-align:center;color:var(--text-muted);padding:12px;font-size:12.5px">No stay charges recorded.</div>';
   _updateBillGrandTotal();
+}
+
+function _billAdmStatus() {
+  const admId = document.getElementById('bill-adm-id').value;
+  return _admissions.find(a => a.id === admId)?.status || null;
 }
 
 function _updateBillGrandTotal() {
@@ -1785,10 +1874,11 @@ window.addBillCharge = async function() {
   // (found live, Patient 6/KAY-95's stray "1000" charge) without being overly strict.
   if (/^\d+(\.\d+)?$/.test(description)) { _alert('error','Description looks like a number, not a description — did you mean to type that in Unit Price instead?'); return; }
   // Session 386b-1 (§547, owner Q11): the charges are locked -- a new line is a REQUEST (reason), added once another person approves it
-  const reason = await askInPage(document.getElementById('bill-ask'), { title: 'Reason for adding this line after the lock (the accountant, finance manager, MS or Super Admin decides it)', needReason: true, okLabel: 'Send the request' });
-  if (reason == null) return;
+  // Session 386b-2b (§564, D1): + the reason type (the ward in-charge: clinical; the accountant / finance manager: billing error)
+  const ask = await askChargeReason(document.getElementById('bill-ask'), myProfile, { title: 'Reason for adding this line after the lock (another person decides it)' });
+  if (ask == null) return;
   const { error } = await supabase.rpc('request_ipd_charge_add', {
-    p_admission_id: admId, p_description: description, p_quantity: qty, p_unit_price: price, p_reason: reason,
+    p_admission_id: admId, p_description: description, p_quantity: qty, p_unit_price: price, p_reason_type: ask.type, p_reason: ask.reason,
   });
   if (error) { _alert('error', safeErrorMessage(error, 'Could not send the request.')); return; }
   document.getElementById('bc-desc').value  = '';
@@ -1803,13 +1893,59 @@ window.voidBillCharge = async function(chargeId) {
   const admId = document.getElementById('bill-adm-id').value;
   // Session 305: cancel with a reason (who/when/why recorded), never a silent void/delete.
   // Session 386b-1 (§547, owner Q10): the charges are locked -- a cancellation is a REQUEST, decided by another person; the bill waits
-  const reason = await askInPage(document.getElementById('bill-ask'), { title: 'Reason for cancelling this charge (the accountant, finance manager, MS or Super Admin decides it)', needReason: true, okLabel: 'Send the request' });
-  if (reason == null) return;
-  const { error } = await supabase.rpc('request_ipd_charge_cancel', { p_charge_id: chargeId, p_reason: reason });
+  const ask = await askChargeReason(document.getElementById('bill-ask'), myProfile, { title: 'Reason for cancelling this charge (another person decides it)' });
+  if (ask == null) return;
+  const { error } = await supabase.rpc('request_ipd_charge_cancel', { p_charge_id: chargeId, p_reason_type: ask.type, p_reason: ask.reason });
   if (error) { _alert('error', safeErrorMessage(error, 'Could not send the request.')); return; }
   _alert('success', 'Request sent — the charge is cancelled when it is approved. The bill waits for the decision.');
   const adm = _admissions.find(a => a.id === admId);
   if (adm) await _refreshBillPreview(adm);
+};
+
+// Session 386b-2b (§564, N2): reception / the cashier ask the ward in-charge (the whole admission, or one line)
+window.askWardIncharge = async function() {
+  const admId = document.getElementById('bill-adm-id').value;
+  await askChargeQuery(document.getElementById('bill-query'), { supabase, admissionId: admId });
+};
+window.askWardInchargeLine = async function(chargeId) {
+  const admId = document.getElementById('bill-adm-id').value;
+  const line = _billCharges.find(c => c.id === chargeId);
+  await askChargeQuery(document.getElementById('bill-ask'), { supabase, admissionId: admId, chargeId, label: line?.description || 'this line' });
+};
+
+// Session 386b-2b (D6): Change fee on a server-posted procedure / imaging line, before the lock (change_ipd_line_fee -> change_procedure_fee:
+// deciders only, the register's own fees, a reason, audited; the line is re-posted from the new fee). An in-page panel, no native prompt.
+window.changeBillLineFee = async function(chargeId, source) {
+  const admId = document.getElementById('bill-adm-id').value;
+  const anchor = document.getElementById('bill-ask');
+  const line = _billCharges.find(c => c.id === chargeId);
+  anchor.replaceChildren();
+  const sel = _el('select', { 'aria-label': 'New fee', style: 'min-height:36px;max-width:100%' });
+  const reason = _el('input', { type: 'text', maxlength: '300', 'aria-label': 'Reason', placeholder: 'Reason (at least 5 characters)', style: 'min-height:36px;flex:1;min-width:180px' });
+  const msg = _el('div', { style: 'font-size:11.5px', role: 'status' });
+  const ok = _el('button', { type: 'button', class: 'btn btn-primary btn-sm', style: 'min-height:36px' }, 'Change fee');
+  const no = _el('button', { type: 'button', class: 'btn btn-secondary btn-sm', style: 'min-height:36px' }, 'Back');
+  anchor.appendChild(_el('div', { role: 'dialog', 'aria-label': 'Change fee', style: 'padding:10px 12px;border:1px solid var(--gold, #c9902a);border-left-width:4px;border-radius:6px;background:#fff8e8;font-size:12.5px;margin:6px 0' },
+    _el('div', { style: 'font-weight:600;margin-bottom:6px' }, 'Change the fee of: ' + (line?.description || 'this line')),
+    _el('div', { style: 'display:flex;flex-wrap:wrap;gap:6px;align-items:center' }, sel, reason, ok, no), msg));
+  // Session 386b-2b M2 (owner M1 review): only the fees the server accepts for THIS line's record (its procedure group / radiology)
+  const { data: choices, error: chErr } = await supabase.rpc('change_ipd_line_fee_choices', { p_charge_id: chargeId });
+  if (chErr) { msg.textContent = safeErrorMessage(chErr, 'Could not load the fees for this line.'); }
+  fillFeeSelect(sel, chErr ? [] : (choices || []), { keep: false, emptyText: 'Choose the new fee…' });
+  no.addEventListener('click', () => anchor.replaceChildren());
+  ok.addEventListener('click', async () => {
+    const r = reason.value.trim();
+    if (!sel.value) { msg.textContent = 'Choose the new fee.'; return; }
+    if (r.length < 5) { msg.textContent = 'Give a reason of at least 5 characters.'; return; }
+    ok.disabled = no.disabled = true;
+    msg.textContent = 'Saving…';
+    const { error } = await supabase.rpc('change_ipd_line_fee', { p_charge_id: chargeId, p_fee: sel.value, p_reason: r });
+    if (error) { msg.textContent = safeErrorMessage(error, 'Could not change the fee.'); ok.disabled = no.disabled = false; return; }
+    anchor.replaceChildren();
+    _alert('success', 'Fee changed — the line was re-posted from the new fee.');
+    const adm = _admissions.find(a => a.id === admId);
+    if (adm) await _refreshBillPreview(adm);
+  });
 };
 
 window.confirmGenerateBill = async function() {
@@ -2936,10 +3072,19 @@ window.openOtDrawer = async function(admId) {
 
   // Session 386b-2a (§540, Q7): the optional fee (own active procedure fees) and the patient's Major OT case. An operation on
   // the day of a Major OT case names that case (then Major OT bills it); the server refuses an unlinked one on that day.
-  await Promise.all([
-    loadFeeSelect(supabase, tenantId, document.getElementById('ot-fee'), ['procedure'], { keep: false, register: 'ipd_ot_procedure' }),
-    _loadOtCaseChoices(),
-  ]);
+  // Session 386b-2b M2 (§596): the procedure IS a fee of the Major OT / Minor OT groups (M2c: always from the list); the server sets its name
+  _otPicker = mountProcedurePicker({ supabase, tenantId, register: 'ipd_ot_procedure', select: document.getElementById('ot-fee'),
+    hide: [document.getElementById('ot-proc-name-row')] });
+  if (_otPicker && !_otPickerWired) {
+    // the NCISM §47(b)(vii) Uttarabasti note follows the chosen procedure (its name), as it followed the typed name
+    document.getElementById('ot-fee').addEventListener('change', () => {
+      const v = _otPicker.value();
+      document.getElementById('ot-proc-name').value = v.name || '';
+      window.onOtProcChange();
+    });
+    _otPickerWired = true;
+  }
+  await Promise.all([_otPicker?.ready, _loadOtCaseChoices()]);
   await _loadOtProcedures();
   document.getElementById('ot-overlay').classList.add('open');
 };
@@ -3007,8 +3152,11 @@ window.onOtProcChange = function() {
   document.getElementById('ot-uttarabasti-note').style.display = isUttarabasti ? 'block' : 'none';
 };
 
+let _otPicker = null, _otPickerWired = false;   // Session 386b-2b M2
 window.saveOtProcedure = async function() {
-  const name    = document.getElementById('ot-proc-name').value.trim();
+  const pv = _otPicker ? _otPicker.value() : { error: 'The procedure list is not loaded — reopen the drawer.' };
+  if (pv.error) { _alert('error', pv.error); return; }
+  const name    = pv.name;
   const date    = document.getElementById('ot-date').value;
   const time    = document.getElementById('ot-time').value;
   const surgeon = document.getElementById('ot-surgeon').value;
@@ -3032,7 +3180,7 @@ window.saveOtProcedure = async function() {
   const btn = document.getElementById('btn-ot-save');
   btn.disabled = true; btn.textContent = 'Saving…';
 
-  const { error } = await supabase.from('ot_procedures').insert({
+  const { data: saved, error } = await supabase.from('ot_procedures').insert({
     tenant_id:              tenantId,
     patient_id:             _otPatientId,
     ipd_admission_id:       _otAdmId,
@@ -3047,8 +3195,9 @@ window.saveOtProcedure = async function() {
     pre_op_notes:           preop || null,
     post_op_notes:          postop || null,
     ot_case_id:             feeIdOf('ot-case'),   // Session 386b-2a (Q7): linked to its Major OT case -> never charged here
-    fee_structure_id:       feeIdOf('ot-fee'),    // Session 386b-2a (§540): charged to the IPD bill when completed
-  });
+    fee_structure_id:       pv.feeId,             // Session 386b-2a (§540) / 386b-2b M2: the procedure from the fee list
+    procedure_detail:       pv.detail,
+  }).select('id').single();
 
   btn.disabled = false; btn.textContent = 'Save Procedure';
   if (error) { _alert('error', safeErrorMessage(error, 'Save failed. Please try again.')); return; }
@@ -3061,9 +3210,10 @@ window.saveOtProcedure = async function() {
   document.getElementById('ot-safety-checklist').checked = false;
   document.getElementById('ot-aseptic-confirmed').checked = false;
   document.getElementById('ot-uttarabasti-note').style.display = 'none';
-  document.getElementById('ot-fee').value = '';
+  if (_otPicker) _otPicker.reset();
   document.getElementById('ot-case').value = '';
 
+  if (!saved?.id) { _alert('error', 'Not saved: the server did not confirm the record. Reload the page and check.'); return; }   // no false "saved" (353A)
   _alert('success', 'OT procedure saved.');
   await _loadOtProcedures();
 };

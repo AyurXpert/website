@@ -36,6 +36,7 @@ export const DESIGS = [
   {v:'pk_incharge',                 l:'Panchakarma In-charge',           cat:'Therapy',        lv:1, d:'Heads the Panchakarma therapy section — protocol adherence and therapist rostering (Sch XX/33).'},
   {v:'panchakarma_cook',            l:'Panchakarma Preparation-Room Cook', cat:'Therapy',      lv:4, d:'Prepares medicated oils, ghees and decoctions used in Panchakarma therapy (pre-2026-27 Sch XX/39, optional — no line in the 2026-27 replacement) — distinct from the Pathya-Diet kitchen.'},
   {v:'senior_therapist',            l:'Senior Therapist',                cat:'Therapy',        lv:2, d:'Experienced therapist leading complex Panchakarma/Kriyakalpa procedures (Sch XX/33 — Kriyakalpa no longer in Sch XX since the 2026-27 circular).'},
+  {v:'physiotherapist',             l:'Physiotherapist',                 cat:'Therapy',        lv:2, d:'Gives and completes physiotherapy sessions; a completed IPD session is charged by the server (role Therapist required; Session 386b-2b).'},
   {v:'therapist',                   l:'Therapist',                       cat:'Therapy',        lv:3, d:'Delivers Panchakarma, Kriyakalpa or Physiotherapy procedures under supervision (Sch XX/33, XX/40 — Kriyakalpa no longer in Sch XX since the 2026-27 circular).'},
   {v:'therapy_assistant',           l:'Therapy Assistant / Attender',    cat:'Therapy',        lv:4, d:'Supports therapists with procedure setup, patient positioning and cleanup.'},
   {v:'receptionist',                l:'Receptionist',                    cat:'Admin Staff',    lv:1, d:'Front-desk registration and telephone enquiries (Sch XX/14).'},
@@ -138,10 +139,12 @@ export const ROLE_DUTY_FALLBACK = {
 // Session 353B: + pathologist, lab_incharge (lab sign-off), blood_bank_technician (blood bank) -- D5, sql/session353b_*.sql.
 // Session 365: + chief_pharmacist (the pharmacy in-charge: cancels goods receipts) -- sql/session365_*.sql.
 // Session 378b: + iqac_coordinator (records IQAC meetings) -- sql/session378b_*.sql.
+// Session 386b-2b: + physiotherapist (completes physiotherapy sessions, which charges the IPD bill) -- sql/session386b2b2_*.sql.
+// Session 386b-2b (TODO §605): + sonologist (marks ultrasound studies done / reported, which charges the IPD bill, since 386b-2a).
 export const POWERFUL_ROLES = ['super_admin', 'dept_admin', 'finance_manager', 'nurse_manager'];
 export const POWERFUL_DESIGS = ['medical_director', 'principal', 'medical_superintendent', 'deputy_medical_superintendent',
   'nursing_superintendent', 'deputy_nursing_superintendent', 'pk_incharge', 'finance_manager', 'yoga_instructor',
-  'pathologist', 'lab_incharge', 'blood_bank_technician', 'chief_pharmacist', 'iqac_coordinator'];
+  'pathologist', 'lab_incharge', 'blood_bank_technician', 'chief_pharmacist', 'iqac_coordinator', 'physiotherapist', 'sonologist'];
 export function isPowerfulPosition(role, designation) {
   const norm = v => String(v ?? '').trim().toLowerCase();
   return POWERFUL_ROLES.includes(norm(role)) || POWERFUL_DESIGS.includes(norm(designation));

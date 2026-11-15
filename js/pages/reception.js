@@ -21,7 +21,6 @@ import { uhidOf } from '../utils/uhid.js';
 import { canCorrectPatient, openCorrectPatientDetails } from '../modules/patient/correctPatientDetails.js';
 import { notify, dismissNotify } from '../components/notify.js';
 import { printDocument } from '../utils/printDocument.js';
-import { mountAlertBell } from '../components/alertBell.js';
 import { loadPendingFollowups } from '../modules/patient/pendingFollowups.js';   // Session 358
 import { noAutofill } from '../utils/noAutofill.js';                               // Session 358 (§285)
 import { canMarkLabUrgent, canSeeLabOutstanding } from '../utils/staffPowers.js';   // Session 359 (§293 / §295)
@@ -69,8 +68,7 @@ wireDelegatedEvents();
 const profile  = getCurrentProfile();
 const tenantId = getCurrentTenantId();
 noAutofill(document.getElementById('reg-form-body'), 'axr');   // Session 358 (§285): registration + family-member form, no autofill
-// Session 357 (owner addition 6 / §276): the counter's own alerts (e.g. "advice expires ... pre-auth not decided") in a bell list
-mountAlertBell({ supabase, userId: profile.id });
+// Session 357 (owner addition 6 / §276): the counter's own alerts in a bell list -- since Session 386b-2b (§554) mounted by the shared navbar
 const tenant   = getCurrentTenant();
 const _ctx     = { tenantId, userId: profile.id, userName: profile.full_name };
 

@@ -110,10 +110,14 @@ export function initAlertBell({ supabase, userId, button, badge, onChange }) {
         + (r.is_read ? 'background:#fff;color:var(--text-mid,#555)' : 'background:#fff8e1;color:var(--text-dark,#222);border-left:4px solid var(--gold,#c9902a)'));
       item.tabIndex = 0;
       item.setAttribute('role', 'button');
-      item.setAttribute('aria-label', (r.is_read ? '' : 'Unread. ') + (r.patient_name ? r.patient_name + ': ' : '') + (r.message || ''));
+      item.setAttribute('aria-label', (r.is_read ? '' : 'Unread. ') + (r.patient_name ? r.patient_name + ': ' : '') + (r.message || '')
+        + (r.done_note ? '. ' + r.done_note : ''));
       const top = _el('div', 'display:flex;justify-content:space-between;gap:8px;font-size:11.5px;color:var(--text-muted,#777);margin-bottom:2px');
       top.append(_el('span', 'font-weight:600', (r.is_read ? '' : '● New · ') + (r.patient_name || '')), _el('span', null, _fmt(r.created_at)));
       item.append(top, _el('div', null, r.message || ''));
+      // 386b-2b M2b (F5): someone has already decided it -- "Done — approved / rejected / priced / cancelled by NAME (Role) at …" (server text)
+      if (r.done_note) item.append(_el('div', 'margin-top:4px;font-size:12px;font-weight:600;color:var(--green-deep,#1a4a2e);white-space:pre-line',
+        String(r.done_note).split('\n').filter(l => l.trim()).map(l => '✓ ' + l).join('\n')));   // M2c (H5): one Done line per step, each with its ✓ (I3)
       const act = async () => {
         if (r.is_read) return;
         if (await markRead([r.id])) {
@@ -139,7 +143,7 @@ export function initAlertBell({ supabase, userId, button, badge, onChange }) {
 
   async function show() {
     const since = new Date(Date.now() - DAYS * 86400000).toISOString();
-    const { data, error } = await supabase.from('doctor_alerts').select('id, patient_name, message, is_read, created_at')
+    const { data, error } = await supabase.from('doctor_alerts').select('id, patient_name, message, is_read, created_at, done_note')
       .eq('doctor_id', userId).gte('created_at', since).order('created_at', { ascending: false }).limit(LIMIT);
     if (error) { notify('Could not load your alerts.', 'error'); return; }
     panel?.remove();

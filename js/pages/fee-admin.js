@@ -8,7 +8,8 @@ import { safeErrorMessage } from '../utils/errors.js';
 import { todayLocalStr } from '../utils/dateUtils.js';
 import { BED_TYPE_LABELS, bedTypeLabel } from '../config/bedTypes.js';
 import { notify } from '../components/notify.js';
-import { registerName } from '../modules/billing/feeSelect.js';   // Session 386b-2a: a procedure fee's register
+import { mountFeeStructureList } from '../modules/billing/feeStructureList.js';   // Session 386b-2b (F7): ONE grouped list
+import { roleLabel } from '../config/roleLabels.js';   // 386b-2b (F9)
 
 // accountant = maker: creates fees as pending, edits/deletes only their own pending ones;
 // an admin approves (sql/session305c_fee_admin_accountant_maker.sql enforces this in RLS).
@@ -37,10 +38,6 @@ let _bedMultipliers = [];   // {tenant_id, bed_type, multiplier, is_active} -- S
 let _tenantBedTypes = [];   // distinct beds.bed_type values this tenant actually has -- Session 319
 let _lockedRoomBedType = null; // set by openAddRoomRate()/openEdit() on a room_* fee -- Session 319
 let _editId         = null;
-let _activeGroup      = 'all'; // 'all' | 'general' | a GROUP_CONFIG key | a real department id
-let _activeSub        = 'all'; // 'all' | a sub-item key within the active group
-let _activeGroupLabel = 'All Departments';
-let _activeSubLabel    = null;
 
 // ── Facility profile ──────────────────────────────
 const FAC_PROFILE = {
@@ -74,7 +71,7 @@ const roleLabels = {
 // Session 358 (TODO §292): a secondary-role dept_admin (MS / MD / Principal ...) has a primary role with no label -- the label comes
 // from the second role then, and an empty class is never added (classList.add('') throws and stopped the whole page)
 const rl = (profile?.designation === 'medical_superintendent' && { text: 'Medical Superintendent — Final approval of fees', cls: 'dept_admin' })
-  || roleLabels[role] || roleLabels[getCurrentSecondaryRole()] || { text: role || 'Staff', cls: '' };
+  || roleLabels[role] || roleLabels[getCurrentSecondaryRole()] || { text: roleLabel(role) || 'Staff', cls: '' };   // 386b-2b (F9): never a raw code
 roleBadge.textContent = rl.text;
 if (rl.cls) roleBadge.classList.add(rl.cls);
 
@@ -240,7 +237,7 @@ const CAT_TYPES = {
     // Session 319 -- room_* removed from this fixed list. SDM alone has 7 real bed
     // types and only 2 (private/semi_private) matched this list's old fixed 4 -- room
     // rates are now driven by the tenant's own beds.bed_type values instead, via the
-    // dedicated "Room Tariff" sub-tab (renderRoomTariffTable()/openAddRoomRate()).
+    // "Rate needed" rows of the grouped list's IPD charges section (openAddRoomRate()).
     { value:'nursing',            label:'Nursing Care (per day)' },
     { value:'attendant_bed',      label:'Attendant Bed (per night)' }
   ],
@@ -355,7 +352,7 @@ function _esc(s) { return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&l
 // here (Kayachikitsa, Shalya Tantra, Shalakya Tantra, Prasuti & Stri Roga, Kaumarabhritya,
 // Agada Tantra, and Panchakarma itself) keep working exactly as Session 107 built them --
 // an automatic tab once the department has >=1 linked fee -- via the generic fallback in
-// renderGroupTabs(), not through this config at all.
+// the grouped list, not through this config at all.
 const SERVICE_GROUPS = {
   admin_reception:    'Administration — Reception',
   admin_registration: 'Administration — Registration Counter',
@@ -380,118 +377,12 @@ const SERVICE_GROUPS = {
 // independently-drifting copy, so this page's labels can never again disagree with
 // bed-admin.js's Quick Setup wording or ipd.js's admit-drawer bed picker.
 
-const IPD_SUBITEMS = [
-  ['admission', 'Admission Charge'],
-  ['room',      'Room Tariff'],
-  ['nursing',   'Nursing Care'],
-  ['attendant_bed', 'Attendant Bed'],
-];
+// Session 386b-2b (F7): the old two-level tabs (GROUP_CONFIG / IPD_SUBITEMS) are removed -- the grouped list is the only fee view.
 
-// GROUP_CONFIG resolvers match purely on service_group / category / opd_id / department_id
-// (Panchakarma only), per the approved plan -- Administration/OT/Labour Room/etc never on
-// department_id (see CLAIMED_DEPT_NAMES below for why). Some real hospital/teaching_hospital
-// tenants (confirmed on both WASA1631 and SDM) also happen to carry real `departments` rows
-// with the same names (Administration, OPD, IPD, Operation Theatre, Labour Room, Kriyakalpa,
-// Diet/Pathya, Physiotherapy, Diagnostics, Pharmacy, Laundry) from a broader org-tree
-// seeding -- rather than merging that path into these resolvers (which risks two
-// different-looking "sources of truth" for the same tab), those department names are
-// excluded from the "+Add Service" Department picker entirely (see loadDepartments() /
-// CLAIMED_DEPT_NAMES below) so a fee can only ever reach one of these groups the one
-// intended way: via service_group (or category/opd_id for OPD/IPD/Diagnostics).
-//
-// `alwaysShow: true` groups (Session 110, per Dr. Venkatesh's explicit ask) render as a
-// tab in this fixed order regardless of whether they have any fees yet -- so there's
-// somewhere to click "+ Add Service" into a brand-new department before its first fee
-// exists (the dynamic "only show tabs with real data" principle, while right for the
-// *other* real clinical departments below, was actively blocking that for these 11).
-// Session 110 correction #6: Dr. Venkatesh's real complaint was that a service added
-// under, say, "Shalya Tantra OPD" (an `opds` row, opd_id-linked) silently didn't count as
-// belonging to the SEPARATE "Shalya Tantra (Surgery)" tab shown further down the nav (a
-// real `departments` row, department_id-linked) -- two different fields, two different
-// tabs, for what he sees as one department. His fix: fold each clinical department's
-// fees into its matching OPD's dropdown entry and remove the standalone duplicate tab
-// entirely -- except Panchakarma, which he explicitly wants kept as its own separate
-// pinned tab (#4) since it has enough distinct treatments to deserve one. `opds.ncism_code`
-// reliably matches `departments.ncism_code` for every real OPD except Screening OPD
-// (confirmed live) -- the stable join key, not a name string.
-function _deptIdForOpd(opd) {
-  if (!opd?.ncism_code || opd.ncism_code === 'PK') return null; // Panchakarma stays out of the fold-in
-  return _allDepts.find(d => d.ncism_code === opd.ncism_code)?.id || null;
-}
-
-function _opdFoldedDeptIds() {
-  return new Set(_opds.map(o => _deptIdForOpd(o)).filter(Boolean));
-}
-
-const GROUP_CONFIG = [
-  {
-    key:'administration', label:'Administration', alwaysShow: true,
-    subItems: [
-      ['admin_reception','Reception'], ['admin_registration','Registration Counter'],
-      ['admin_admission','Admission Counter'], ['admin_discharge','Discharge Counter'],
-      ['admin_insurance','Insurance Counter'], ['admin_billing','Billing Counter'],
-      ['admin_mrd','MRD'],
-    ],
-    match:    f => !!f.service_group && f.service_group.startsWith('admin_'),
-    matchSub: (f, sub) => f.service_group === sub,
-  },
-  {
-    key:'opd', label:'OPD', alwaysShow: true,
-    // Matches: plain OPD-category fees (registration/consultation, opd_id or not), ANY
-    // fee directly linked to a real OPD via opd_id (regardless of category -- a Shalya
-    // Tantra procedure charge is still "Shalya Tantra OPD"'s business), and any fee
-    // linked via department_id to one of the folded-in clinical departments above.
-    match: f => f.category === 'opd' || !!f.opd_id || (!!f.department_id && _opdFoldedDeptIds().has(f.department_id)),
-    matchSub: (f, sub) => {
-      if (sub === '__general_opd__') return !f.opd_id && !_opdFoldedDeptIds().has(f.department_id);
-      if (f.opd_id === sub) return true;
-      const deptId = _deptIdForOpd(_opds.find(o => o.id === sub));
-      return !!deptId && f.department_id === deptId;
-    },
-  },
-  {
-    key:'ipd', label:'IPD', alwaysShow: true,
-    match: f => f.category === 'ipd',
-    matchSub: (f, sub) => sub === 'room' ? (f.fee_type || '').startsWith('room_') : f.fee_type === sub,
-  },
-  {
-    // Panchakarma is a real clinical department (unlike the service_group-tagged groups
-    // around it) -- resolved by ncism_code, the stable key already used everywhere else
-    // in this app for NCISM departments, not a name string prone to drift/typos.
-    key:'panchakarma', label:'Panchakarma', alwaysShow: true,
-    match: f => {
-      const pk = _allDepts.find(d => d.ncism_code === 'PK');
-      return !!pk && f.department_id === pk.id;
-    },
-  },
-  { key:'kriyakalpa', label:'Kriyakalpa', alwaysShow: true, soloTag:'kriyakalpa', match: f => f.service_group === 'kriyakalpa' },
-  { key:'labour_room', label:'Labour Room', alwaysShow: true, soloTag:'labour_room', match: f => f.service_group === 'labour_room' },
-  { key:'diet_pathya', label:'Diet / Pathya', alwaysShow: true, soloTag:'diet_pathya', match: f => f.service_group === 'diet_pathya' },
-  { key:'physiotherapy', label:'Physiotherapy', alwaysShow: true, soloTag:'physiotherapy', match: f => f.service_group === 'physiotherapy' },
-  { key:'laundry', label:'Laundry', alwaysShow: true, soloTag:'laundry', match: f => f.service_group === 'laundry' },
-  { key:'pharmacy', label:'Pharmacy', alwaysShow: true, soloTag:'pharmacy', match: f => f.service_group === 'pharmacy' },
-  {
-    key:'diagnostics', label:'Diagnostics', alwaysShow: true,
-    subItems: [['lab','Lab'], ['radiology','Radiology']],
-    match:    f => f.category === 'lab' || f.category === 'radiology',
-    matchSub: (f, sub) => f.category === sub,
-  },
-  // Not pinned -- only shown once they actually have a fee, same as any other real
-  // department (Dr. Venkatesh's latest numbered list didn't call these out as pinned).
-  {
-    key:'ot', label:'Operation Theatre',
-    subItems: [['ot_major','Major OT'], ['ot_minor','Minor OT'], ['ot_cssd','CSSD']],
-    match:    f => ['ot_major','ot_minor','ot_cssd'].includes(f.service_group),
-    matchSub: (f, sub) => f.service_group === sub,
-  },
-  { key:'swasthavritta_yoga', label:'Swasthavritta & Yoga', soloTag:'swasthavritta_yoga', match: f => f.service_group === 'swasthavritta_yoga' },
-];
-
-// Real department names that collide with a GROUP_CONFIG group above -- excluded from
+// Real department names that the old group tabs claimed (Administration, OPD, IPD, ...) -- excluded from
 // the "+Add Service" Department dropdown (loadDepartments()) so there's no way to
 // accidentally link a fee to one of these via department_id, and kept as a defensive
-// exclusion in renderGroupTabs()'s generic per-department fallback too (belt-and-braces
-// in case any pre-existing row already has department_id set to one of these).
+// exclusion (in case any pre-existing row already has department_id set to one of these).
 const CLAIMED_DEPT_NAMES = new Set([
   'administration', 'opd', 'ipd', 'operation theatre (major + minor + cssd)', 'diagnostics',
   'labour room', 'kriyakalpa', 'swasthavritta & yoga', 'diet / pathya', 'physiotherapy',
@@ -554,6 +445,7 @@ async function loadDepartments() {
 }
 
 // ── Load fees ─────────────────────────────────────
+let _feeGroups = new Map();   // Session 386b-2b M2: fee id -> its procedure group names
 async function loadFees() {
   const { data, error } = await supabase
     .from('fee_structures')
@@ -564,10 +456,18 @@ async function loadFees() {
 
   if (error) { console.error(error); return; }
   _allFees = data || [];
-  updateStats();
-  renderGroupTabs();
-  renderTable();
+  // Session 386b-2b M2 (§596): each procedure fee's groups (where it is offered)
+  const { data: gl } = await supabase.from('fee_procedure_groups').select('fee_id, procedure_groups(display_name, is_active)')
+    .eq('tenant_id', tenantId).range(0, 9999);
+  _feeGroups = new Map();
+  for (const r of gl || []) {
+    if (!r.procedure_groups) continue;
+    const a = _feeGroups.get(r.fee_id) || [];
+    a.push(r.procedure_groups.display_name + (r.procedure_groups.is_active ? '' : ' (inactive)'));
+    _feeGroups.set(r.fee_id, a);
+  }
   renderRoomRateGapBanner();
+  _mountFeeList();   // Session 386b-2b (F7)
 }
 
 // Session 319 -- persistent "room rates still needed" notice, independent of which tab
@@ -584,258 +484,81 @@ function renderRoomRateGapBanner() {
     ` — <button type="button" class="act-btn act-approve" data-onclick="jumpToRoomTariff">Set rates →</button>`;
 }
 
+// Session 386b-2b M2c (G13): from Bed Category Pricing to the General Ward baseline fee (IPD charges)
+window.jumpToGeneralWardFee = function() {
+  window.closeBedMultipliers();
+  window.jumpToRoomTariff();
+};
+
 window.jumpToRoomTariff = function() {
-  const ipdBtn = document.querySelector('#group-tabs .dept-tab[data-onclick-a1="ipd"]');
-  if (ipdBtn) window.setGroupTab(ipdBtn, 'ipd');
-  setTimeout(() => {
-    const roomSub = document.querySelector('#subgroup-tabs .sub-tab[data-onclick-a1="room"]');
-    if (roomSub) window.setSubTab(roomSub, 'room');
-  }, 0);
+  // Session 386b-2b (F7): the grouped list -- open "IPD charges" (its "Rate needed" rows) and scroll to it
+  const sec = [...document.querySelectorAll('#fee-list-v2 button[aria-expanded]')].find(b => /IPD charges/.test(b.textContent));
+  if (sec) { if (sec.getAttribute('aria-expanded') !== 'true') sec.click(); sec.scrollIntoView({ block: 'start', behavior: 'smooth' }); return; }
 };
 
-function updateStats() {
-  const active  = _allFees.filter(f => f.approval_status === 'active').length;
-  const pending = _allFees.filter(f => f.approval_status === 'pending').length;
-  const dept    = _allFees.filter(f => f.approval_status === 'dept_approved').length;
-  document.getElementById('stat-active').textContent  = active;
-  document.getElementById('stat-pending').textContent = pending;
-  document.getElementById('stat-dept').textContent    = dept;
-  document.getElementById('stat-rejected').textContent = _allFees.filter(f => f.approval_status === 'rejected').length;
-  document.getElementById('stat-total').textContent   = _allFees.length;
-}
 
-// Session 362 (TODO §313): the Status filter (the select and the count cards stay in step); it combines with the group tabs and
-// the search, and the "Current View" CSV / PDF follow it
-function _syncStatusCards() {
-  const v = document.getElementById('status-filter').value;
-  document.querySelectorAll('[data-status-card]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.statusCard === v)));
-}
-window.filterFees = function() { _syncStatusCards(); renderTable(); };
-window.setFeeStatusFilter = function(status) {
-  document.getElementById('status-filter').value = status || '';
-  window.filterFees();
-};
 
-// ── Group tabs (Session 109/110) ───────────────────
-// Two-level nav. The 11 `alwaysShow` groups in GROUP_CONFIG (Administration, OPD, IPD,
-// Panchakarma, Kriyakalpa, Labour Room, Diet/Pathya, Physiotherapy, Laundry, Pharmacy,
-// Diagnostics) render in that fixed order every time, whether or not they have a fee yet
-// -- Dr. Venkatesh needs somewhere to click "+ Add Service" into before a department's
-// first fee exists. Every other real department (Kayachikitsa, Shalya Tantra, Shalakya
-// Tantra, Prasuti & Stri Roga, Kaumarabhritya, Agada Tantra, plus non-pinned GROUP_CONFIG
-// groups like Operation Theatre/Swasthavritta & Yoga) still only gets a tab once it
-// genuinely has >=1 linked fee -- same dynamic principle Session 107 built, just no
-// longer applied to the 11 pinned ones. A General fallback covers anything left over
-// (uncategorised custom/procedure fees).
-function _isGeneralFee(f) {
-  return !f.department_id && !f.service_group && !['opd','ipd','lab','radiology'].includes(f.category);
-}
 
-function renderGroupTabs() {
-  const wrap = document.getElementById('group-tabs');
-  if (!wrap) return;
 
-  const deptIdsPresent = new Set(_allFees.filter(f => f.department_id).map(f => f.department_id));
-  const pkDept = _allDepts.find(d => d.ncism_code === 'PK');
-  const foldedDeptIds = _opdFoldedDeptIds();
-  const deptsPresent = _allDepts.filter(d =>
-    deptIdsPresent.has(d.id) &&
-    !CLAIMED_DEPT_NAMES.has(d.name.trim().toLowerCase()) &&
-    d.id !== pkDept?.id &&        // Panchakarma is its own pinned GROUP_CONFIG entry above
-    !foldedDeptIds.has(d.id)      // every other clinical dept with a matching OPD lives under OPD's dropdown now, not its own tab
-  );
-  const hasGeneral = _allFees.some(_isGeneralFee);
 
-  const tabs = [{ key:'all', label:'All Departments' }];
 
-  GROUP_CONFIG.forEach(g => {
-    if (g.alwaysShow || _allFees.some(g.match)) tabs.push({ key:g.key, label:g.label });
-  });
 
-  deptsPresent.forEach(d => tabs.push({ key:d.id, label:d.name }));
 
-  if (hasGeneral) tabs.push({ key:'general', label:'General / Hospital-wide' });
 
-  wrap.innerHTML = tabs.map(t =>
-    `<button class="dept-tab${_activeGroup === t.key ? ' active' : ''}" data-onclick="setGroupTab" data-onclick-a0="@this" data-onclick-a1="${_esc(t.key)}">${_esc(t.label)}</button>`
-  ).join('');
 
-  renderSubTabs();
-}
-
-function renderSubTabs() {
-  const wrap = document.getElementById('subgroup-tabs');
-  if (!wrap) return;
-
-  const grp = GROUP_CONFIG.find(g => g.key === _activeGroup);
-  if (!grp) { wrap.innerHTML = ''; return; }
-
-  let subItems;
-  if (grp.key === 'opd') {
-    subItems = [['__general_opd__', 'General OPD'], ..._opds.map(o => [o.id, o.name])];
-  } else if (grp.key === 'ipd') {
-    subItems = IPD_SUBITEMS;
-  } else {
-    subItems = grp.subItems || [];
-  }
-
-  // Pinned (alwaysShow) groups show every sub-item unconditionally, same reasoning as the
-  // group tabs themselves -- Dr. Venkatesh needs to click into an empty OPD/counter/sub-
-  // category to add its first fee, not wait for one to already exist. Non-pinned groups
-  // (Operation Theatre) keep the original "only show sub-items that already have a fee"
-  // behaviour.
-  if (!grp.alwaysShow) {
-    subItems = subItems.filter(([key]) => _allFees.some(f => grp.match(f) && grp.matchSub(f, key)));
-  }
-
-  if (subItems.length <= 1) { wrap.innerHTML = ''; return; } // solo-tag groups need no second level
-
-  wrap.innerHTML =
-    `<button class="sub-tab${_activeSub === 'all' ? ' active' : ''}" data-onclick="setSubTab" data-onclick-a0="@this" data-onclick-a1="all">All</button>` +
-    subItems.map(([key, label]) =>
-      `<button class="sub-tab${_activeSub === key ? ' active' : ''}" data-onclick="setSubTab" data-onclick-a0="@this" data-onclick-a1="${_esc(key)}">${_esc(label)}</button>`
-    ).join('');
-}
-
-window.setGroupTab = function(btn, key) {
-  document.querySelectorAll('#group-tabs .dept-tab').forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
-  _activeGroup      = key;
-  _activeGroupLabel = btn.textContent;
-  _activeSub        = 'all';
-  _activeSubLabel   = null;
-  renderSubTabs();
-  renderTable();
-};
-
-window.setSubTab = function(btn, key) {
-  document.querySelectorAll('#subgroup-tabs .sub-tab').forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
-  _activeSub      = key;
-  _activeSubLabel = key === 'all' ? null : btn.textContent;
-  renderTable();
-};
-
-// Computed client-side from the row's General-Ward baseline (`amount`) x each active
-// bed_category_multipliers row -- never a second query per row, never stored redundantly.
-function _tieredAmountDisplay(f) {
-  const base   = parseFloat(f.amount) || 0;
-  const active = _bedMultipliers.filter(m => m.is_active);
-
-  if (!active.length) {
-    return `₹${base.toLocaleString('en-IN')} <span class="tier-tag">base — no bed categories configured</span>`;
-  }
-
-  const amounts = active.map(m => base * parseFloat(m.multiplier));
-  const min = Math.min(...amounts), max = Math.max(...amounts);
-  const rowId = 'tier-' + f.id;
-
-  return `<span class="tier-range">₹${min.toLocaleString('en-IN', { maximumFractionDigits: 0 })}–₹${max.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</span>` +
-    `<button type="button" class="tier-expand" data-onclick="toggleTierExpand" data-onclick-a0="${rowId}">▾ tiers</button>` +
-    `<div class="tier-detail" id="${rowId}" style="display:none">` +
-    active.map(m => `<div>${_esc(BED_TYPE_LABELS[m.bed_type] || m.bed_type)}: ₹${(base * parseFloat(m.multiplier)).toLocaleString('en-IN', { maximumFractionDigits: 0 })}</div>`).join('') +
-    `</div>`;
-}
-
-window.toggleTierExpand = function(rowId) {
-  const el = document.getElementById(rowId);
-  if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
-};
-
-function renderTable() {
-  // Session 319 -- the IPD "Room Tariff" sub-tab gets its own dedicated renderer (one
-  // row per real tenant bed type, "rate needed" flagged) instead of the generic list,
-  // since room fee_types are no longer a fixed CAT_TYPES.ipd list to filter through.
-  if (_activeGroup === 'ipd' && _activeSub === 'room') { renderRoomTariffTable(); return; }
-
-  const rows = _currentFilteredFees();
-  const _stSel = document.getElementById('status-filter');
-  document.getElementById('status-filter-count').textContent = _stSel?.value
-    ? `${rows.length} ${_stSel.options[_stSel.selectedIndex].text.toLowerCase()} shown` : '';   // Session 362 (TODO §313)
-
-  const tbody = document.getElementById('fee-tbody');
-  if (!rows.length) {
-    // A specific group/sub-item with zero fees still needs a direct way to add its
-    // first one -- the global "+Add Service" button up top does the same thing, but
-    // Dr. Venkatesh asked for an option to add services from inside every department,
-    // not just from a button he has to scroll back up to.
-    const scoped = _activeGroup !== 'all';
-    tbody.innerHTML = `<tr><td colspan="6"><div class="empty">
-      <div class="empty-icon">📋</div>
-      <div class="empty-text">No fees found${scoped ? ` in ${_esc(_currentScopeLabel())}` : ''}</div>
-      ${scoped ? `<button class="btn-add" style="margin-top:14px" data-onclick="openModal">+ Add Service to ${_esc(_currentScopeLabel())}</button>` : ''}
-      </div></td></tr>`;
-    return;
-  }
-
-  tbody.innerHTML = rows.map(f => {
-    const catCls   = 'cat-' + (f.category || 'custom');
-    const catLabel = CAT_LABELS[f.category] || f.category;
-    const opdDeptLabel = _deptOrOpdLabel(f);
-    const amount   = f.pricing_mode === 'tiered'
-      ? _tieredAmountDisplay(f)
-      : `₹${parseFloat(f.amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`
-        + (_hasActivePromo(f)
-            ? `<div class="fee-notes" style="color:#8a5a00">🎁 ₹${parseFloat(f.promo_price).toLocaleString('en-IN')} until ${new Date(f.promo_valid_until).toLocaleDateString('en-IN',{day:'2-digit',month:'short'})}</div>`
-            : '')
-        + (f.ayush_code && f.ayush_catalog?.benchmark_rate_2026 != null
-            ? `<div class="fee-notes" title="${_esc(NCISM_BENCHMARK_CITATION)}">NCISM Benchmark: ₹${parseFloat(f.ayush_catalog.benchmark_rate_2026).toLocaleString('en-IN')} (${_esc(f.ayush_code)})</div>`
-            : '');
-    const status   = f.approval_status || 'pending';
-    const statusLabel = { pending:'Pending', dept_approved:'Dept. Approved', active:'Active', rejected:'Rejected' }[status] || status;
-    const creator  = f.creator?.full_name || '—';
-
-    const actions = buildActions(f);
-
-    return `<tr data-id="${_esc(f.id)}">
-      <td>
-        <div class="fee-label">${_esc(f.label) || '—'}</div>
-        ${f.notes ? `<div class="fee-notes">${_esc(f.notes)}</div>` : ''}
-        <div class="fee-notes" style="margin-top:2px;color:var(--text-muted)">By ${_esc(creator)}</div>
-      </td>
-      <td><span class="cat-badge ${catCls}">${catLabel}</span>${f.category === 'procedure'
-        ? `<div class="fee-notes" style="margin-top:3px">${f.procedure_register ? 'Register: ' + _esc(registerName(f.procedure_register)) : '⚠ No register — not offered in any register'}</div>` : ''}</td>
-      <td style="color:var(--text-mid);font-size:13px">${_esc(opdDeptLabel)}</td>
-      <td><span class="fee-amount">${amount}</span></td>
-      <td><span class="status-badge status-${status}">${statusLabel}</span></td>
-      <td><div class="actions">${actions}</div></td>
-    </tr>`;
-  }).join('');
-}
-
-function buildActions(f) {
+// Session 386b-2b (F7): the row actions as data -- the grouped list (the only fee view) renders them as DOM buttons
+const DELETE_TITLE = 'Delete this fee everywhere — only if it was never used (to stop charging a used fee, Deactivate it)';   // G8
+function feeActions(f) {
   const s   = f.approval_status;
   const own = f.created_by === userId;
-  let btns  = '';
-
+  const out = [];
   // the maker (accountant / admin tier): edit / delete his own Pending fee; a Rejected one may be corrected and sent again
   if (canMakeFee(profile) && role !== 'super_admin' && own && (s === 'pending' || (s === 'rejected' && canEditFeeContent(profile)))) {
-    btns += `<button class="act-btn act-edit" data-onclick="openEdit" data-onclick-a0="${f.id}">Edit</button>`;
-    if (s === 'pending') btns += `<button class="act-btn act-delete" data-onclick="deleteFee" data-onclick-a0="${f.id}">Delete</button>`;
+    out.push({ label: 'Edit', act: 'openEdit', cls: 'act-edit', title: 'Change this fee (a changed price goes back for approval)' });
+    if (s === 'pending') out.push({ label: 'Delete', act: 'deleteFee', cls: 'act-delete', title: DELETE_TITLE });
   }
-
   // Session 359: approve / reject = decide_fees (the server checks the department head / final approver and the maker rule)
   const d = feeDecision(profile, f);
   const saBoth = role === 'super_admin' && s === 'pending';
-  if (d.approve) btns += `<button class="act-btn ${s === 'dept_approved' || saBoth ? 'act-activate' : 'act-approve'}" data-onclick="approveFee" data-onclick-a0="${f.id}">${_esc(saBoth ? '⚡ Approve & Activate' : d.label)}</button>`;
-  if (d.reject) btns += `<button class="act-btn act-reject" data-onclick="rejectFee" data-onclick-a0="${f.id}">✗ Reject</button>`;
-
+  if (d.approve) out.push({ label: saBoth ? '⚡ Approve & Activate' : d.label, act: 'approveFee', cls: s === 'dept_approved' || saBoth ? 'act-activate' : 'act-approve',
+                            title: saBoth ? 'Approve both steps at once — the fee becomes Active and is charged from now' : 'Give your approval step for this fee' });
+  if (d.reject) out.push({ label: '✗ Reject', act: 'rejectFee', cls: 'act-reject', title: 'Reject this fee with a reason (it is not charged)' });
   if (role === 'super_admin') {
-    btns += `<button class="act-btn act-edit" data-onclick="openEdit" data-onclick-a0="${f.id}">Edit</button>`;
+    out.push({ label: 'Edit', act: 'openEdit', cls: 'act-edit', title: 'Change this fee (a changed price goes back for approval)' });
     if (s === 'active') {
-      btns += `<button class="act-btn act-reject" data-onclick="deactivateFee" data-onclick-a0="${f.id}">Deactivate</button>`;
-      // Session 125 -- promo pricing deliberately not offered on tiered
-      // (bed-category multiplier) fees for this first pass.
-      if (f.pricing_mode !== 'tiered') {
-        btns += _hasActivePromo(f)
-          ? `<button class="act-btn act-reject" data-onclick="clearPromo" data-onclick-a0="${f.id}">🎁 Clear Promo</button>`
-          : `<button class="act-btn act-edit" data-onclick="openPromoModal" data-onclick-a0="${f.id}">🎁 Set Promo</button>`;
-      }
+      out.push({ label: 'Deactivate', act: 'deactivateFee', cls: 'act-reject', title: 'Stop charging this fee — it goes back to Pending and needs a new approval' });
+      // Session 125 -- promo pricing deliberately not offered on tiered (bed-category multiplier) fees for this first pass.
+      if (f.pricing_mode !== 'tiered') out.push(_hasActivePromo(f) ? { label: '🎁 Clear Promo', act: 'clearPromo', cls: 'act-reject', title: 'End the promotional price now (back to the normal price)' }
+                                                                     : { label: '🎁 Set Promo', act: 'openPromoModal', cls: 'act-edit', title: 'Set a lower price until a date' });
     }
-    btns += `<button class="act-btn act-delete" data-onclick="deleteFee" data-onclick-a0="${f.id}">Delete</button>`;
+    out.push({ label: 'Delete', act: 'deleteFee', cls: 'act-delete', title: DELETE_TITLE });
   }
-
-  return btns || '<span style="font-size:12px;color:var(--text-muted)">—</span>';
+  return out;
+}
+// the price as plain text (the grouped list builds DOM text, never HTML)
+function _amountText(f) {
+  const base = parseFloat(f.amount || 0);
+  const money = n => '₹' + n.toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+  if (f.pricing_mode === 'tiered') {
+    const act = _bedMultipliers.filter(m => m.is_active);
+    if (!act.length) return money(base) + ' (base — no bed categories)';
+    const a = act.map(m => base * parseFloat(m.multiplier));
+    return `${money(Math.min(...a))}–${money(Math.max(...a))} (by bed category)`;
+  }
+  return money(base) + (_hasActivePromo(f)
+    ? ` · 🎁 ₹${parseFloat(f.promo_price).toLocaleString('en-IN')} until ${new Date(f.promo_valid_until).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}` : '');
+}
+// Session 386b-2b (F7): the grouped list (js/modules/billing/feeStructureList.js) -- mounted again after every load of the fees
+function _mountFeeList() {
+  const c = document.getElementById('fee-list-v2');
+  if (!c) return;
+  mountFeeStructureList(c, {
+    supabase, tenantId, profile, fees: _allFees, actionsFor: feeActions, amountText: _amountText, benchmarkCitation: NCISM_BENCHMARK_CITATION,
+    notify: (m, t) => toast(m, t),   // G12: every list action also says it in the page's toast
+    roomGaps: () => _roomTariffRows().filter(r => !r.feeRow).map(r => ({ bedType: r.bedType, label: r.label })),
+    openAdd: cat => { window.openModal(); const s = document.getElementById('m-category'); if (s) { s.value = cat; window.onCategoryChange(); } },
+    onChanged: loadFees,
+  });
 }
 
 // ── Approval actions ──────────────────────────────
@@ -929,11 +652,12 @@ window.clearPromo = async function(id) {
 
 // Session 359: a rejection needs a reason (5-500) -- an in-page panel under the fee's row (no confirm())
 window.rejectFee = function(id) {
-  const tr = document.querySelector(`tr[data-id="${CSS.escape(id)}"]`);
+  // 386b-2b (F7): the fee's row in the grouped list (the only fee view)
+  const tr = document.querySelector(`#fee-list-v2 tr[data-fee-id="${CSS.escape(id)}"]`);
   const f = _allFees.find(x => x.id === id);
   document.getElementById('fee-reject-row')?.remove();
   const row = document.createElement('tr'); row.id = 'fee-reject-row';
-  const cell = document.createElement('td'); cell.colSpan = 6; row.append(cell);
+  const cell = document.createElement('td'); cell.colSpan = tr?.children.length || 6; row.append(cell);
   const box = document.createElement('div');
   box.style.cssText = 'padding:10px 12px;border:1.5px solid var(--red,#a01a1a);border-radius:8px;background:#fff6f4';
   const lab = document.createElement('label'); lab.htmlFor = 'fee-reject-reason';
@@ -980,43 +704,10 @@ function populateGroupSelect() {
 // admin doesn't need to know service_group vs opd_id vs department_id vs category --
 // they just see the field for what they were already looking at pre-filled for them
 // (same convenience Session 107 built for the Department field alone).
-function _prefillFromActiveGroup() {
-  const catSel   = document.getElementById('m-category');
-  const opdSel   = document.getElementById('m-opd');
-  const deptSel  = document.getElementById('m-department');
-  const groupSel = document.getElementById('m-group');
 
-  opdSel.value = ''; deptSel.value = ''; groupSel.value = '';
+// Session 386b-2b M2 (§596, covers §595): a procedure fee's groups, or why it is offered nowhere (escaped)
 
-  const grp = GROUP_CONFIG.find(g => g.key === _activeGroup);
-  if (grp) {
-    if (grp.key === 'opd') {
-      catSel.value = 'opd';
-      if (_activeSub !== 'all' && _activeSub !== '__general_opd__') {
-        opdSel.value = _activeSub;
-        // Also pre-fill the matching clinical department (if any) so a service saved
-        // here shows up correctly whichever category the admin ends up picking -- a
-        // Shalya Tantra procedure charge (category=procedure) still needs to land under
-        // "Shalya Tantra OPD", not just opd_id-linked category=opd fees.
-        const deptId = _deptIdForOpd(_opds.find(o => o.id === _activeSub));
-        if (deptId) deptSel.value = deptId;
-      }
-    } else if (grp.key === 'ipd') {
-      catSel.value = 'ipd';
-    } else if (grp.key === 'panchakarma') {
-      const pk = _allDepts.find(d => d.ncism_code === 'PK');
-      if (pk) deptSel.value = pk.id;
-    } else if (grp.key === 'diagnostics') {
-      if (_activeSub === 'lab' || _activeSub === 'radiology') catSel.value = _activeSub;
-    } else if (grp.soloTag) {
-      groupSel.value = grp.soloTag;
-    } else if (grp.key === 'administration' || grp.key === 'ot') {
-      if (_activeSub !== 'all') groupSel.value = _activeSub; // a specific counter / OT sub-type
-    }
-  } else if (_activeGroup !== 'all' && _activeGroup !== 'general') {
-    deptSel.value = _activeGroup; // real department id (Session 107 fallback)
-  }
-}
+// Session 386b-2b M2 (§596): the 🧩 Procedures panel (sections, + Add procedure, Import CSV, auto-classify, requests to add)
 
 window.openModal = function() {
   _editId = null;
@@ -1026,7 +717,7 @@ window.openModal = function() {
   document.getElementById('m-category').value = '';
   document.getElementById('m-amount').value  = '';
   document.getElementById('m-notes').value   = '';
-  document.getElementById('m-register').value = '';
+  document.getElementById('m-groups-note').textContent = 'A new procedure is placed in its section from the list (open the section → + Add existing procedure).';
   document.getElementById('m-opd-wrap').style.display = 'none';
   document.getElementById('m-type-wrap').style.display = 'none';
   document.getElementById('m-tiered').checked = false;
@@ -1034,7 +725,6 @@ window.openModal = function() {
   document.getElementById('m-approval-text').textContent = APPROVAL_TEXT[role] || '';
   document.getElementById('m-ncism-note').style.display = 'none';
 
-  _prefillFromActiveGroup();
   onCategoryChange();
   updateTierPreview();
 
@@ -1063,7 +753,7 @@ window.openEdit = function(id) {
   if (deptSel) deptSel.value = f.department_id || '';
   const groupSel = document.getElementById('m-group');
   if (groupSel) groupSel.value = f.service_group || '';
-  document.getElementById('m-register').value = f.procedure_register || '';   // Session 386b-2a
+  document.getElementById('m-groups-note').textContent = (_feeGroups.get(f.id) || []).join(', ') || 'In no group — offered on no register. Set it in 🧩 Procedures.';   // Session 386b-2b M2
   onCategoryChange();
   document.getElementById('m-opd').value      = f.opd_id || '';
   document.getElementById('m-tiered').checked = _lockedRoomBedType ? false : f.pricing_mode === 'tiered';
@@ -1202,8 +892,7 @@ window.saveFee = async function() {
     department_id:   deptId,
     service_group:   groupTag,
     pricing_mode:    tiered ? 'tiered' : 'flat',
-    // Session 386b-2a (owner, 13 Nov 2026): the register a procedure fee is offered in (audited by the server; keeps the approval)
-    procedure_register: category === 'procedure' ? (document.getElementById('m-register').value || null) : null,
+    // (Session 386b-2b M2: the Register is replaced by procedure groups -- set in 🧩 Procedures; the page no longer sends procedure_register)
     ...(!before ? { approval_status: 'pending', is_active: false, created_by: userId } : {}),
     ...(before?.approval_status === 'rejected' ? { approval_status: 'pending' } : {}),
   };
@@ -1679,30 +1368,7 @@ window.loadAyushCatalog = async function() {
 function toast(msg, type = 'success') { notify(msg, type); }   // Session 323: shared top-layer notify()
 
 // ── Export (Session 107/109) ───────────────────────
-function _matchesActiveGroup(f) {
-  if (_activeGroup === 'all') return true;
-  if (_activeGroup === 'general') return _isGeneralFee(f);
 
-  const grp = GROUP_CONFIG.find(g => g.key === _activeGroup);
-  if (!grp) return f.department_id === _activeGroup; // real department (Session 107 fallback)
-
-  if (!grp.match(f)) return false;
-  if (_activeSub !== 'all') return grp.matchSub(f, _activeSub);
-  return true;
-}
-
-function _currentFilteredFees() {
-  const q = document.getElementById('search-input').value.toLowerCase();
-  const st = document.getElementById('status-filter')?.value || '';   // Session 362 (TODO §313)
-  return _allFees.filter(f => {
-    if (!_matchesActiveGroup(f)) return false;
-    if (st && (f.approval_status || 'pending') !== st) return false;
-    if (q && !f.label?.toLowerCase().includes(q) &&
-             !f.fee_type?.toLowerCase().includes(q) &&
-             !f.notes?.toLowerCase().includes(q)) return false;
-    return true;
-  });
-}
 
 function _deptOrOpdLabel(f) {
   if (f.service_group) return SERVICE_GROUPS[f.service_group] || f.service_group;
@@ -1710,12 +1376,9 @@ function _deptOrOpdLabel(f) {
   return deptName || f.opds?.name || '—';
 }
 
-function _currentScopeLabel() {
-  return _activeSubLabel ? `${_activeGroupLabel} — ${_activeSubLabel}` : _activeGroupLabel;
-}
 
 // Plain-text (no HTML/buttons) amount string for CSV/PDF exports -- the interactive
-// range+expand widget in _tieredAmountDisplay() only makes sense on-screen.
+// range+expand widget only makes sense on-screen.
 function _exportAmountText(f) {
   if (f.pricing_mode !== 'tiered') return `₹${parseFloat(f.amount || 0).toLocaleString('en-IN')}`;
   const base   = parseFloat(f.amount) || 0;
@@ -1726,8 +1389,8 @@ function _exportAmountText(f) {
   return `₹${min.toLocaleString('en-IN', { maximumFractionDigits: 0 })}–₹${max.toLocaleString('en-IN', { maximumFractionDigits: 0 })} (tiered by bed category)`;
 }
 
-window.exportCsv = function(scope) {
-  const rows = scope === 'all' ? _allFees : _currentFilteredFees();
+window.exportCsv = function() {   // 386b-2b (F7): the whole list (each section has its own ⬇ Export CSV)
+  const rows = _allFees;
   if (!rows.length) { toast('No fees to export.', 'info'); return; }
 
   const header = ['Service', 'Category', 'OPD / Department', 'Amount (INR)', 'Status'];
@@ -1745,18 +1408,18 @@ window.exportCsv = function(scope) {
   const url  = URL.createObjectURL(blob);
   const a    = document.createElement('a');
   a.href     = url;
-  a.download = `Fee_Structure_${(scope === 'all' ? 'All' : _currentScopeLabel()).replace(/\s+/g, '_')}_${todayLocalStr()}.csv`;
+  a.download = `Fee_Structure_All_${todayLocalStr()}.csv`;
   document.body.appendChild(a);
   a.click();
   a.remove();
   URL.revokeObjectURL(url);
 };
 
-window.exportPdf = function(scope) {
-  const rows = scope === 'all' ? _allFees : _currentFilteredFees();
+window.exportPdf = function() {   // 386b-2b (F7): the whole list
+  const rows = _allFees;
   if (!rows.length) { toast('No fees to export.', 'info'); return; }
 
-  const scopeLabel = scope === 'all' ? 'All Departments' : _currentScopeLabel();
+  const scopeLabel = 'All Departments';
   const _tenantCache = JSON.parse(sessionStorage.getItem('ayurxpert_tenant') || '{}');
   const orgName = document.querySelector('.ax-name')?.textContent?.trim() || _tenantCache.name || 'Hospital';
   const now = new Date().toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' });
@@ -1833,41 +1496,7 @@ function _roomTariffRows() {
   }));
 }
 
-function _roomRateGapCount() {
-  return _roomTariffRows().filter(r => !r.feeRow).length;
-}
 
-function renderRoomTariffTable() {
-  const rows = _roomTariffRows();
-  const tbody = document.getElementById('fee-tbody');
-  if (!rows.length) {
-    tbody.innerHTML = `<tr><td colspan="6"><div class="empty">
-      <div class="empty-icon">🛏️</div>
-      <div class="empty-text">No beds created yet — set up beds in bed-admin.html first.</div>
-      </div></td></tr>`;
-    return;
-  }
-  tbody.innerHTML = rows.map(r => {
-    const f = r.feeRow;
-    const amountCell = f
-      ? `<span class="fee-amount">₹${parseFloat(f.amount || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}</span>`
-      : `<span class="status-badge status-pending">⚠ Rate needed</span>`;
-    const statusCell = f
-      ? `<span class="status-badge status-${f.approval_status}">${{pending:'Pending',dept_approved:'Dept. Approved',active:'Active',rejected:'Rejected'}[f.approval_status] || f.approval_status}</span>`
-      : '—';
-    const actionBtn = f
-      ? `<button class="act-btn act-edit" data-onclick="openEdit" data-onclick-a0="${f.id}">Edit</button>`
-      : `<button class="act-btn act-approve" data-onclick="openAddRoomRate" data-onclick-a0="${_esc(r.bedType)}">+ Set Rate</button>`;
-    return `<tr>
-      <td><div class="fee-label">${_esc(r.label)}</div>${f?.notes ? `<div class="fee-notes">${_esc(f.notes)}</div>` : ''}</td>
-      <td><span class="cat-badge cat-ipd">IPD</span></td>
-      <td style="color:var(--text-mid);font-size:13px">Room</td>
-      <td>${amountCell}</td>
-      <td>${statusCell}</td>
-      <td><div class="actions">${actionBtn}${f && role === 'super_admin' ? `<button class="act-btn act-edit" data-onclick="openEdit" data-onclick-a0="${f.id}">Edit</button>` : ''}</div></td>
-    </tr>`;
-  }).join('');
-}
 
 window.openAddRoomRate = function(bedType) {
   openModal();
@@ -1901,7 +1530,7 @@ window.openBedMultipliers = function() {
         <input type="number" min="0" step="0.05" class="bcm-mult" data-bed="${_esc(m.bed_type)}" value="${m.multiplier}" ${readOnly ? 'disabled' : ''}/>
         <label class="bcm-active"><input type="checkbox" data-bed-active="${_esc(m.bed_type)}" ${m.is_active ? 'checked' : ''} ${readOnly ? 'disabled' : ''}/> Active</label>
       </div>`).join('')
-    : '<div class="empty-text">No bed categories configured for this tenant yet.</div>';
+    : '<div class="empty-text">No bed categories yet. Use "Set up bed categories →" below.</div>';   // 386b-2b M2c (G13)
 
   document.getElementById('btn-bcm-save').style.display = readOnly ? 'none' : 'block';
   document.getElementById('bcm-overlay').classList.add('open');
@@ -1909,6 +1538,13 @@ window.openBedMultipliers = function() {
 
 window.closeBedMultipliers = function() {
   document.getElementById('bcm-overlay').classList.remove('open');
+};
+
+// 386b-2b (G6): the ⚙ Fee settings screen closes from inside too
+window.closeFeeSettings = function() {
+  const s = document.getElementById('fee-settings'); if (s) s.hidden = true;
+  const t = document.getElementById('fee-settings-toggle'); if (t) { t.setAttribute('aria-expanded', 'false'); t.focus(); }
+  document.getElementById('fee-list-v2')?.scrollIntoView({ block: 'start' });
 };
 
 window.saveBedMultipliers = async function() {
@@ -1934,10 +1570,10 @@ window.saveBedMultipliers = async function() {
 
   if (error) { toast(safeErrorMessage(error, 'Could not save bed category pricing.'), 'error'); return; }
 
-  toast('Bed category pricing updated.', 'success');
-  closeBedMultipliers();
+  toast('Bed category pricing updated — the tiered prices in the list now use it.', 'success');
+  window.closeBedMultipliers();   // G10: back to the Fee Structure at once
   await loadBedMultipliers();
-  renderTable();
+  _mountFeeList();   // 386b-2b (F7): the grouped list shows the tiered prices from the new multipliers
 };
 
 // ── Admission Advance Policy (Session 205 cont.) ──
