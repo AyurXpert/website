@@ -64,6 +64,22 @@ const _isImagingPerformer = profile?.role === 'lab_tech' || profile?.secondary_r
 const _isSonologist = (profile?.role === 'doctor' || profile?.secondary_role === 'doctor') && profile?.designation === 'sonologist';
 const _canPerformImaging = o => _isImagingPerformer || (_isSonologist && o?.modality === 'usg');
 const IMG_ONLY_MSG = 'Only the lab / radiology staff mark a study done or enter its report.';
+// Session 386b-2c (N5 / D2 / D3) -- page copy of the server's _imaging_release_ok(): who RELEASES a report. Ultrasound: a Sonologist or a
+// Radiologist holding the role Doctor (primary or second), never the Super Admin (PC-PNDT). Any other study: the lab / radiology staff
+// above, or the Super Admin only if the account also holds the role Doctor. An outside report is released by whoever enters it.
+const _hasDoctorRole = profile?.role === 'doctor' || profile?.secondary_role === 'doctor';
+function _canReleaseImaging(o) {
+  if (!o) return false;
+  if (o.is_outside_referral) return true;
+  const isSA = profile?.role === 'super_admin';
+  if (o.modality === 'usg') return !isSA && _hasDoctorRole && ['sonologist', 'radiologist'].includes(profile?.designation);
+  if (isSA) return profile?.secondary_role === 'doctor';
+  return profile?.role === 'lab_tech' || profile?.secondary_role === 'lab_tech'
+    || ['radiographer', 'radiologist', 'pathologist', 'lab_incharge'].includes(profile?.designation);
+}
+const IMG_RELEASE_MSG = o => o?.modality === 'usg'
+  ? 'Only a Sonologist or a Radiologist (role Doctor) releases an ultrasound report (PC-PNDT).'
+  : 'Only the lab / radiology staff release an imaging report; a Super Admin releases one only if the account also holds the role Doctor.';
 
 let _orders      = [];
 let _activeOrder = null;
@@ -234,7 +250,12 @@ function renderQueue() {
   if (!filtered.length) {
     list.innerHTML = `<div class="empty-queue">No orders</div>`; return;
   }
-  list.innerHTML = filtered.map(o => {
+  // Session 386b-2c (J2, owner rehearsal 16 Nov 2026): the queue holds the work still to do; released / cancelled orders sit in a collapsed
+  // "Released today" group at the bottom (the "Done" filter lists them as before; old reports: ✅ Completed / Released)
+  const doneSet = new Set(['completed', 'cancelled']);
+  const todo = _filter === 'completed' ? filtered : filtered.filter(o => !doneSet.has(o.status));
+  const done = _filter === 'completed' ? [] : filtered.filter(o => doneSet.has(o.status));
+  const item = o => {
     const tests = _summarizeTests(o.lab_order_items);
     const hasCritical = (o.lab_order_items||[]).some(t => t.is_critical);
     const isActive = _activeOrder?.id === o.id;
@@ -251,7 +272,9 @@ function renderQueue() {
       </div>
       <div class="order-tests">${_esc(tests||'No tests listed')}</div>
     </div>`;
-  }).join('');
+  };
+  list.innerHTML = (todo.length ? todo.map(item).join('') : '<div class="empty-queue">Nothing left to do</div>')
+    + (done.length ? `<details class="released-today"${done.some(o => o.id === _activeOrder?.id) ? ' open' : ''}><summary>✅ Released today (${done.length})</summary>${done.map(item).join('')}</details>` : '');
 }
 
 window.setFilter = function(el, f) {
@@ -531,6 +554,19 @@ window.saveResults = async function(status) {
   };
   const orderUpdate = Object.fromEntries(Object.entries(_orderNow).filter(([k, v]) => v !== (_activeOrder[k] ?? null)));
   const toVerify = releasing ? _activeItems.filter(i => (i.authorisation_status || 'pending') === 'pending' && (_val(i) || _stored[i.id]?.v)) : [];
+  // Session 386b-2c (N4 / §597): a numeric test's value must be a number before the release (the server refuses it too)
+  if (releasing) {
+    const bad = _activeItems.filter(i => {
+      const v = _val(i) || _stored[i.id]?.v;
+      if (!v) return false;
+      const t = findTest(_cat, i.test_name);
+      return t && t.result_type !== 'text' && flagFor(t, v, _activeOrder.patients?.gender, _activeOrder.patients?.age).note === 'not a number';
+    });
+    if (bad.length) {
+      _alert('error', 'Not a number: ' + bad.map(i => `${i.test_name} (${_val(i) || _stored[i.id]?.v})`).join(', ') + ' — correct it before releasing (or set the test to Text in the lab catalogue).');
+      return;
+    }
+  }
   if (!updates.length && !Object.keys(orderUpdate).length && !toVerify.length) {
     _alert('info', 'Nothing to save -- no result changed.');
     return;
@@ -606,7 +642,7 @@ window.saveResults = async function(status) {
     if (staged.error) {
       billingMsg = ['error', safeErrorMessage(staged.error, 'The report was released, but the lab charges could not be sent to the IPD bill.')];
     } else if (staged.unpriced.length) {
-      billingMsg = ['error', 'No price set for: ' + staged.unpriced.join(', ') + ' — billing has been alerted; the bill waits for it.'
+      billingMsg = ['warning', 'Report released. No price set for: ' + staged.unpriced.join(', ') + ' — billing has been alerted; the bill waits for it.'
         + (staged.charged ? ' Charged: ' + staged.charged + ' line' + (staged.charged === 1 ? '' : 's') + '.' : '')];
     } else if (staged.charged) {
       billingMsg = ['success', 'Lab charges sent to the IPD bill: ' + staged.charged + ' line' + (staged.charged === 1 ? '' : 's') + ' charged.'];
@@ -618,7 +654,8 @@ window.saveResults = async function(status) {
   _alert('success', releasing
     ? 'Report released and Tech Verified -- awaiting the pathologist / lab in-charge sign-off.' + (criticals.length ? ' Doctor notified of critical values.' : '') + (unverified.length ? ' No result yet (still pending): ' + unverified.join(', ') + '.' : '')
     : status === 'completed' ? 'Results saved.' : 'Results saved as in-progress.');
-  if (billingMsg) _alert(billingMsg[0], billingMsg[1]);
+  // Session 386b-2c (§584): a release with an unpriced test = success + an AMBER note that stays until closed (a staging error stays red)
+  if (billingMsg) { if (billingMsg[0] === 'warning') notify(billingMsg[1], 'warning', { timeout: 0 }); else _alert(billingMsg[0], billingMsg[1]); }
   await loadOrders();
   if (_activeOrder) selectOrder(_activeOrder.id);
 };
@@ -808,13 +845,81 @@ function _alert(type, msg) { notify(msg, type); }   // Session 323: shared top-l
 window.switchModule = function(mod, el) {
   document.querySelectorAll('.module-tab').forEach(b => b.classList.remove('active'));
   el.classList.add('active');
-  ['pathology','imaging','aerb','pcpndt','catalogue'].forEach(m => {
-    const t = document.getElementById('tab-'+m);
-    if (t) t.hidden = m !== mod;
-  });
+  _showModule(mod);
   if (mod === 'imaging')  { loadImagingOrders(); }
   if (mod === 'aerb')     { document.getElementById('aerb-month').value = istMonthStr(); loadAerbLog(); }
   if (mod === 'pcpndt')   { document.getElementById('pcpndt-month').value = istMonthStr(); loadPcpndtLog(); }
+  if (mod === 'released') { _initReleased(); }
+};
+function _showModule(mod) {
+  ['pathology','imaging','aerb','pcpndt','catalogue','released'].forEach(m => {
+    const t = document.getElementById('tab-'+m);
+    if (t) t.hidden = m !== mod;
+  });
+  document.querySelectorAll('.module-tab').forEach(b => b.classList.toggle('active', b.dataset.onclickA0 === mod));
+}
+
+// ── Session 386b-2c: Completed / Released ───────────────────────────────────────
+// diagnostic_reports_search (SECURITY INVOKER: only what this account may already read); a UHID searches every date. "Open" shows the
+// report in its own tab (read-only once released) -- print / reprint from there (numbered by the server).
+let _relInit = false;
+function _initReleased() {
+  if (_relInit) return;
+  _relInit = true;
+  const today = todayLocalStr();
+  const d = new Date(today + 'T00:00:00'); d.setDate(d.getDate() - 30);
+  document.getElementById('rel-to').value = today;
+  document.getElementById('rel-from').value = localDateStr(d);
+  document.getElementById('rel-q').addEventListener('keydown', e => { if (e.key === 'Enter') window.searchReleased(); });
+}
+window.releasedKindChanged = function() {
+  document.getElementById('rel-mod-wrap').hidden = document.getElementById('rel-kind').value !== 'imaging';
+  document.getElementById('rel-tbody').replaceChildren();
+  document.getElementById('rel-count').textContent = '';
+};
+window.searchReleased = async function() {
+  const kind = document.getElementById('rel-kind').value;
+  const { data, error } = await supabase.rpc('diagnostic_reports_search', {
+    p_kind: kind, p_query: document.getElementById('rel-q').value.trim(),
+    p_from: document.getElementById('rel-from').value || null, p_to: document.getElementById('rel-to').value || null,
+    p_modality: kind === 'imaging' ? (document.getElementById('rel-modality').value || null) : null,
+  });
+  const tb = document.getElementById('rel-tbody');
+  tb.replaceChildren();
+  if (error) { _alert('error', safeErrorMessage(error, 'Could not search the released reports.')); return; }
+  const rows = Array.isArray(data) ? data : [];
+  document.getElementById('rel-count').textContent = rows.length + (rows.length === 200 ? '+ (narrow the search)' : '') + ' found';
+  if (!rows.length) {
+    tb.append(_el('tr', null, _el('td', { colspan: '6', style: 'color:var(--text-muted);text-align:center;padding:16px' }, 'No released report found.')));
+    return;
+  }
+  rows.forEach(r => {
+    const report = kind === 'lab' ? (r.tests || '—') + (r.signed ? '' : ' · ' + AWAITING_SIGNOFF)
+                                  : (MOD_LABEL[r.modality] || r.modality) + ' — ' + (r.study_name || '') + (r.outside ? ' (outside)' : '');
+    const by = kind === 'lab' ? _dt(r.released_at) : [r.reported_by, _dt(r.released_at)].filter(Boolean).join(' · ');
+    const btn = _el('button', { class: 'btn btn-secondary btn-sm rel-open', type: 'button', 'data-onclick': 'openReleased', 'data-onclick-a0': kind, 'data-onclick-a1': r.id }, 'Open');
+    tb.append(_el('tr', null, _el('td', null, _fmtDate(r.order_date)), _el('td', null, r.patient_name || '—'), _el('td', null, r.uhid || '—'),
+      _el('td', null, report), _el('td', null, by || '—'), _el('td', null, btn)));
+  });
+};
+window.openReleased = async function(kind, id) {
+  if (kind === 'lab') {
+    const { data, error } = await supabase.from('lab_orders')
+      .select(`*, visits(patients(id,name,age,gender,phone,abha_number,abha_address)), profiles!ordered_by(full_name), lab_order_items(id,test_name,test_category,panel_label,result_value,is_abnormal,is_critical)`)
+      .eq('id', id).maybeSingle();
+    if (error || !data) { _alert('error', safeErrorMessage(error, 'Could not open this report.')); return; }
+    const o = { ...data, patients: data.visits?.patients || null };
+    _orders = [o, ..._orders.filter(x => x.id !== id)];
+    _showModule('pathology');
+    await window.selectOrder(id);
+  } else {
+    const { data, error } = await supabase.from('imaging_orders')
+      .select('*, patients(name,age,gender,phone,abha_number), profiles!ordered_by(full_name)').eq('id', id).maybeSingle();
+    if (error || !data) { _alert('error', safeErrorMessage(error, 'Could not open this report.')); return; }
+    _imgOrders = [data, ..._imgOrders.filter(x => x.id !== id)];
+    _showModule('imaging');
+    window.selectImgOrder(id);
+  }
 };
 
 // ── Imaging catalog ───────────────────────────────────────────────────────────
@@ -916,7 +1021,10 @@ function renderImgQueue() {
   );
   const list = document.getElementById('img-queue-list');
   if (!filtered.length) { list.innerHTML='<div class="empty-queue">No imaging orders</div>'; return; }
-  list.innerHTML = filtered.map(o => {
+  // Session 386b-2c (J2): released studies leave the work queue -- a collapsed "Released today" group at the bottom
+  const todo = filtered.filter(o => o.status !== 'completed');
+  const done = filtered.filter(o => o.status === 'completed');
+  const item = o => {
     const isActive = _activeImgOrder?.id === o.id;
     return `<div class="order-item${isActive?' selected':''}" data-onclick="selectImgOrder" data-onclick-a0="${o.id}">
       <div style="display:flex;align-items:center;justify-content:space-between">
@@ -930,7 +1038,9 @@ function renderImgQueue() {
       </div>
       <div class="order-tests">${_esc(o.study_name||'')}</div>
     </div>`;
-  }).join('');
+  };
+  list.innerHTML = (todo.length ? todo.map(item).join('') : '<div class="empty-queue">Nothing left to do</div>')
+    + (done.length ? `<details class="released-today"${done.some(o => o.id === _activeImgOrder?.id) ? ' open' : ''}><summary>✅ Released today (${done.length})</summary>${done.map(item).join('')}</details>` : '');
 }
 
 window.setImgFilter = function(el, f) {
@@ -1011,8 +1121,8 @@ function renderImgDetail() {
   html += `<div class="sec-title">Study Performance</div>
   <div class="field-row c3">
     <div class="field"><label>Performed Date</label><input id="ip-date" type="date" value="${o.performed_date||todayLocalStr()}" ${isDone?'readonly style="background:#f5f5f5"':''}></div>
-    <div class="field"><label>Operator / Radiographer</label><input id="ip-operator" type="text" value="${_esc(o.operator_name||'')}" placeholder="Radiographer / Technician" ${isDone?'readonly style="background:#f5f5f5"':''}></div>
-    <div class="field"><label>Radiologist / Sonologist</label><input id="ip-radiologist" type="text" value="${_esc(o.radiologist_name||'')}" placeholder="Reporting doctor" ${isDone?'readonly style="background:#f5f5f5"':''}></div>
+    <div class="field"><label>Operator / Radiographer</label><input id="ip-operator" type="text" value="${_esc(o.operator_name||'')}" placeholder="${(o.modality === 'xray' && !isOutside) ? 'Recorded when the study is saved' : 'Radiographer / Technician'}" ${(isDone || (o.modality === 'xray' && !isOutside)) ? 'readonly class="img-locked"' : ''}></div>
+    <div class="field"><label>${isOutside ? 'Reporting doctor (outside centre)' : 'Reported by'}</label><input id="ip-radiologist" type="text" value="${_esc(o.radiologist_name||'')}" placeholder="${isOutside ? 'Outside centre doctor' : 'Recorded when the report is released'}" ${(isDone || !isOutside)?'readonly style="background:#f5f5f5"':''}></div>
   </div>`;
 
   if (isOutside) {
@@ -1040,28 +1150,50 @@ function renderImgDetail() {
     </select>
   </div>`;
 
-  // Session 386b-2a (Q17): the performed / release buttons only for the lab / radiology staff (an outside report: anyone who may write)
+  // Session 386b-2a (Q17): the performed button only for the lab / radiology staff (an outside report: anyone who may write);
+  // Session 386b-2c (N5): the release button only for those who may RELEASE this study (_canReleaseImaging)
   const canReport = isOutside || _canPerformImaging(o);
+  const canRelease = _canReleaseImaging(o);
   if (!isDone && canReport) {
-    html += `<div class="no-print" style="margin-top:16px;display:flex;gap:10px;justify-content:flex-end">
+    html += `<div class="no-print" style="margin-top:16px;display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;align-items:center">
       <button class="btn btn-secondary btn-sm" data-onclick="saveImaging" data-onclick-a0="performed">Save as Performed</button>
-      <button class="btn btn-sm" style="background:#1a4080;color:#fff" data-onclick="saveImaging" data-onclick-a0="completed">✅ Release Report</button>
+      ${canRelease ? `<button class="btn btn-sm" style="background:#1a4080;color:#fff" data-onclick="saveImaging" data-onclick-a0="completed">✅ Release Report</button>`
+                   : `<span id="img-release-note" style="font-size:12px;color:var(--text-muted,#666)"></span>`}
     </div>`;
   } else if (!isDone) {
     html += `<div class="no-print" id="img-only-note" style="margin-top:16px;font-size:12px;color:var(--text-muted,#666)"></div>`;
+  }
+  if (isDone) {
+    html += `<div class="no-print" id="img-released-by" style="margin-top:14px;font-size:12px;color:var(--text-mid,#3d5a47)"></div>`;
   }
 
   document.getElementById('img-form-body').innerHTML = html;
   const onlyNote = document.getElementById('img-only-note');
   if (onlyNote) onlyNote.textContent = IMG_ONLY_MSG;
+  const relNote = document.getElementById('img-release-note');
+  if (relNote) relNote.textContent = IMG_RELEASE_MSG(o);
+  const relBy = document.getElementById('img-released-by');
+  if (relBy) relBy.textContent = _reportedByText(o);
+  // §584: the page's .btn{display:inline-flex} beats the hidden attribute -- hide the header button with display
   const hdrRelease = document.getElementById('i-release-btn');
-  if (hdrRelease) hdrRelease.hidden = isDone || !canReport;
+  if (hdrRelease) hdrRelease.style.display = (isDone || !canRelease) ? 'none' : '';
+  // Session 386b-2c (J5b, owner 16 Nov 2026): an in-house X-ray's operator (AERB log) is recorded by the SERVER -- the signed-in person who
+  // saves it as performed / releases it; the box is read-only (shown above)
+  // Session 386b-2c (J1): a released report, or a reader who cannot write it, sees every box read-only (the server refuses anyway)
+  if (isDone || !canReport) _lockImgForm();
 
   // Pre-fill USG indication if exists
   if (o.modality === 'usg') {
     const usgInd = document.getElementById('usg-indication');
     if (usgInd && o.usg_indication) usgInd.value = o.usg_indication;
   }
+}
+
+function _lockImgForm() {
+  document.querySelectorAll('#img-form-body input, #img-form-body textarea, #img-form-body select').forEach(el => {
+    if (el.tagName === 'SELECT' || el.type === 'checkbox' || el.type === 'radio') el.disabled = true; else el.readOnly = true;
+    el.classList.add('img-locked');
+  });
 }
 
 window.togglePcpndtFields = function(val) {
@@ -1073,6 +1205,7 @@ window.togglePcpndtFields = function(val) {
 window.saveImaging = async function(status) {
   if (!_activeImgOrder) return;
   if (!_activeImgOrder.is_outside_referral && !_canPerformImaging(_activeImgOrder)) { _alert('error', IMG_ONLY_MSG); return; }
+  if (status === 'completed' && !_canReleaseImaging(_activeImgOrder)) { _alert('error', IMG_RELEASE_MSG(_activeImgOrder)); return; }
   const findings   = document.getElementById('img-findings')?.value?.trim() || null;
   const impression = document.getElementById('img-impression')?.value?.trim() || null;
   const isCritical = document.getElementById('img-critical')?.value === 'yes';
@@ -1080,11 +1213,18 @@ window.saveImaging = async function(status) {
   const radiologist= document.getElementById('ip-radiologist')?.value?.trim() || null;
   const perfDate   = document.getElementById('ip-date')?.value || null;
 
+  // Session 386b-2c (§585): never an empty report (the server refuses it too)
+  if (status === 'completed' && !findings && !impression) { _alert('error', 'Enter the findings or the impression before releasing the report.'); return; }
   const payload = {
-    status, findings, impression, operator_name:operator,
-    radiologist_name:radiologist, performed_date:perfDate,
+    status, findings, impression,
+    performed_date:perfDate,
     is_critical:isCritical,
   };
+  // Session 386b-2c (§586): the reporting doctor of an in-house study is recorded by the server at release; only an outside report
+  // carries the outside centre's doctor typed here
+  if (_activeImgOrder.is_outside_referral) payload.radiologist_name = radiologist;
+  // J5b: an in-house X-ray's operator is the server's record (never sent); any other study keeps the typed operator
+  if (_activeImgOrder.is_outside_referral || _activeImgOrder.modality !== 'xray') payload.operator_name = operator;
 
   // X-ray AERB fields
   if (_activeImgOrder.modality === 'xray') {
@@ -1098,16 +1238,13 @@ window.saveImaging = async function(status) {
     payload.pcpndt_husband_name     = document.getElementById('usg-husband')?.value?.trim() || null;
     payload.pcpndt_address          = document.getElementById('usg-address')?.value?.trim() || null;
   }
-  if (status === 'completed') {
-    payload.report_released_at = new Date().toISOString();
-    payload.report_released_by = userId;
-  }
+  // (Session 386b-2c: report_released_at / _by are set by the server at release -- never sent)
   if (document.getElementById('ip-exp-date')?.value) {
     payload.expected_date = document.getElementById('ip-exp-date').value;
   }
 
-  const { error } = await supabase.from('imaging_orders').update(payload).eq('id', _activeImgOrder.id);
-  if (error) { _alert('error', safeErrorMessage(error, 'Could not update imaging order.')); return; }
+  const { data: savedRows, error } = await supabase.from('imaging_orders').update(payload).eq('id', _activeImgOrder.id).select('id');
+  if (error || !savedRows?.length) { _alert('error', safeErrorMessage(error, 'Could not update imaging order.')); return; }
 
   // Critical alert → doctor
   if (isCritical && status === 'completed') {
@@ -1127,10 +1264,30 @@ window.saveImaging = async function(status) {
 };
 
 // Imaging report = letterhead + patient header + the report form (typed findings frozen to text).
-window.printImagingReport = function() {
+// Session 386b-2c (N6): only a RELEASED report is printed, numbered by the server (record_document_print('imaging_report') ->
+// Original / DUPLICATE COPY · No. N, the same marking in the header and the footer); it fails closed when the print cannot be recorded.
+function _reportedByText(o) {
+  const r = o?.reporter_identity || {};
+  const name = r.name || o?.radiologist_name;
+  if (!name) return '';
+  const bits = [name];
+  if (r.designation) bits.push(String(r.designation).replace(/_/g, ' '));
+  if (r.registration_number) bits.push('Reg. No. ' + r.registration_number + (r.registration_council ? ' — ' + r.registration_council : ''));
+  return 'Reported by: ' + bits.join(', ') + (o?.report_released_at ? ' · released ' + _dt(o.report_released_at) : '');
+}
+window.printImagingReport = async function() {
   const $ = id => document.getElementById(id);
-  printDocument([docHeader('Imaging Report', $('i-mod-badge').textContent.trim()),
-    document.querySelector('#img-active-order .result-panel-hdr'), $('img-form-body')],
+  const o = _activeImgOrder;
+  if (!o) return;
+  if (o.status !== 'completed') { _alert('error', 'Release the report before printing it.'); return; }
+  const rec = await supabase.rpc('record_document_print', { p_doc_type: 'imaging_report', p_doc_id: o.id });
+  if (rec.error || !rec.data) { _alert('error', safeErrorMessage(rec.error, 'Could not record this print -- the report was not printed. Please try again.')); return; }
+  const copyNo = Number(rec.data.print_no) || 1;
+  const copyText = rec.data.copy === 'ORIGINAL' ? 'Original' : `DUPLICATE COPY · No. ${copyNo}`;
+  const strip = () => _el('div', { class: 'img-copy-strip', style: 'text-align:right;font-size:11px;font-weight:700;letter-spacing:.4px;margin:4px 0 8px;color:' + (copyNo > 1 ? '#7a1a1a' : '#1a4a2e') }, copyText);
+  const reported = _el('div', { class: 'img-reported-by', style: 'margin-top:14px;border-top:1px dashed #ccc;padding-top:8px;font-size:11.5px;font-weight:600' }, _reportedByText(o) || 'Reported by: —');
+  printDocument([docHeader('Imaging Report', $('i-mod-badge').textContent.trim()), strip(),
+    document.querySelector('#img-active-order .result-panel-hdr'), $('img-form-body'), reported, strip()],
     { title: `Imaging Report — ${$('i-pt-name').textContent}` });
 };
 

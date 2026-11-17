@@ -6,12 +6,27 @@ import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
 import { localDateStr, todayLocalStr, istMonthStr } from '../utils/dateUtils.js';
 import { notify } from '../components/notify.js';
+import { initCorrections, defineCorrection, corrRowClass, corrCell, activeRows } from '../modules/registers/corrections.js';
 
 await requireAuth(['super_admin','dept_admin']);
 initNavbar();
 wireDelegatedEvents();
 const tenantId = getCurrentTenantId();
 const profile  = getCurrentProfile();
+// Session 386b-2c (N9): a fire drill is never edited or deleted -- a mistake is corrected by a NEW entry with a reason (the shared
+// register correction, sql/session386b2c_diagnostics_release.sql); the server numbers every entry per organisation
+initCorrections(supabase, tenantId);
+defineCorrection('fire_drill_records', {
+  title: 'Fire / emergency drill', canWrite: true, reload: () => loadDrills(),
+  fields: [
+    { k: 'drill_date', label: 'Date', type: 'date' }, { k: 'drill_time', label: 'Time', type: 'time' },
+    { k: 'drill_type', label: 'Type', type: 'select', options: [['fire','Fire'],['earthquake','Earthquake'],['mass_casualty','Mass casualty'],['flood','Flood'],['power_failure','Power failure'],['chemical_spill','Chemical spill']] },
+    { k: 'location_covered', label: 'Location' }, { k: 'participants_count', label: 'Participants', type: 'number' },
+    { k: 'coordinator', label: 'Coordinator' }, { k: 'evacuation_time_min', label: 'Evacuation (min)', type: 'number' },
+    { k: 'observations', label: 'Observations', type: 'textarea' }, { k: 'deficiencies', label: 'Deficiencies', type: 'textarea' },
+    { k: 'corrective_actions', label: 'Corrective actions', type: 'textarea' }, { k: 'next_drill_date', label: 'Next drill', type: 'date' },
+  ],
+});
 
 window._closeIfSelf = function(isSelf, fnName) {
   if (isSelf) { const fn = window[fnName]; if (typeof fn === 'function') fn(); }
@@ -37,6 +52,12 @@ const UTIL_LABELS = {
   hvac:'HVAC/AC', electrical:'Electrical', plumbing:'Plumbing', lift:'Lift',
   oxygen_pipeline:'O₂ Pipeline', other:'Other'
 };
+// Session 386b-2c (J11, owner re-rehearsal 16 Nov 2026): dates on the screen as "16 May 2027" (CSV exports keep the stored date)
+const _MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+function _d(iso) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso || ''));
+  return m ? `${m[3]} ${_MON[Number(m[2]) - 1]} ${m[1]}` : (iso ? String(iso) : '—');
+}
 const MAINT_LABELS = {
   ppm:'PPM', breakdown:'Breakdown', calibration:'Calibration', amc_service:'AMC Service', inspection:'Inspection'
 };
@@ -67,10 +88,10 @@ async function loadEquipment() {
   const depts = [...new Set(_equipment.map(e => e.department).filter(Boolean))].sort();
   const sel = document.getElementById('eq-dept');
   sel.innerHTML = '<option value="">All Departments</option>' +
-    depts.map(d => `<option value="${d}">${d}</option>`).join('');
+    depts.map(d => `<option value="${_esc(d)}">${_esc(d)}</option>`).join('');
   // Populate maintenance equipment dropdown
   document.getElementById('mf-equip').innerHTML = '<option value="">— Select equipment —</option>' +
-    _equipment.filter(e => e.status==='active').map(e => `<option value="${e.id}">${e.name}${e.asset_code?' ('+e.asset_code+')':''}</option>`).join('');
+    _equipment.filter(e => e.status==='active').map(e => `<option value="${_esc(e.id)}">${_esc(e.name)}${e.asset_code?' ('+_esc(e.asset_code)+')':''}</option>`).join('');
   renderEquipment();
   loadKPIs();
 }
@@ -128,7 +149,7 @@ function loadKPIs() {
   document.getElementById('k-eq').textContent       = active.length;
   document.getElementById('k-ppm-over').textContent = ppmOver;
   document.getElementById('k-amc').textContent      = amcExp;
-  document.getElementById('k-drills').textContent   = _drills.length;
+  document.getElementById('k-drills').textContent   = activeRows(_drills).length;   // J10: a corrected entry never counts
   document.getElementById('k-ext-due').textContent  = extDue;
   // Overdue banner
   const banner = document.getElementById('overdue-banner');
@@ -168,11 +189,11 @@ window.renderEquipment = function() {
       <div class="eq-code">${_esc(e.asset_code||'—')} · ${_esc(CAT_LABELS[e.category]||e.category)} · <span class="badge ${badgeMap[e.status]||'b-active'}" style="font-size:10px">${_esc(e.status)}</span></div>
       <div class="eq-row"><span class="eq-label">Make/Model</span><span class="eq-val">${_esc(e.make||'—')}${e.model?' / '+_esc(e.model):''}</span></div>
       <div class="eq-row"><span class="eq-label">Serial No.</span><span class="eq-val">${_esc(e.serial_number||'—')}</span></div>
-      <div class="eq-row"><span class="eq-label">Location</span><span class="eq-val">${_esc(e.department||'—')}</span></div>
-      <div class="eq-row"><span class="eq-label">Next PPM</span><span class="eq-val ${ppmCls}">${_esc(e.next_ppm_date||'—')}</span></div>
-      <div class="eq-row"><span class="eq-label">Next Calibration</span><span class="eq-val ${calCls}">${_esc(e.next_calibration_date||'—')}</span></div>
+      <div class="eq-row"><span class="eq-label">Location</span><span class="eq-val">${_esc([e.department, e.location].filter(Boolean).join(' · ') || '—')}</span></div>
+      <div class="eq-row"><span class="eq-label">Next PPM</span><span class="eq-val ${ppmCls}">${_esc(_d(e.next_ppm_date))}</span></div>
+      <div class="eq-row"><span class="eq-label">Next Calibration</span><span class="eq-val ${calCls}">${_esc(_d(e.next_calibration_date))}</span></div>
       <div class="eq-row"><span class="eq-label">AMC Vendor</span><span class="eq-val">${_esc(e.amc_vendor||'—')}</span></div>
-      <div class="eq-row"><span class="eq-label">AMC Expiry</span><span class="eq-val ${e.amc_expiry && new Date(e.amc_expiry)<in30?'rl-amber':''}">${_esc(e.amc_expiry||'—')}</span></div>
+      <div class="eq-row"><span class="eq-label">AMC Expiry</span><span class="eq-val ${e.amc_expiry && new Date(e.amc_expiry)<in30?'rl-amber':''}">${_esc(_d(e.amc_expiry))}</span></div>
       <div class="eq-actions">
         ${certBtn}
         <button class="btn btn-outline btn-sm" data-onclick="editEquipment" data-onclick-a0="${e.id}">Edit</button>
@@ -186,23 +207,24 @@ window.renderEquipment = function() {
 function renderDrills() {
   // Check compliance — 2 drills/year minimum
   const drillBanner = document.getElementById('drill-overdue');
-  if (_drills.length < 2) {
+  const live = activeRows(_drills);   // a corrected (superseded) entry is not counted twice
+  if (live.length < 2) {
     drillBanner.style.display = '';
-    drillBanner.textContent   = `⚠ Only ${_drills.length} drill(s) recorded this year — NABH requires minimum 2 drills per year.`;
+    drillBanner.textContent   = `⚠ Only ${live.length} drill(s) recorded this year — NABH requires minimum 2 drills per year.`;
   } else drillBanner.style.display = 'none';
-  document.getElementById('k-drills').textContent = _drills.length;
+  document.getElementById('k-drills').textContent = live.length;
   const DTYPE = { fire:'🔥 Fire', earthquake:'🏚 Earthquake', mass_casualty:'🚨 MCI', flood:'🌊 Flood', power_failure:'⚡ Power Failure', chemical_spill:'☣ Chemical Spill' };
   const tbody = document.getElementById('drill-tbody');
   if (!_drills.length) { tbody.innerHTML = '<tr><td colspan="8"><div class="empty">No drills recorded this year</div></td></tr>'; return; }
-  tbody.innerHTML = _drills.map(d => `<tr>
-    <td style="white-space:nowrap">${d.drill_date}${d.drill_time?' '+d.drill_time:''}</td>
-    <td>${DTYPE[d.drill_type]||d.drill_type}</td>
-    <td>${d.location_covered||'—'}</td>
-    <td style="text-align:center">${d.participants_count||0}</td>
-    <td style="text-align:center;font-weight:500">${d.evacuation_time_min ? d.evacuation_time_min+' min' : '—'}</td>
-    <td style="font-size:12px;max-width:200px">${d.observations ? d.observations.slice(0,80)+(d.observations.length>80?'…':'') : '—'}</td>
-    <td style="white-space:nowrap">${d.next_drill_date||'—'}</td>
-    <td><button class="btn btn-outline btn-sm" data-onclick="deleteDrill" data-onclick-a0="${d.id}">Delete</button></td>
+  tbody.innerHTML = _drills.map(d => `<tr class="${corrRowClass(d)}">
+    <td style="white-space:nowrap">${_esc(_d(d.drill_date))}${d.drill_time?' '+_esc(d.drill_time):''}</td>
+    <td>${_esc(DTYPE[d.drill_type]||d.drill_type)}</td>
+    <td>${_esc(d.location_covered||'—')}</td>
+    <td style="text-align:center">${_esc(d.participants_count||0)}</td>
+    <td style="text-align:center;font-weight:500">${d.evacuation_time_min ? _esc(d.evacuation_time_min)+' min' : '—'}</td>
+    <td style="font-size:12px;max-width:200px">${d.observations ? _esc(d.observations.slice(0,80)+(d.observations.length>80?'…':'')) : '—'}</td>
+    <td style="white-space:nowrap">${_esc(_d(d.next_drill_date))}</td>
+    <td>${corrCell('fire_drill_records', d)}</td>
   </tr>`).join('');
 }
 
@@ -223,7 +245,7 @@ function renderExtinguishers() {
       <td>${e.capacity||'—'}</td>
       <td>${e.last_refilled||'—'}</td>
       <td>${e.last_inspection||'—'}</td>
-      <td class="${niCls}" style="font-weight:500">${e.next_inspection}</td>
+      <td class="${niCls}" style="font-weight:500">${_esc(_d(e.next_inspection))}</td>
       <td><span class="badge ${badgeMap[e.condition]||'b-good'}">${e.condition}</span></td>
       <td><button class="btn btn-outline btn-sm" data-onclick="editExtinguisher" data-onclick-a0="${e.id}">Edit</button></td>
     </tr>`;
@@ -243,20 +265,20 @@ window.renderUtilities = function() {
     return `<div style="background:var(--white);border:1px solid var(--border);border-radius:var(--radius);padding:12px 14px">
       <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted);margin-bottom:4px">${UTIL_LABELS[t]||t}</div>
       <div style="font-size:13px;font-weight:500">${entries.length} entries this month</div>
-      <div style="font-size:12px;color:${issues?'var(--red)':'var(--text-muted)'}">Last: ${latest?.log_date||'—'}${issues?' · ⚠ '+issues+' issue(s)':''}</div>
+      <div style="font-size:12px;color:${issues?'var(--red)':'var(--text-muted)'}">Last: ${_esc(_d(latest?.log_date))}${issues?' · ⚠ '+issues+' issue(s)':''}</div>
     </div>`;
   }).join('');
   const tbody = document.getElementById('util-tbody');
   if (!rows.length) { tbody.innerHTML = '<tr><td colspan="8"><div class="empty">No utility logs for this period</div></td></tr>'; return; }
   tbody.innerHTML = rows.map(r => `<tr>
-    <td style="white-space:nowrap">${_esc(r.log_date)}</td>
+    <td style="white-space:nowrap">${_esc(_d(r.log_date))}</td>
     <td><strong>${_esc(UTIL_LABELS[r.utility_type]||r.utility_type)}</strong></td>
     <td style="font-size:12px;max-width:200px">${_esc((r.description||'').slice(0,80))}${(r.description||'').length>80?'…':''}</td>
     <td style="font-size:12px">${_esc(r.performed_by||'—')}</td>
     <td style="font-size:12px">${_esc(r.result||'—')}</td>
     <td style="text-align:center">${r.is_compliant ? '✅' : '❌'}</td>
     <td style="font-size:12px;color:${r.issues_found?'var(--red)':'var(--text-muted)'}">${r.issues_found ? _esc(r.issues_found.slice(0,60)) : '—'}</td>
-    <td style="white-space:nowrap">${_esc(r.next_due_date||'—')}</td>
+    <td style="white-space:nowrap">${_esc(_d(r.next_due_date))}</td>
   </tr>`).join('');
 };
 
@@ -269,7 +291,7 @@ window.renderMaintenance = function() {
   tbody.innerHTML = rows.map(r => {
     const stMap = { completed:'b-active', pending:'b-repair', in_progress:'b-needs_refill' };
     return `<tr>
-      <td style="white-space:nowrap">${_esc(r.performed_date)}</td>
+      <td style="white-space:nowrap">${_esc(_d(r.performed_date))}</td>
       <td style="font-weight:500">${_esc(r.equipment_register?.name||'—')}<br/><span style="font-size:11px;color:var(--text-muted)">${_esc(r.equipment_register?.asset_code||'')}</span></td>
       <td>${_esc(MAINT_LABELS[r.maintenance_type]||r.maintenance_type)}</td>
       <td style="font-size:12px">${_esc(r.performed_by||r.vendor_engineer||'—')}</td>
@@ -281,17 +303,30 @@ window.renderMaintenance = function() {
 };
 
 // ── Equipment CRUD ───────────────────────────────────────
+// Session 386b-2c (J6): the department comes from the organisation's own list; an older free-text value stays selectable as entered
+let _deptNames = null;
+async function _fillDeptSelect(current) {
+  if (!_deptNames) {
+    const { data } = await supabase.from('departments').select('name').eq('tenant_id', tenantId).order('name');
+    _deptNames = [...new Set((data || []).map(d => d.name).filter(Boolean))];
+  }
+  const sel = document.getElementById('ef-dept');
+  const names = current && !_deptNames.includes(current) ? [..._deptNames, current] : _deptNames;
+  sel.replaceChildren(new Option('— Select department —', ''), ...names.map(n => new Option(n === current && !_deptNames.includes(n) ? n + ' (as entered)' : n, n)));
+  sel.value = current || '';
+}
 window.openEqModal = function(id) {
   document.getElementById('eq-modal').style.display = 'flex';
   document.getElementById('eq-modal-title').textContent = id ? 'Edit Equipment' : 'Add Equipment';
   if (!id) {
-    ['eq-edit-id','ef-code','ef-name','ef-make','ef-model','ef-serial','ef-dept',
+    ['eq-edit-id','ef-code','ef-name','ef-make','ef-model','ef-serial','ef-location',
      'ef-install','ef-warranty','ef-amc-vendor','ef-amc-contact','ef-amc-start',
      'ef-amc-expiry','ef-last-ppm','ef-next-ppm','ef-last-cal','ef-next-cal','ef-cert-url','ef-notes']
      .forEach(id => document.getElementById(id).value = '');
     document.getElementById('ef-ppm-interval').value = '6';
     document.getElementById('ef-cat').value = 'monitoring';
     document.getElementById('ef-status').value = 'active';
+    _fillDeptSelect('');
   }
 };
 window.closeEqModal = () => document.getElementById('eq-modal').style.display = 'none';
@@ -306,7 +341,8 @@ window.editEquipment = function(id) {
   document.getElementById('ef-make').value      = e.make||'';
   document.getElementById('ef-model').value     = e.model||'';
   document.getElementById('ef-serial').value    = e.serial_number||'';
-  document.getElementById('ef-dept').value      = e.department||'';
+  _fillDeptSelect(e.department || '');
+  document.getElementById('ef-location').value  = e.location||'';
   document.getElementById('ef-install').value   = e.installation_date||'';
   document.getElementById('ef-warranty').value  = e.warranty_expiry||'';
   document.getElementById('ef-amc-vendor').value= e.amc_vendor||'';
@@ -334,7 +370,8 @@ window.saveEquipment = async function() {
     make:                  document.getElementById('ef-make').value.trim()||null,
     model:                 document.getElementById('ef-model').value.trim()||null,
     serial_number:         document.getElementById('ef-serial').value.trim()||null,
-    department:            document.getElementById('ef-dept').value.trim()||null,
+    department:            document.getElementById('ef-dept').value||null,
+    location:              document.getElementById('ef-location').value.trim()||null,
     installation_date:     document.getElementById('ef-install').value||null,
     warranty_expiry:       document.getElementById('ef-warranty').value||null,
     amc_vendor:            document.getElementById('ef-amc-vendor').value.trim()||null,
@@ -354,7 +391,10 @@ window.saveEquipment = async function() {
   };
   const editId = document.getElementById('eq-edit-id').value;
   let err;
-  if (editId) { ({ error:err } = await supabase.from('equipment_register').update(payload).eq('id',editId)); }
+  if (editId) {   // Session 386b-2c: a 0-row update (no right) is an error, never "saved"
+    const res = await supabase.from('equipment_register').update(payload).eq('id',editId).select('id');
+    err = res.error || (!res.data?.length ? { message: 'not saved' } : null);
+  }
   else        { ({ error:err } = await supabase.from('equipment_register').insert(payload)); }
   if (err) { toast(safeErrorMessage(err, 'Save failed.'), 'error'); return; }
   toast(editId?'Equipment updated':'Equipment added', 'success');
@@ -367,7 +407,7 @@ window.logPPM = function(id, name) {
   document.getElementById('mf-equip').value = id;
   document.getElementById('mf-type').value  = 'ppm';
   switchTab('maintenance');
-  toast(`Logging PPM for: ${name}`, 'success');
+  _maintNextAuto = true; window.maintAutoNext();   // Session 386b-2c (J7); (J8: no "Success" toast for opening a form)
 };
 
 window.exportEqCSV = function() {
@@ -407,12 +447,6 @@ window.saveDrill = async function() {
   const { error } = await supabase.from('fire_drill_records').insert(payload);
   if (error) { toast(safeErrorMessage(error, 'Save failed.'), 'error'); return; }
   toast('Drill record saved', 'success'); closeDrillModal(); loadDrills();
-};
-
-window.deleteDrill = async function(id) {
-  if (!confirm('Delete this drill record?')) return;
-  await supabase.from('fire_drill_records').delete().eq('id',id);
-  toast('Deleted', 'success'); loadDrills();
 };
 
 window.exportDrillCSV = function() {
@@ -509,7 +543,27 @@ window.exportUtilCSV = function() {
 };
 
 // ── Maintenance CRUD ─────────────────────────────────────
-window.openMaintModal  = () => { document.getElementById('maint-modal').style.display='flex'; document.getElementById('mf-date').value=todayStr; ['mf-by','mf-vendor','mf-desc','mf-next'].forEach(i=>document.getElementById(i).value=''); document.getElementById('mf-downtime').value='0'; document.getElementById('mf-cost').value=''; document.getElementById('mf-status').value='completed'; document.getElementById('mf-type').value='ppm'; };
+window.openMaintModal  = () => { document.getElementById('maint-modal').style.display='flex'; document.getElementById('mf-date').value=todayStr; ['mf-by','mf-vendor','mf-desc','mf-next'].forEach(i=>document.getElementById(i).value=''); document.getElementById('mf-downtime').value='0'; document.getElementById('mf-cost').value=''; document.getElementById('mf-status').value='completed'; document.getElementById('mf-type').value='ppm'; _maintNextAuto = true; window.maintAutoNext(); };
+// Session 386b-2c (J7, owner rehearsal 16 Nov 2026): Next due = the date + the equipment's PPM interval (months; calibration: 12), filled
+// while the user has not typed one (then theirs stands); saving updates the equipment's Last / Next date, so "PPM overdue" works
+let _maintNextAuto = true;
+function _addMonths(iso, m) {
+  const [y, mo, d] = iso.split('-').map(Number);
+  const last = new Date(Date.UTC(y, mo - 1 + m + 1, 0)).getUTCDate();          // the last day of the target month
+  return new Date(Date.UTC(y, mo - 1 + m, Math.min(d, last))).toISOString().slice(0, 10);
+}
+function _nextDueFor(equipId, type, date) {
+  if (!equipId || !date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return '';
+  const e = _equipment.find(x => x.id === equipId);
+  const months = type === 'ppm' ? (Number(e?.ppm_interval_months) || 6) : type === 'calibration' ? 12 : 0;
+  return months ? _addMonths(date, months) : '';
+}
+window.maintAutoNext = function() {
+  if (!_maintNextAuto) return;
+  document.getElementById('mf-next').value = _nextDueFor(document.getElementById('mf-equip').value, document.getElementById('mf-type').value,
+                                                         document.getElementById('mf-date').value);
+};
+window.maintNextEdited = function() { _maintNextAuto = false; };
 window.closeMaintModal = () => document.getElementById('maint-modal').style.display='none';
 
 window.saveMaintenance = async function() {
@@ -525,20 +579,25 @@ window.saveMaintenance = async function() {
     vendor_engineer:  document.getElementById('mf-vendor').value.trim()||null,
     description:      document.getElementById('mf-desc').value.trim()||null,
     downtime_hours:   parseFloat(document.getElementById('mf-downtime').value)||0,
-    next_due_date:    document.getElementById('mf-next').value||null,
+    next_due_date:    document.getElementById('mf-next').value || _nextDueFor(equipId, document.getElementById('mf-type').value, date) || null,
     cost:             parseFloat(document.getElementById('mf-cost').value)||null,
     status:           document.getElementById('mf-status').value,
     created_by:       profile.id,
   };
   // Update next PPM date on equipment if PPM type
-  if (payload.maintenance_type === 'ppm' && payload.next_due_date) {
-    await supabase.from('equipment_register').update({ next_ppm_date: payload.next_due_date, last_ppm_date: date, updated_at: new Date().toISOString() }).eq('id', equipId);
-  }
-  if (payload.maintenance_type === 'calibration' && payload.next_due_date) {
-    await supabase.from('equipment_register').update({ next_calibration_date: payload.next_due_date, last_calibration_date: date, updated_at: new Date().toISOString() }).eq('id', equipId);
-  }
+  // Session 386b-2c: the log row first, then the equipment's next-due date; every answer is checked (no false "saved")
   const { error } = await supabase.from('equipment_maintenance_log').insert(payload);
   if (error) { toast(safeErrorMessage(error, 'Save failed.'), 'error'); return; }
+  // J7: a PPM / calibration always updates the equipment's Last date and its Next date (typed, else from the interval)
+  const nextDue = payload.next_due_date || _nextDueFor(equipId, payload.maintenance_type, date) || null;
+  const dueUpd = payload.maintenance_type === 'ppm'
+      ? { next_ppm_date: nextDue, last_ppm_date: date }
+    : payload.maintenance_type === 'calibration'
+      ? { next_calibration_date: nextDue, last_calibration_date: date } : null;
+  if (dueUpd) {
+    const { data: upd, error: uErr } = await supabase.from('equipment_register').update(dueUpd).eq('id', equipId).select('id');
+    if (uErr || !upd?.length) { toast(safeErrorMessage(uErr, 'The maintenance was logged, but the next-due date of the equipment could not be updated.'), 'error'); loadMaintenance(); loadEquipment(); return; }
+  }
   toast('Maintenance logged', 'success'); closeMaintModal(); loadMaintenance(); loadEquipment();
 };
 

@@ -25,7 +25,7 @@ export async function renderAskToAddSetting(box, { supabase, role, tenantId, toa
   card.append(mk('div', 'font-weight:600;font-size:14px;color:var(--green-deep);margin-bottom:8px', '🧩 Ask to add a procedure'));
   const r = mk('div', 'display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap');
   const txt = mk('div', 'flex:1;min-width:220px');
-  txt.append(mk('div', 'font-weight:600;font-size:13px;color:var(--text-dark,#1a1a1a)', 'Let staff ask the Fee committee to add a procedure that is not in the fee list'),
+  txt.append(mk('div', 'font-weight:600;font-size:13px;color:var(--text-dark,#1a1a1a)', 'Let doctors (and the nurses / therapists who record procedures) ask the Fee committee to add a procedure that is not in the fee list'),
     mk('div', 'font-size:12.5px;color:var(--text-mid);margin-top:2px', on
       ? "ON — Doctors (and the nurses / therapists who record procedures) use 'Ask to add a procedure' to ask the Fee committee to add a procedure that is not in the fee list. Nothing is recorded or billed until it is added; then they record it from the list."
       : "OFF — the 'Ask to add a procedure' button is hidden. Only procedures from the fee list can be recorded."));

@@ -53,7 +53,7 @@ function parseNumber(txt) {
   const t = String(txt).trim();
   const r = /^(\d+(?:\.\d+)?)\s*-\s*(\d+(?:\.\d+)?)$/.exec(t);   // "2-4" (/hpf): the upper value
   if (r) return Number(r[2]);
-  const s = t.replace(/,/g, '').replace(/^[<>]=?\s*/, '');
+  const s = t.replace(/,/g, '').replace(/^(?:[<>]=?|[≤≥])\s*/, '');   // Session 386b-2c (N4): also ≤ / ≥ (the server's twin)
   return /^[-+]?\d+(\.\d+)?$/.test(s) ? Number(s) : null;
 }
 

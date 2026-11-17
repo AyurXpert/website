@@ -309,7 +309,9 @@ async function _saveOutsideImaging() {
   if (!date) { err.textContent = 'Enter the report date.'; return; }
   if (date > _todayStr()) { err.textContent = 'Report date cannot be in the future.'; return; }
   if (!_modalOrder && !study) { err.textContent = 'Enter the study / region.'; return; }
-  if (!impression && !findings && !file) { err.textContent = 'Enter the impression or findings, or attach the report.'; return; }
+  // Session 386b-2c (§585): an imaging report is never released empty -- the server refuses it (the attached file is saved after the
+  // release, so it cannot stand in for the text): type at least the impression; the photo / PDF stays optional
+  if (!impression && !findings) { err.textContent = 'Enter the impression or findings (the attached report is optional).'; return; }
   if (file && !/^(image\/|application\/pdf$)/.test(file.type)) { err.textContent = 'Attach a photo or a PDF.'; return; }
   if (file && file.size > 10 * 1024 * 1024) { err.textContent = 'The file is larger than 10 MB.'; return; }
 

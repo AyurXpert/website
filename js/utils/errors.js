@@ -198,6 +198,17 @@ export function safeErrorMessage(error, fallback = 'Something went wrong. Please
   if (['P0002', '42501', '22023'].includes(error?.code) && S386B2A_MSGS.some(m => error?.message?.startsWith(m))) {
     return error.message;
   }
+  // Session 386b-2c (N4 / N5 / §585 / D3 / D6): the release rules, numeric results, the released-report search, the equipment register --
+  // plain, schema-free, shown word for word
+  const S386B2C_MSGS = ['Enter the findings or the impression before releasing the report',
+    'Only a Sonologist or a Radiologist (role Doctor) releases an ultrasound report', 'Only the lab / radiology staff release an imaging report',
+    'Not a number: ', 'Only the staff of the lab page can search released reports', 'Choose Pathology or Imaging', 'Unknown study type',
+    'The search text is too long', 'The "from" date is after the "to" date', 'Choose at most one year',
+    "That equipment is not in this organisation's register",
+    'The study type cannot be changed once the study is performed', 'The outside-report setting cannot be changed once the study is performed'];
+  if (['23514', '42501', '22023'].includes(error?.code) && S386B2C_MSGS.some(m => error?.message?.startsWith(m))) {
+    return error.message;
+  }
   // Session 386b-2b (M1, §564 / §561 / D6): who asks after the lock, the reason type, the query, Change fee from a bill line -- plain, schema-free
   const S386B2B_MSGS = ['Only the ward in-charge, the accountant, the finance manager, the Medical Superintendent or the Super Admin can ask',
     'Choose the reason type you may give', 'Only reception or the cashier sends a charge query',

@@ -281,7 +281,7 @@ function _injectNavbar(profile, tenant, role, secondaryRole, hasMonitoringAccess
       </a>`
     ).join('');
     return `<div class="ax-group${hasActive ? ' has-active' : ''}">
-      <button class="ax-group-btn">${g.icon} ${g.label} <span class="ax-caret">▾</span></button>
+      <button type="button" class="ax-group-btn" aria-haspopup="true" aria-expanded="false">${g.icon} ${g.label} <span class="ax-caret">▾</span></button>
       <div class="ax-dropdown">${itemsHTML}</div>
     </div>`;
   }).join('');
@@ -292,7 +292,7 @@ function _injectNavbar(profile, tenant, role, secondaryRole, hasMonitoringAccess
   // super_admin/dept_admin ever saw) but via the shared navbar so it reaches
   // every staff role uniformly, without touching ~30 individual page files.
   const helpGroupHTML = `<div class="ax-group">
-    <button class="ax-group-btn">🧾 Help <span class="ax-caret">▾</span></button>
+    <button type="button" class="ax-group-btn" aria-haspopup="true" aria-expanded="false">🧾 Help <span class="ax-caret">▾</span></button>
     <div class="ax-dropdown">
       <button type="button" class="ax-dd-item" id="ax-dd-duties">📌 My Duties &amp; Responsibilities</button>
       ${shiftOk ? '<a class="ax-dd-item" href="shift-close.html">🤝 Shift Close &amp; Handover</a>' : ''}
@@ -336,18 +336,18 @@ function _injectNavbar(profile, tenant, role, secondaryRole, hasMonitoringAccess
         </div>
         <a href="account-settings.html" class="ax-account-link" id="ax-account-link">Account</a>
         <button class="ax-logout-btn" id="ax-logout-btn">Logout</button>
-        <button class="ax-hamburger" id="ax-hamburger" aria-label="Open menu">
+        <button class="ax-hamburger" id="ax-hamburger" aria-label="Open menu" aria-expanded="false" aria-controls="ax-mobile-menu">
           <span></span><span></span><span></span>
         </button>
       </div>
     </div>
     <div class="ax-mobile-menu" id="ax-mobile-menu">
-      <div class="ax-mobile-links">${mobileHTML}</div>
-      <div class="ax-mobile-footer">
+      <div class="ax-mobile-footer ax-mobile-top">
         <span>${profile.full_name || ''} &nbsp;·&nbsp; ${_userRoleLine(profile, role)}</span>
         <a href="account-settings.html" class="ax-mobile-account">Account</a>
         <button class="ax-mobile-logout" id="ax-mobile-logout">Logout</button>
       </div>
+      <div class="ax-mobile-links">${mobileHTML}</div>
     </div>`;
 
   document.body.insertBefore(nav, document.body.firstChild);
@@ -356,6 +356,7 @@ function _injectNavbar(profile, tenant, role, secondaryRole, hasMonitoringAccess
   document.getElementById('ax-logout-btn').addEventListener('click', _handleLogout);
   document.getElementById('ax-mobile-logout').addEventListener('click', _handleLogout);
   document.getElementById('ax-hamburger').addEventListener('click', _toggleMenu);
+  _wireDropdowns(nav);
 
   document.getElementById('ax-dd-duties').addEventListener('click', _showDutiesModal);
   document.getElementById('ax-mob-dd-duties').addEventListener('click', _showDutiesModal);
@@ -613,8 +614,42 @@ function _navToast(msg, isError = false) {
 // ── Helpers ───────────────────────────────────────────────────────────────────
 async function _handleLogout() { await logoutChecked(); }   // owner 31 Oct 2026: an open shift is named first (never blocks)
 function _toggleMenu() {
-  document.getElementById('ax-mobile-menu').classList.toggle('open');
-  document.getElementById('ax-hamburger').classList.toggle('open');
+  const open = document.getElementById('ax-mobile-menu').classList.toggle('open');
+  const btn = document.getElementById('ax-hamburger');
+  btn.classList.toggle('open', open);
+  btn.setAttribute('aria-expanded', String(open));
+  btn.setAttribute('aria-label', open ? 'Close menu' : 'Open menu');
+  // TODO §513: the admin icon rail (fixed, z-index 200) lay over the drawer and cut the item names -- hidden while the drawer is open
+  document.body.classList.toggle('ax-menu-open', open);
+}
+
+// TODO §543 (Session 386b-2c): a dropdown also opens on a click / Enter (touch screens, keyboard) and stays open while the user scrolls
+// inside it (it is never taller than the screen -- CSS max-height + its own scroll); a click outside or Esc closes it.
+function _wireDropdowns(nav) {
+  const groups = [...nav.querySelectorAll('.ax-group')];
+  const closeAll = except => groups.forEach(g => {
+    if (g === except) return;
+    g.classList.remove('ax-open');
+    g.querySelector('.ax-group-btn')?.setAttribute('aria-expanded', 'false');
+  });
+  groups.forEach(g => {
+    const btn = g.querySelector('.ax-group-btn');
+    if (!btn) return;
+    btn.addEventListener('click', e => {
+      e.preventDefault();
+      const open = !g.classList.contains('ax-open');
+      closeAll(g);
+      g.classList.toggle('ax-open', open);
+      btn.setAttribute('aria-expanded', String(open));
+    });
+  });
+  document.addEventListener('click', e => { if (!nav.contains(e.target)) closeAll(null); });
+  document.addEventListener('keydown', e => {
+    if (e.key !== 'Escape') return;
+    const openG = groups.find(g => g.classList.contains('ax-open') || g.contains(document.activeElement));
+    closeAll(null);
+    if (openG && openG.contains(document.activeElement)) document.activeElement.blur();
+  });
 }
 
 function _roleLabel(role) { return roleLabel(role); }   // 386b-2b (F9): the shared names (js/config/roleLabels.js), never a raw code
@@ -706,11 +741,14 @@ function _injectStyles() {
     transform:translateX(-50%) translateY(-6px);
     transition:opacity .18s,transform .18s;
     z-index:200;
+    /* TODO §543: never taller than the screen -- the list scrolls inside (60px bar + 6px gap + a margin) */
+    max-height:calc(100vh - 76px);overflow-y:auto;overscroll-behavior:contain;
   }
-  .ax-group:hover .ax-dropdown,.ax-group:focus-within .ax-dropdown{
+  .ax-group:hover .ax-dropdown,.ax-group:focus-within .ax-dropdown,.ax-group.ax-open .ax-dropdown{
     opacity:1;pointer-events:all;
     transform:translateX(-50%) translateY(0);
   }
+  .ax-group.ax-open .ax-caret{transform:rotate(180deg)}
   .ax-dd-item{
     display:block;padding:9px 14px;border-radius:7px;
     text-decoration:none;color:#1a2e22;font-size:13px;font-weight:500;
@@ -742,7 +780,13 @@ function _injectStyles() {
   .ax-hamburger.open span:nth-child(3){transform:translateY(-7px) rotate(-45deg)}
 
   /* Mobile menu */
-  .ax-mobile-menu{display:none;flex-direction:column;background:#143d24;border-top:1px solid rgba(255,255,255,.08);max-height:80vh;overflow-y:auto}
+  .ax-mobile-menu{display:none;flex-direction:column;background:#143d24;border-top:1px solid rgba(255,255,255,.08);max-height:calc(100vh - 60px);overflow-y:auto;overscroll-behavior:contain}
+  /* TODO §513: page sidebars (the icon rail, admin.html's own sidebar: fixed, z-index 200) lay over the open drawer and cut the item names --
+     while the drawer is open the navbar sits above them (still below every modal, >= 300 on the pages that use one) */
+  body.ax-menu-open #axsb-rail{display:none}
+  body.ax-menu-open #ax-navbar{z-index:260}
+  .ax-mobile-top{border-top:0!important;border-bottom:1px solid rgba(255,255,255,.1);flex-wrap:wrap;position:sticky;top:0;background:#143d24;z-index:1}
+  .ax-mobile-top .ax-mobile-logout,.ax-mobile-top .ax-mobile-account{min-height:44px;display:inline-flex;align-items:center}
   .ax-mobile-menu.open{display:flex}
   .ax-mobile-links{padding:10px 12px 8px;display:flex;flex-direction:column;gap:2px}
   .ax-mob-group{margin-bottom:8px}
@@ -764,6 +808,7 @@ function _injectStyles() {
     .ax-hamburger{display:flex}
   }
   @media(max-width:480px){
+    .ax-mobile-menu{max-height:calc(100vh - 56px)}
     .ax-inner{padding:0 14px;height:56px}
     .ax-name{max-width:120px;font-size:13px}
     body{padding-top:56px!important}

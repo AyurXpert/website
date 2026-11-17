@@ -34,6 +34,9 @@ h1{font-family:'Cormorant Garamond',serif;font-size:26px;color:var(--green-deep)
 .tabs{display:flex;gap:0;border-bottom:2px solid var(--border);margin-bottom:20px;flex-wrap:wrap}
 .tab-btn{padding:10px 20px;font-size:13px;font-weight:500;background:none;border:none;border-bottom:3px solid transparent;cursor:pointer;color:var(--text-muted);margin-bottom:-2px;transition:all .2s;white-space:nowrap}
 .tab-btn.active{color:var(--green-deep);border-bottom-color:var(--green-deep);font-weight:600}
+/* Session 386b-2c (J9): only the chosen tab's pane is shown (no rule existed since 4 Jun 2026: all four panes showed one under another) */
+.tab-pane{display:none}
+.tab-pane.active{display:block}
 
 /* KPI */
 .kpi-row{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-bottom:20px}
@@ -314,7 +317,10 @@ tr:hover td{background:#f9fdfb}
     </div>
     <div class="field-row">
       <div class="field"><label>Serial Number</label><input id="ef-serial" type="text"/></div>
-      <div class="field"><label>Department / Location</label><input id="ef-dept" type="text" placeholder="e.g. Emergency, IPD Ward 1"/></div>
+      <div class="field"><label>Department</label><select id="ef-dept"><option value="">— Select department —</option></select></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>Room / Location (optional)</label><input id="ef-location" type="text" maxlength="120" placeholder="e.g. Ward 1, Room 4"/></div>
     </div>
     <div class="field-row">
       <div class="field"><label>Installation Date</label><input id="ef-install" type="date"/></div>
@@ -490,11 +496,11 @@ tr:hover td{background:#f9fdfb}
   <div class="modal">
     <h2>Log Equipment Maintenance</h2>
     <div class="field"><label>Equipment *</label>
-      <select id="mf-equip"><option value="">— Select equipment —</option></select>
+      <select id="mf-equip" data-onchange="maintAutoNext"><option value="">— Select equipment —</option></select>
     </div>
     <div class="field-row">
       <div class="field"><label>Type *</label>
-        <select id="mf-type">
+        <select id="mf-type" data-onchange="maintAutoNext">
           <option value="ppm">PPM — Preventive Maintenance</option>
           <option value="breakdown">Breakdown Repair</option>
           <option value="calibration">Calibration</option>
@@ -502,7 +508,7 @@ tr:hover td{background:#f9fdfb}
           <option value="inspection">Inspection</option>
         </select>
       </div>
-      <div class="field"><label>Date *</label><input id="mf-date" type="date"/></div>
+      <div class="field"><label>Date *</label><input id="mf-date" type="date" data-onchange="maintAutoNext"/></div>
     </div>
     <div class="field-row">
       <div class="field"><label>Performed By (name)</label><input id="mf-by" type="text" placeholder="In-house engineer or vendor name"/></div>
@@ -511,7 +517,7 @@ tr:hover td{background:#f9fdfb}
     <div class="field"><label>Description of Work</label><textarea id="mf-desc" placeholder="Work carried out, parts replaced, observations…"></textarea></div>
     <div class="field-row">
       <div class="field"><label>Downtime (hours)</label><input id="mf-downtime" type="number" min="0" step="0.5" value="0"/></div>
-      <div class="field"><label>Next Due Date</label><input id="mf-next" type="date"/></div>
+      <div class="field"><label>Next Due Date</label><input id="mf-next" type="date" data-onchange="maintNextEdited"/></div>
     </div>
     <div class="field-row">
       <div class="field"><label>Cost (₹)</label><input id="mf-cost" type="number" min="0" step="0.01" placeholder="0"/></div>

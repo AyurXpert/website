@@ -141,10 +141,13 @@ export const ROLE_DUTY_FALLBACK = {
 // Session 378b: + iqac_coordinator (records IQAC meetings) -- sql/session378b_*.sql.
 // Session 386b-2b: + physiotherapist (completes physiotherapy sessions, which charges the IPD bill) -- sql/session386b2b2_*.sql.
 // Session 386b-2b (TODO §605): + sonologist (marks ultrasound studies done / reported, which charges the IPD bill, since 386b-2a).
+// Session 386b-2c (D1): + radiologist, radiographer (release imaging reports, which charges the IPD bill), maintenance_engineer,
+// maintenance_supervisor (write the equipment register) -- sql/session386b2c_diagnostics_release.sql.
 export const POWERFUL_ROLES = ['super_admin', 'dept_admin', 'finance_manager', 'nurse_manager'];
 export const POWERFUL_DESIGS = ['medical_director', 'principal', 'medical_superintendent', 'deputy_medical_superintendent',
   'nursing_superintendent', 'deputy_nursing_superintendent', 'pk_incharge', 'finance_manager', 'yoga_instructor',
-  'pathologist', 'lab_incharge', 'blood_bank_technician', 'chief_pharmacist', 'iqac_coordinator', 'physiotherapist', 'sonologist'];
+  'pathologist', 'lab_incharge', 'blood_bank_technician', 'chief_pharmacist', 'iqac_coordinator', 'physiotherapist', 'sonologist',
+  'radiologist', 'radiographer', 'maintenance_engineer', 'maintenance_supervisor'];
 export function isPowerfulPosition(role, designation) {
   const norm = v => String(v ?? '').trim().toLowerCase();
   return POWERFUL_ROLES.includes(norm(role)) || POWERFUL_DESIGS.includes(norm(designation));

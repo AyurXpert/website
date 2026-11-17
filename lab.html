@@ -219,6 +219,19 @@ button.adv-item:focus-visible{outline:2px solid var(--blue);outline-offset:-2px}
   .test-ref{font-size:10px}
   #tab-pathology,#tab-imaging,#tab-aerb,#tab-pcpndt{display:block!important}
 }
+/* Session 386b-2c (J2): released work leaves the queue -> a collapsed group at the bottom; (J1) read-only report boxes */
+.released-today{border-top:1px dashed var(--border);margin-top:6px}
+.released-today > summary{cursor:pointer;min-height:44px;display:flex;align-items:center;padding:0 14px;font-size:12px;font-weight:600;color:var(--text-mid)}
+.released-today > summary:focus-visible{outline:3px solid var(--gold);outline-offset:-3px}
+.img-locked{background:#f5f5f5!important;color:var(--text-mid)}
+/* Session 386b-2c: Completed / Released */
+.rel-controls{display:flex;flex-wrap:wrap;gap:10px 14px;align-items:flex-end;padding:12px 16px}
+.rel-controls label{display:flex;flex-direction:column;font-size:12px;font-weight:600;color:var(--text-mid);gap:4px}
+.rel-controls select,.rel-controls input{height:40px;border:1.5px solid var(--border);border-radius:8px;padding:0 10px;font:13px 'DM Sans',sans-serif}
+.rel-controls .rel-q input{min-width:240px}
+.rel-controls [hidden]{display:none!important}
+.rel-hint{padding:0 16px 10px;font-size:12px;color:var(--text-muted)}
+.rel-open{min-height:44px;min-width:44px}
 /* Session 363: the lab test catalogue tab */
 #tab-catalogue [hidden]{display:none!important}
 .cat-unpriced{margin:0 16px 10px}
@@ -279,6 +292,7 @@ button.adv-item:focus-visible{outline:2px solid var(--blue);outline-offset:-2px}
     <button class="module-tab" data-onclick="switchModule" data-onclick-a0="aerb" data-onclick-a1="@this">☢ AERB Log <span class="aerb-badge">X-Ray</span></button>
     <button class="module-tab" data-onclick="switchModule" data-onclick-a0="pcpndt" data-onclick-a1="@this">🔒 PCPNDT Register <span class="pcpndt-badge">USG</span></button>
     <button class="module-tab" data-onclick="switchModule" data-onclick-a0="catalogue" data-onclick-a1="@this">📚 Test catalogue</button>
+    <button class="module-tab" data-onclick="switchModule" data-onclick-a0="released" data-onclick-a1="@this">✅ Completed / Released</button>
   </div>
 
   <!-- ═══════════ TAB 1: PATHOLOGY ═══════════ -->
@@ -504,6 +518,34 @@ button.adv-item:focus-visible{outline:2px solid var(--blue);outline-offset:-2px}
   <!-- ═══════════ TAB 4: PCPNDT REGISTER ═══════════ -->
   <!-- ═══════════ Session 363 (§266): the lab test catalogue (js/modules/lab/catalogueTab.js) ═══════════ -->
   <div id="tab-catalogue" class="no-print" hidden></div>
+
+  <!-- Session 386b-2c: every released lab / imaging report, searchable by name, phone or UHID (a UHID searches every date) -->
+  <div id="tab-released" class="no-print" hidden>
+    <div class="register-wrap">
+      <div class="register-hdr">
+        <div class="register-title">✅ Completed / Released reports</div>
+        <span id="rel-count" style="font-size:12px;color:var(--text-muted)"></span>
+      </div>
+      <div class="rel-controls">
+        <label>Reports<select id="rel-kind" data-onchange="releasedKindChanged">
+          <option value="lab">🔬 Pathology</option><option value="imaging">📡 Imaging</option></select></label>
+        <label id="rel-mod-wrap" hidden>Study<select id="rel-modality">
+          <option value="">All</option><option value="xray">X-Ray</option><option value="usg">USG</option><option value="ecg">ECG</option>
+          <option value="echo">ECHO</option><option value="doppler">Doppler</option><option value="ct">CT</option><option value="mri">MRI</option></select></label>
+        <label class="rel-q">Name, phone or UHID<input id="rel-q" type="search" maxlength="80" autocomplete="off" placeholder="Name, phone or the full UHID"/></label>
+        <label>From<input id="rel-from" type="date"/></label>
+        <label>To<input id="rel-to" type="date"/></label>
+        <button class="btn btn-primary btn-sm" data-onclick="searchReleased">🔎 Search</button>
+      </div>
+      <div id="rel-hint" class="rel-hint">A UHID finds every date. A name or phone searches the dates shown (at most one year).</div>
+      <div style="overflow-x:auto">
+        <table class="register-table">
+          <thead><tr><th>Date</th><th>Patient</th><th>UHID</th><th>Report</th><th>Released / reported by</th><th></th></tr></thead>
+          <tbody id="rel-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
 
   <div id="tab-pcpndt" hidden>
     <div class="pcpndt-info">
