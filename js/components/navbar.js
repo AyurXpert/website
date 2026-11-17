@@ -402,11 +402,14 @@ function _injectAdminSidebarOverlay(tenant, profile, role) {
   }
   #axsb-rail:hover .axsb-org,#axsb-rail:hover .axsb-meta{opacity:1}
   .axsb-nav-inner{flex:1;overflow-y:auto;padding:4px 0}
+  /* TODO §620: the rail's section titles larger, bold, green-deep on white (WCAG AA), a separator above each section but the first */
   .axsb-group{
-    font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;
-    letter-spacing:.8px;padding:10px 14px 3px;white-space:nowrap;
-    opacity:0;transition:opacity .12s;overflow:hidden;height:30px;
+    font-size:12px;font-weight:700;color:#1a4a2e;text-transform:uppercase;
+    letter-spacing:.6px;padding:10px 14px 4px;white-space:nowrap;
+    opacity:0;transition:opacity .12s;overflow:hidden;height:32px;
+    border-top:1px solid #e5e7eb;margin-top:4px;
   }
+  .axsb-nav-inner > .axsb-group:first-child{border-top:0;margin-top:0}
   #axsb-rail:hover .axsb-group{opacity:1}
   .axsb-lnk{
     display:flex;align-items:center;width:100%;
@@ -790,7 +793,10 @@ function _injectStyles() {
   .ax-mobile-menu.open{display:flex}
   .ax-mobile-links{padding:10px 12px 8px;display:flex;flex-direction:column;gap:2px}
   .ax-mob-group{margin-bottom:8px}
-  .ax-mob-group-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:rgba(255,255,255,.35);padding:6px 8px 4px}
+  /* TODO §620 (owner, 17 Nov 2026): group headers larger, bold, readable on the dark green (white = 12:1, WCAG AA), a gold separator
+     between groups (not above the first) */
+  .ax-mob-group-label{font-size:12.5px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:#fff;padding:10px 8px 6px}
+  .ax-mob-group + .ax-mob-group{border-top:1px solid rgba(201,144,42,.45);padding-top:6px}
   .ax-link{display:block;padding:10px 14px;border-radius:7px;color:rgba(255,255,255,.75);font-size:14px;font-weight:500;text-decoration:none;transition:background .15s}
   .ax-link:hover{background:rgba(255,255,255,.08);color:#fff}
   .ax-link.active{background:rgba(201,144,42,.15);color:#c9902a}

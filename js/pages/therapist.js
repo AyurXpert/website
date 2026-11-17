@@ -9,6 +9,8 @@ import { NCISM_XX_ROWS } from '../config/ncismStaffCompliance.js';
 import { localDateStr, todayLocalStr, istDateStr, todayISTStr } from '../utils/dateUtils.js';
 import { notify } from '../components/notify.js';
 import { givePkClearance } from '../modules/panchakarma/pkClearance.js';
+import { mountOpdProceduresToday } from '../modules/opd/opdProcedureOrders.js';   // Session 386d-1 (L12)
+import { canMarkDone } from '../modules/billing/opdProcedureBilling.js';               // Session 386d-1 (L12)
 
 /*
   SQL to run once in Supabase:
@@ -39,6 +41,8 @@ window._removeClosest = function(el, sel) { el.closest(sel)?.remove(); };
 const tenantId   = getCurrentTenantId();
 const role       = getCurrentRole();
 const myProfile  = getCurrentProfile();
+// Session 386d-1 (L12): today's OPD procedures + Mark done (the server decides who)
+setTimeout(() => mountOpdProceduresToday(document.getElementById('opd-proc-today'), { supabase, tenantId, profile: myProfile, canDone: canMarkDone }), 0);
 
 let _sessions    = [];
 let _admissions  = [];

@@ -33,6 +33,7 @@ import { loadAwaitingDeposit, loadDepositWaivers } from '../modules/ipd/admissio
 import { findingsLines, vitalsPrefill, queueOrder, payState, triageLabel } from '../modules/screening/findings.js';   // Session 374B
 import { abhaText, loadLinkProblems, renderLinkProblems } from '../modules/abdm/linkStatus.js';   // Session 375 (§410 / §411)
 import { abdmOn, soonBox, closeAbdmPanel } from '../modules/abdm/comingSoon.js';   // Session 379a
+import { renderOpdProcedures } from '../modules/opd/opdProcedureOrders.js';   // Session 386d-1 (§602)
 
 // Auth + navbar first — page must always be visible and navigable even if proforma module is absent
 await requireAuth(['doctor', 'trainee_doctor', 'super_admin', 'dept_admin']);
@@ -821,7 +822,7 @@ async function loadQueue() {
     const meetUrl     = _meetUrl(v);
     return `<div class="${cardClass}" data-onclick="startConsultation" data-onclick-a0="${_esc(v.id)}">
       <div class="q-card-top">
-        <div class="q-token ${tokenClass}">${v.token_number}</div>
+        <div class="q-token ${tokenClass}">${_esc(_tokenOrInitials(v))}</div>
         <div class="q-name">${_esc(v.patients?.name || '—')}</div>
         <div class="q-wait">${_wait(v.created_at)}</div>
       </div>
@@ -1717,7 +1718,7 @@ window.startConsultation = async function(visitId) {
 
   const ptTokenEl = document.getElementById('pt-token');
   ptTokenEl.style.display = '';                       // may have been hidden by _openAbdmForHistory
-  ptTokenEl.textContent   = visit.token_number;
+  ptTokenEl.textContent   = _tokenOrInitials(visit);   // Session 386d-1 (L3): never an empty box / "null"
   document.getElementById('pt-name').textContent     = _activePatient?.name || '—';
   document.getElementById('pt-complaint').textContent = visit.chief_complaint || '—';
   document.getElementById('pt-uhid').textContent     = uhidOf(_activePatient);
@@ -1935,6 +1936,8 @@ window.startConsultation = async function(visitId) {
   const imgBtn = document.getElementById('order-img-btn');
   if (imgBtn) imgBtn.disabled = false;
   loadLabResults();
+  // Session 386d-1 (§602): the OPD procedure orders of this visit (the server takes only today's OPD visit)
+  renderOpdProcedures(document.getElementById('opd-proc-orders'), { supabase, visitId, isTrainee: _isTrainee });
 
   // Session 358 (TODO §265-D): back with the reports -- the latest saved note fills the form (the final note is a NEW row; the
   // medicines are NOT copied -- an interim prescription already went to the pharmacy)
@@ -8349,8 +8352,16 @@ function _closeConsult() {
   loadQueue();
 }
 
+// Session 386d-1 (owner, 17 Nov 2026, L3): the queue circle and the header show the token -- or, for a visit with no token, the patient's
+// initials (never "null" / an empty box)
+function _tokenOrInitials(v) {
+  if (v?.token_number != null && v.token_number !== '') return String(v.token_number);
+  const parts = String(v?.patients?.name || '').replace(/^(dr|mr|mrs|ms|smt|shri)\.?\s+/i, '').trim().split(/\s+/).filter(Boolean);
+  return parts.length ? (parts[0][0] + (parts.length > 1 ? parts[parts.length - 1][0] : '')).toUpperCase() : '—';
+}
 function _clearForm() {
   resetVisitTimeline();
+  document.getElementById('opd-proc-orders')?.replaceChildren();   // Session 386d-1
   // Session 358: the OPD outcome back to "with a prescription", the note / panels / final banner cleared
   const outRx = document.querySelector('input[name="opd-outcome"][value="prescription"]');
   if (outRx) { outRx.checked = true; window.onOpdOutcomeChange('prescription'); }

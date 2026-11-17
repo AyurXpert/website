@@ -809,7 +809,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
 /* Session 363: the walk-in lab booking panel (js/modules/lab/walkinPanel.js) */
 /* B3: the cashier's Lab Bills-only view -- the registration panel and every other tab hidden */
 body.lab-bills-only #rx-reg-pane,body.lab-bills-only #rx-reg-rail,body.lab-bills-only #rx-layout-switch,body.lab-bills-only #rx-work-pull,body.lab-bills-only #rx-arrange-btn,body.lab-bills-only #rx-more-btn{display:none!important}
-body.lab-bills-only .rx-sub:not(#tab-labbills){display:none!important}
+body.lab-bills-only .rx-sub:not(#tab-labbills):not(#tab-procbills){display:none!important}
 body.lab-bills-only #rx-work-pane{flex:1 1 600px!important;display:block!important}
 .wk-panel [hidden],#wk-open[hidden]{display:none!important}
 .wk-panel{border:1.5px solid var(--green-mid);border-radius:10px;padding:10px 12px;margin:6px 0 10px;background:var(--cream,#faf8f3);display:flex;flex-direction:column;gap:8px}
@@ -1657,6 +1657,7 @@ body.lab-bills-only #rx-work-pane{flex:1 1 600px!important;display:block!importa
             <!-- owner 31 Oct 2026: Billing = Visits & Bills · Lab bills · Admission billing · Discharge billing -->
             <button class="rx-sub q-tab" id="tab-vbsearch" type="button" data-group="billing" style="display:none">🔎 Visits &amp; Bills</button>
             <button class="rx-sub q-tab" id="tab-labbills" type="button" data-group="billing">💰 Lab Bills <span id="labbills-count"></span></button>
+            <button class="rx-sub q-tab" id="tab-procbills" type="button" data-group="billing">🩹 Procedures <span id="procbills-count"></span></button>
             <button class="rx-sub q-tab" id="tab-admbill" type="button" data-group="billing">🛏️ Admission billing</button>
             <button class="rx-sub q-tab" id="tab-disbill" type="button" data-group="billing">🧾 Discharge billing</button>
             <button class="rx-sub q-tab" id="tab-admreq" type="button" data-group="admissions">🛏️ Admission Requests <span id="admreq-count"></span></button>
@@ -1673,6 +1674,8 @@ body.lab-bills-only #rx-work-pane{flex:1 1 600px!important;display:block!importa
     <div class="queue-body" id="appt-list" style="display:none">
       <div class="q-empty"><div class="q-empty-icon">📅</div><div class="q-empty-text">Loading…</div></div>
     </div>
+    <!-- Session 386d-1 (§602): OPD procedure orders waiting to be billed (js/modules/billing/opdProcedureBilling.js) -->
+    <div class="queue-body" id="proc-bills-list" style="display:none"><div id="proc-bills-items"></div></div>
     <div class="queue-body" id="lab-bills-list" style="display:none">
       <!-- Session 362 (TODO §313): search the lab bills by name / UHID / phone (kept across the 30-second refresh) -->
       <div style="padding:8px 12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">

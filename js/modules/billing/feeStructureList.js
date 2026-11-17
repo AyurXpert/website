@@ -75,7 +75,7 @@ export async function mountFeeStructureList(container, ctx) {
   const superAdmin = profile?.role === 'super_admin';
   const seq = ++_mountSeq;
   const [g, l, d, rq] = await Promise.all([
-    supabase.from('procedure_groups').select('id, code, display_name, is_standard, department_id, used_on, is_active, sort_order').eq('tenant_id', tenantId),
+    supabase.from('procedure_groups').select('id, code, display_name, is_standard, department_id, used_on, is_active, sort_order, offered_in_opd').eq('tenant_id', tenantId),   // 386d-1: offered_in_opd
     supabase.from('fee_procedure_groups').select('fee_id, group_id').eq('tenant_id', tenantId).range(0, 9999),
     supabase.from('departments').select('id, name').eq('tenant_id', tenantId).order('name'),
     committee ? supabase.rpc('procedure_add_requests') : Promise.resolve({ data: [] }),

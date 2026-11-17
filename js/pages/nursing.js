@@ -31,6 +31,8 @@ import { todayLocalStr } from '../utils/dateUtils.js';
 import { notify } from '../components/notify.js';
 import { printDocument, docHeader } from '../utils/printDocument.js';
 import { abdmOn } from '../modules/abdm/comingSoon.js';   // Session 379a
+import { mountOpdProceduresToday } from '../modules/opd/opdProcedureOrders.js';   // Session 386d-1 (L12)
+import { canMarkDone } from '../modules/billing/opdProcedureBilling.js';               // Session 386d-1 (L12)
 
 // Session 255: trainee_doctor (posted PG/intern) added -- Dr. Venkatesh confirmed
 // posted interns/PGs need real IPD case-sheet access, not just Snehapana sign-recording
@@ -45,6 +47,8 @@ wireDelegatedEvents();
 const profile   = getCurrentProfile();
 const tenant    = getCurrentTenant();
 const tenantId  = tenant?.id;
+// Session 386d-1 (L12): today's OPD procedures + Mark done (the server decides who)
+setTimeout(() => mountOpdProceduresToday(document.getElementById('opd-proc-today'), { supabase, tenantId, profile: profile, canDone: canMarkDone }), 0);
 const userId    = profile?.id;
 const _ctx      = { tenantId, userId, userName: profile?.full_name };
 // Session 386b-1 (§548): add / cancel / lock IPD charges only for the ward nurse / nurse manager (primary or second role), the MS and

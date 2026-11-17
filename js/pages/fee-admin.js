@@ -576,23 +576,69 @@ async function _decide(ids, decision, reason) {
   if (error) { toast(safeErrorMessage(error, decision === 'reject' ? 'Could not reject the fee.' : 'Could not approve the fee.'), 'error'); return null; }
   return data;
 }
-window.approveFee = async function(id) {
-  const r = await _decide([id], 'approve');
-  if (r) toast(_decisionToast(r), 'success');
-  loadFees();
+// Session 386d-1 (owner, 17 Nov 2026, rehearsal R4 -- a fee was switched off on the wrong row): Approve / Activate / ⚡ Approve & Activate
+// and Deactivate first open an in-page panel under the fee's OWN row that names the fee and its price and asks for a reason (no confirm()).
+// The server records it: decide_fees (approval, with the reason) / deactivate_fee (who, when, why). The success message names the fee.
+function _feeConfirmRow(id, { title, okLabel, okClass, maxLen, onOk }) {
+  const tr = document.querySelector(`#fee-list-v2 tr[data-fee-id="${CSS.escape(id)}"]`);
+  document.getElementById('fee-reject-row')?.remove();
+  document.getElementById('fee-confirm-row')?.remove();
+  const row = document.createElement('tr'); row.id = 'fee-confirm-row';
+  const cell = document.createElement('td'); cell.colSpan = tr?.children.length || 6; row.append(cell);
+  const box = document.createElement('div');
+  box.style.cssText = 'padding:10px 12px;border:1.5px solid var(--gold,#c9902a);border-radius:8px;background:#fffaf0';
+  const lab = document.createElement('label'); lab.htmlFor = 'fee-confirm-reason';
+  lab.style.cssText = 'display:block;font-size:12.5px;font-weight:600;margin-bottom:4px';
+  lab.textContent = title + ` — reason (required, 5–${maxLen} characters)`;
+  const ta = document.createElement('textarea'); ta.id = 'fee-confirm-reason'; ta.maxLength = maxLen;
+  ta.style.cssText = 'width:100%;min-height:54px;padding:8px;border:1.5px solid var(--border);border-radius:7px;font:inherit;box-sizing:border-box';
+  const msg = document.createElement('div'); msg.setAttribute('role', 'alert'); msg.style.cssText = 'font-size:12.5px;font-weight:600;color:#a01a1a;margin:4px 0';
+  const ok = document.createElement('button'); ok.type = 'button'; ok.className = 'act-btn ' + okClass; ok.id = 'fee-confirm-ok'; ok.textContent = okLabel;
+  const no = document.createElement('button'); no.type = 'button'; no.className = 'act-btn act-edit'; no.textContent = 'Cancel';
+  no.addEventListener('click', () => row.remove());
+  ok.addEventListener('click', async () => {
+    const reason = ta.value.trim();
+    if (reason.length < 5) { msg.textContent = 'Give the reason (at least 5 characters).'; ta.focus(); return; }
+    if (/[<>]/.test(reason)) { msg.textContent = 'The reason cannot contain < or >.'; ta.focus(); return; }
+    ok.disabled = true;
+    const done = await onOk(reason, msg);
+    ok.disabled = false;
+    if (done) { row.remove(); loadFees(); }
+  });
+  const act = document.createElement('div'); act.style.cssText = 'display:flex;gap:8px;margin-top:6px'; act.append(ok, no);
+  box.append(lab, ta, msg, act); cell.append(box);
+  if (tr) tr.after(row);
+  ta.focus();
+}
+const _feeName = f => `"${f?.label || 'this fee'}" (${f ? _amountText(f) : '—'})`;
+window.approveFee = function(id) {
+  const f = _allFees.find(x => x.id === id);
+  const a = feeActions(f || {}).find(x => x.act === 'approveFee');
+  const verb = a?.label || 'Approve';
+  _feeConfirmRow(id, {
+    title: `${verb.replace(/^⚡ /, '')} ${_feeName(f)}`, okLabel: verb, okClass: 'act-approve', maxLen: 500,
+    onOk: async (reason, msg) => {
+      const r = await _decide([id], 'approve', reason);
+      if (!r) { msg.textContent = 'Not saved — see the message at the top.'; return false; }
+      toast(`"${f?.label || 'Fee'}": ` + _decisionToast(r), 'success');
+      return true;
+    },
+  });
 };
 window.activateFee = window.approveFee;
 
-window.deactivateFee = async function(id) {
-  const { error } = await supabase.from('fee_structures').update({
-    approval_status: 'pending',
-    is_active: false,
-    approved_by_dept: null,
-    approved_by_super: null
-  }).eq('id', id);
-  if (error) { toast(safeErrorMessage(error, 'Could not deactivate the fee.'), 'error'); return; }
-  toast('Fee deactivated — it is Pending again and needs a new approval.', 'success');
-  loadFees();
+window.deactivateFee = function(id) {
+  const f = _allFees.find(x => x.id === id);
+  _feeConfirmRow(id, {
+    title: `Deactivate ${_feeName(f)}? It stops being charged and goes back to Pending (a new approval is needed)`,
+    okLabel: 'Deactivate this fee', okClass: 'act-reject', maxLen: 300,
+    onOk: async (reason, msg) => {
+      const { data, error } = await supabase.rpc('deactivate_fee', { p_fee: id, p_reason: reason });
+      if (error) { msg.textContent = safeErrorMessage(error, 'Could not deactivate the fee.'); return false; }
+      toast(`"${data || f?.label || 'Fee'}" deactivated — it is Pending again and needs a new approval.`, 'success');
+      return true;
+    },
+  });
 };
 
 // ── Promo pricing (Session 125) ───────────────────

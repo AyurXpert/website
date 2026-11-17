@@ -50,6 +50,9 @@ export async function loadOpenChargeIssues(supabase, admissionId) {
 // lab fees for a lab test -- rehearsal fix 2, owner 13 Nov 2026; a procedure only its own register's fees, TABLE_REGISTER).
 export const SOURCE_LABEL = { pk_session: 'Panchakarma session', lab: 'Lab test', imaging: 'Imaging study', procedure: 'Procedure' }
 export const SOURCE_FEE_CATEGORIES = { pk_session: ['procedure'], procedure: ['procedure'], imaging: ['radiology'], lab: ['lab'] }
+// Session 386d-1 (§602): an OPD procedure order's item (on a visit) -- procedure fees offered in OPD
+SOURCE_LABEL.opd_procedure = 'OPD procedure'
+SOURCE_FEE_CATEGORIES.opd_procedure = ['procedure']
 export const sourceLabel = s => SOURCE_LABEL[s] || String(s || 'Item')
 export const feeCategoriesFor = s => SOURCE_FEE_CATEGORIES[s] || ['procedure']
 
@@ -91,8 +94,12 @@ export async function renderOpenChargeIssues(container, { supabase, tenantId, pr
   if (!items?.length) return false
 
   const allowed = canResolveUnpriced(profile)
+  // Session 386d-1 (§602): an OPD procedure's item waits on the visit, not on an admission's lock
+  const opd = items.every(it => it.source === 'opd_procedure')
   const box = el('div', { style: ERR, role: 'alert' },
-    el('strong', null, 'No price set for these items — the charges cannot be locked and the bill cannot be made until each one is priced or cancelled:'))
+    el('strong', null, opd
+      ? 'No price set for these procedures — they cannot be billed until each one gets its fee or is cancelled:'
+      : 'No price set for these items — the charges cannot be locked and the bill cannot be made until each one is priced or cancelled:'))
   for (const it of items) {
     const row = el('div', { style: 'margin-top:8px;padding:8px;border:1px solid var(--border);border-radius:6px;background:#fff' },
       el('div', { style: 'font-weight:600' }, `${it.item_name} (${sourceLabel(it.source)}, ${fmtD(it.item_date)})`),
@@ -101,7 +108,8 @@ export async function renderOpenChargeIssues(container, { supabase, tenantId, pr
     if (!allowed) {
       row.appendChild(el('div', { style: 'font-size:11.5px;margin-top:4px' }, 'The accountant, the finance manager, the Medical Superintendent or the Super Admin chooses its fee or cancels it.'))
     } else {
-      const fees = await _feesFor(supabase, tenantId, feeCategoriesFor(it.source), it.source === 'procedure' ? TABLE_REGISTER[it.source_table] : null)
+      const fees = it.source === 'opd_procedure' ? await _feesFor(supabase, tenantId, ['procedure'], 'opd_procedure')   // 386d-1: the OPD list
+        : await _feesFor(supabase, tenantId, feeCategoriesFor(it.source), it.source === 'procedure' ? TABLE_REGISTER[it.source_table] : null)
       const sel = el('select', { 'aria-label': 'Fee for ' + it.item_name, style: 'min-height:36px;max-width:100%' },
         el('option', { value: '' }, 'Choose its fee…'),
         fees.map(f => el('option', { value: f.id }, `${f.label} — ${rupee(f.amount)}`)))

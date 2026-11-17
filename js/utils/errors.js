@@ -241,6 +241,22 @@ export function safeErrorMessage(error, fallback = 'Something went wrong. Please
   if (['42501', '22023'].includes(error?.code) && S386C_MSGS.some(m => error?.message?.startsWith(m))) {
     return error.message;
   }
+  // Session 386d-1 (§602): OPD procedure orders, their bill, the "offered in OPD" switch -- plain, schema-free, shown word for word
+  const S386D1_MSGS = ['Only a doctor can order an OPD procedure', 'Visit not found', 'This visit is cancelled', "OPD procedures are ordered on today's visit",
+    'A teleconsultation has no procedure', 'This visit has no patient', 'Choose a procedure from the list', 'That procedure is not offered in OPD',
+    'Details: at most 200 characters', 'Order not found', 'This order is already cancelled', 'This order is billed', 'This order is cancelled',
+    'Give a reason (5 to 300 characters', 'Only the doctor who ordered it, the Medical Superintendent', 'This procedure is already done',
+    'This procedure is already marked done', 'Only a doctor, a nurse or a therapist can mark', 'Unknown payment mode', 'Enter the UPI / card transaction reference',
+    'Choose 1 to 20 procedure orders', 'Bill the orders of one visit at a time', 'Could not find the patient for this order',
+    'Only the Fee committee', 'Say whether the group is offered in OPD', 'Procedure group not found', 'This section is deactivated',
+    'Nothing to change: this group', 'The OPD procedure order is no longer open', 'That fee is not an active, approved procedure fee',
+    'In this organisation patients are registered and billed at Reception', 'Fee not found', 'Only an active Super Admin can deactivate a fee',
+    'Only an active fee can be deactivated'];
+  if (['P0001', 'P0002', '42501', '22023'].includes(error?.code) && (S386D1_MSGS.some(m => error?.message?.startsWith(m))
+      || /^"[^"<>]{1,200}" is (cancelled|already billed)\.$/.test(error?.message || '')
+      || /^Your role \([a-z_]+\) cannot collect OPD procedure charges\.$/.test(error?.message || ''))) {
+    return error.message;
+  }
   if (error?.code === '23514' && error?.message?.includes('patients_name_no_markup_chk')) {
     return 'A patient name cannot contain < or >.';
   }

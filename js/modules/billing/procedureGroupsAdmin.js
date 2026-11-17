@@ -137,6 +137,19 @@ export function _renameForm(supabase, grp, say, reload) {
       if (error) { say(safeErrorMessage(error, 'Could not rename.'), true); return; }
       say('Renamed.'); await reload();
     }));
+  // Session 386d-1 (§602): the Fee committee chooses which groups the doctor can order from in OPD (a reason, audited on the server)
+  if (grp.is_active) {
+    const why = h('input', { type: 'text', maxlength: '300', placeholder: 'Reason (to change OPD)', 'aria-label': 'Reason to change whether this group is offered in OPD', style: 'min-height:44px;min-width:200px' });
+    wrap.append(h('span', { style: NOTE + ';flex-basis:100%' }, grp.offered_in_opd
+        ? 'Offered in OPD: doctors can order these procedures for an OPD visit (reception bills them).'
+        : 'Not offered in OPD: doctors cannot order these procedures for an OPD visit.'),
+      why, button(grp.offered_in_opd ? 'Stop offering in OPD' : 'Offer in OPD', async () => {
+        if (why.value.trim().length < 5) { say('Give a reason (at least 5 characters).', true); return; }
+        const { error } = await supabase.rpc('set_procedure_group_opd', { p_group: grp.id, p_on: !grp.offered_in_opd, p_reason: why.value.trim() });
+        if (error) { say(safeErrorMessage(error, 'Could not change it.'), true); return; }
+        say(grp.offered_in_opd ? 'No longer offered in OPD.' : 'Now offered in OPD.'); await reload();
+      }));
+  }
   if (!grp.is_standard) {
     const reason = h('input', { type: 'text', maxlength: '300', placeholder: 'Reason (to deactivate)', 'aria-label': 'Reason to deactivate', style: 'min-height:44px;min-width:200px' });
     wrap.append(reason, button(grp.is_active ? 'Deactivate section' : 'Reactivate section', async () => {

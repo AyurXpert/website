@@ -11,6 +11,7 @@ import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { getEffectivePrice } from '../modules/billing/effectivePrice.js';
 import { computeLabBillingLines, labItemsToSelection, labCollectGate } from '../modules/billing/labBilling.js';
 import { getOpdBillingRegime, previewOpdBill, createOpdBill, createInvestigationBill, DOCUMENT_TYPE_LABEL } from '../modules/billing/opdGstBilling.js';
+import { loadOpdProcedureBills, watchOpdProcedureCount } from '../modules/billing/opdProcedureBilling.js';   // Session 386d-1 (§602, L6)
 import { canCollectOpd, canReprintDocs, canPrintOwnDocs, isCollectableOpdBill, opdCollectControlsHtml, collectOpdBill, openReceipt, openBill, billReprintHtml } from '../modules/billing/opdPayments.js';
 import { mountVisitsBillsSearch } from '../modules/billing/visitsBillsSearch.js';
 import { billCategory } from '../modules/billing/billCategory.js';
@@ -2176,13 +2177,13 @@ let _pane = 'both', _ownPrefs = null, _hospitalTabs = null, _tabs = null, _group
 // owner (31 Oct 2026, rehearsal): Patients = Queue · Appointments · Incomplete registrations; Billing = Visits & Bills · Lab bills ·
 // Admission billing · Discharge billing (Visits & Bills is no longer a group of its own -- the 'vbsearch' key stays valid in saved
 // arrangements and is simply not offered)
-const _GROUP_SUBS = { patients: ['tab-queue', 'tab-appts', 'tab-incomplete'], billing: ['tab-vbsearch', 'tab-labbills', 'tab-admbill', 'tab-disbill'],
+const _GROUP_SUBS = { patients: ['tab-queue', 'tab-appts', 'tab-incomplete'], billing: ['tab-vbsearch', 'tab-labbills', 'tab-procbills', 'tab-admbill', 'tab-disbill'],
   admissions: ['tab-admreq'], reports: ['tab-pending'], regqueue: ['tab-regqueue'], pkplans: ['tab-pkplans'] };
 // a sub-tab this person can use right now (Visits & Bills only for the reprint roles; a lab-bills-only cashier: Lab Bills only)
-const _subShown = id => { const b = document.getElementById(id); return !!b && b.style.display !== 'none' && (!_labBillsOnly || id === 'tab-labbills'); };
+const _subShown = id => { const b = document.getElementById(id); return !!b && b.style.display !== 'none' && (!_labBillsOnly || id === 'tab-labbills' || id === 'tab-procbills'); };
 const _lastSub = {};
 const _num = id => parseInt((document.getElementById(id)?.textContent || '').replace(/\D/g, ''), 10) || 0;
-const _groupCount = { patients: () => _num('queue-count') + _num('incomplete-count'), billing: () => _num('labbills-count'), admissions: () => _num('admreq-count'),
+const _groupCount = { patients: () => _num('queue-count') + _num('incomplete-count'), billing: () => _num('labbills-count') + _num('procbills-count'), admissions: () => _num('admreq-count'),
   reports: () => _num('pending-count'), regqueue: () => _num('regqueue-count'), pkplans: () => _num('pkplans-count'), vbsearch: () => 0 };
 function _availableGroups() {
   if (_labBillsOnly) return ['billing'];
@@ -2249,13 +2250,14 @@ function _openGroup(k) {
 function _refreshCounts() {
   const avail = _availableGroups();
   const { more } = splitTabs(_tabs, avail);
-  document.querySelectorAll('[data-cnt]').forEach(c => { const n = _groupCount[c.dataset.cnt]?.() || 0; c.textContent = n ? String(n) : ''; });
+  document.querySelectorAll('[data-cnt]').forEach(c => { const n = _groupCount[c.dataset.cnt]?.() || 0; c.textContent = n ? String(n) : '';
+    c.classList.toggle('rx-cnt-red', c.dataset.cnt === 'billing' && _num('procbills-count') > 0); });   // 386d-1 L6: OPD procedures to collect
   const mc = more.reduce((s, k) => s + (_groupCount[k]?.() || 0), 0);
   const moreCnt = document.getElementById('rx-more-cnt');
   moreCnt.textContent = mc ? String(mc) : '';
   moreCnt.classList.toggle('rx-cnt-alert', more.includes('regqueue') && _groupCount.regqueue() > 0);
   document.getElementById('rx-more-btn').setAttribute('aria-label', `More${mc ? `, ${mc} waiting` : ''}`);
-  const q = _num('queue-count'), b = _num('labbills-count'), a = _num('admreq-count');
+  const q = _num('queue-count'), b = _num('labbills-count') + _num('procbills-count'), a = _num('admreq-count');   // 386d-1 L6: + OPD procedures
   document.getElementById('rx-cnt-bills').textContent = b;
   document.getElementById('rx-cnt-adm').textContent = a;
   document.getElementById('rx-rail-q').textContent = q;
@@ -2306,9 +2308,11 @@ async function _initLayout() {
   }));
   _renderWorkTabs();
   const obs = new MutationObserver(_refreshCounts);
-  ['queue-count', 'appt-count', 'labbills-count', 'regqueue-count', 'admreq-count', 'pkplans-count', 'pending-count', 'incomplete-count']
+  ['queue-count', 'appt-count', 'labbills-count', 'procbills-count', 'regqueue-count', 'admreq-count', 'pkplans-count', 'pending-count', 'incomplete-count']
     .forEach(id => { const e = document.getElementById(id); if (e) obs.observe(e, { childList: true, characterData: true, subtree: true }); });
   _openGroup(_labBillsOnly ? 'billing' : splitTabs(_tabs, _availableGroups()).bar[0]);
+  // Session 386d-1 (L6 / L10): the 🔔 "OPD procedure ordered" link opens reception.html#procbills = Billing → 🩹 Procedures
+  if (location.hash === '#procbills') { _openGroup('billing'); document.getElementById('tab-procbills')?.click(); }
 }
 
 // ── NCISM strip (B1 + owner answer 1) ──
@@ -3018,7 +3022,9 @@ async function loadQueue() {
     (tri || []).forEach(f => { triageMap[f.specialty_visit_id] = f; });
     (bills || []).forEach(b => {
       // the visit's own (consultation) bill drives the badge; a later lab bill must not replace it
-      if (!billMap[b.visit_id] || billCategory(b.bill_type) === 'opd') billMap[b.visit_id] = b;
+      // Session 386d-1: an OPD procedure bill is also an OPD bill -- the EARLIEST one (the registration bill) keeps the badge
+      const cur = billMap[b.visit_id];
+      if (!cur || (billCategory(b.bill_type) === 'opd' && (billCategory(cur.bill_type) !== 'opd' || String(b.created_at) < String(cur.created_at)))) billMap[b.visit_id] = b;
       (billsByVisit[b.visit_id] = billsByVisit[b.visit_id] || []).push(b);
     });
     const printable = (bills || []).filter(b => ['opd', 'investigation'].includes(billCategory(b.bill_type)));
@@ -5338,8 +5344,8 @@ function _setMode(mode) {
 }
 
 // ── Queue / Appointments / Lab Bills / Reg. Queue / Admission Requests tabs ──
-const _allTabs   = ['tab-queue', 'tab-appts', 'tab-incomplete', 'tab-labbills', 'tab-admbill', 'tab-disbill', 'tab-regqueue', 'tab-admreq', 'tab-pkplans', 'tab-vbsearch', 'tab-pending'];
-const _allPanels = ['queue-list', 'appt-list', 'incomplete-list', 'lab-bills-list', 'adm-bill-panel', 'dis-bill-panel', 'reg-queue-list', 'admission-requests-list', 'pk-plans-list', 'vb-search-panel', 'pending-list'];
+const _allTabs   = ['tab-queue', 'tab-appts', 'tab-incomplete', 'tab-labbills', 'tab-procbills', 'tab-admbill', 'tab-disbill', 'tab-regqueue', 'tab-admreq', 'tab-pkplans', 'tab-vbsearch', 'tab-pending'];
+const _allPanels = ['queue-list', 'appt-list', 'incomplete-list', 'lab-bills-list', 'proc-bills-list', 'adm-bill-panel', 'dis-bill-panel', 'reg-queue-list', 'admission-requests-list', 'pk-plans-list', 'vb-search-panel', 'pending-list'];
 function _activateTab(tabId, panelId) {
   _allTabs.forEach(id => document.getElementById(id).classList.toggle('active', id === tabId));
   _allPanels.forEach(id => document.getElementById(id).style.display = (id === panelId) ? '' : 'none');
@@ -5355,6 +5361,24 @@ document.getElementById('tab-labbills').addEventListener('click', () => {
   _activateTab('tab-labbills', 'lab-bills-list');
   loadPendingLabBills();
 });
+// Session 386d-1 (§602): OPD procedure orders -> the server-priced procedure bill
+function loadProcedureBills() {
+  return loadOpdProcedureBills(document.getElementById('proc-bills-items'), {
+    supabase, tenantId, profile,
+    onCount: n => { document.getElementById('procbills-count').textContent = n ? `(${n})` : ''; },
+    onBilled: res => {
+      const doc = res.document_number ? `${DOCUMENT_TYPE_LABEL[res.document_type] || 'Bill'} ${res.document_number}` : 'bill';
+      _alert('success', `Payment collected (${doc} — ₹${Number(res.amount || 0).toFixed(2)}).${res.receipt_no ? ' Receipt ' + res.receipt_no + '.' : ''}`);
+      if (_canPrintOwn && res.bill_id && res.payment_id) openBill(res.bill_id);
+    },
+  });
+}
+document.getElementById('tab-procbills').addEventListener('click', () => {
+  _activateTab('tab-procbills', 'proc-bills-list');
+  loadProcedureBills();
+});
+// Session 386d-1 (L6): the number waiting to be billed, on open and every 30 s (the module); red when > 0
+watchOpdProcedureCount(document.getElementById('procbills-count'), { supabase, tenantId });
 document.getElementById('tab-regqueue').addEventListener('click', () => {
   _activateTab('tab-regqueue', 'reg-queue-list');
   loadRegQueue();

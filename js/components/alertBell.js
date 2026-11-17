@@ -115,6 +115,15 @@ export function initAlertBell({ supabase, userId, button, badge, onChange }) {
       const top = _el('div', 'display:flex;justify-content:space-between;gap:8px;font-size:11.5px;color:var(--text-muted,#777);margin-bottom:2px');
       top.append(_el('span', 'font-weight:600', (r.is_read ? '' : '● New · ') + (r.patient_name || '')), _el('span', null, _fmt(r.created_at)));
       item.append(top, _el('div', null, r.message || ''));
+      // Session 386d-1 (L10): an alert links to where it is resolved (alertLink below; the rest = TODO §626)
+      const go = !r.done_note && alertLink(r.ref_key);
+      if (go) {
+        const a = document.createElement('a');
+        a.href = go.href; a.textContent = go.label + ' →';
+        a.style.cssText = 'display:inline-flex;align-items:center;min-height:44px;font-weight:600;color:var(--green-deep,#1a4a2e)';
+        a.addEventListener('click', () => { if (!r.is_read) markRead([r.id]); });
+        item.append(a);
+      }
       // 386b-2b M2b (F5): someone has already decided it -- "Done — approved / rejected / priced / cancelled by NAME (Role) at …" (server text)
       if (r.done_note) item.append(_el('div', 'margin-top:4px;font-size:12px;font-weight:600;color:var(--green-deep,#1a4a2e);white-space:pre-line',
         String(r.done_note).split('\n').filter(l => l.trim()).map(l => '✓ ' + l).join('\n')));   // M2c (H5): one Done line per step, each with its ✓ (I3)
@@ -143,7 +152,7 @@ export function initAlertBell({ supabase, userId, button, badge, onChange }) {
 
   async function show() {
     const since = new Date(Date.now() - DAYS * 86400000).toISOString();
-    const { data, error } = await supabase.from('doctor_alerts').select('id, patient_name, message, is_read, created_at, done_note')
+    const { data, error } = await supabase.from('doctor_alerts').select('id, patient_name, message, is_read, created_at, done_note, ref_key')
       .eq('doctor_id', userId).gte('created_at', since).order('created_at', { ascending: false }).limit(LIMIT);
     if (error) { notify('Could not load your alerts.', 'error'); return; }
     panel?.remove();
@@ -204,4 +213,15 @@ export function mountAlertBell({ supabase, userId }) {
     };
     tick();
   });
+}
+
+/**
+ * Session 386d-1 (owner, 17 Nov 2026, L10: every alert links to where it is resolved) -- the place to resolve an alert, from its server
+ * reference (doctor_alerts.ref_key). Only fixed, same-site pages (never a URL from the data). Unknown references: no link (TODO §626).
+ */
+export function alertLink(ref) {
+  const k = String(ref || '')
+  if (k.startsWith('up:opd_procedure:')) return { href: 'finance.html#opd-unpriced', label: 'Open in Finance — choose its fee or cancel' }
+  if (k.startsWith('opdproc:')) return { href: 'reception.html#procbills', label: 'Open in Reception — collect the payment' }   // L6
+  return null
 }

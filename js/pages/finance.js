@@ -20,6 +20,7 @@ import { mountGstReturns } from '../modules/tax/gstReturns.js';   // Session 345
 import { loadDepositWaivers, canSeeWaiverReport } from '../modules/ipd/admissionCounter.js';   // Session 357c (B5)
 import { loadLabOutstanding, loadLabWaivers } from '../modules/billing/labPayments.js';           // Session 359 (§295)
 import { canSeeLabOutstanding, canWaiveLabBill } from '../utils/staffPowers.js';                  // Session 359 (§293)
+import { loadOpdUnpricedPanel } from '../modules/billing/opdProcedureBilling.js';                 // Session 386d-1 (L9)
 
 wireDelegatedEvents();
 
@@ -32,6 +33,14 @@ const _role    = _profile?.role;
 
 const sess     = getCurrentProfile();
 const tenantId = getCurrentTenantId();
+// Session 386d-1 (L9 / L10): the OPD procedures with no price, at the top for every billing decider; the 🔔 alert opens #opd-unpriced
+async function _showOpdUnpriced() {
+  const box = document.getElementById('opd-unpriced');
+  await loadOpdUnpricedPanel(box, { supabase, tenantId, profile: getCurrentProfile() });
+  if (location.hash === '#opd-unpriced' && box && !box.hidden) box.scrollIntoView({ block: 'start' });
+}
+_showOpdUnpriced();
+window.addEventListener('hashchange', () => { if (location.hash === '#opd-unpriced') _showOpdUnpriced(); });
 const _ctx     = { tenantId, userId: _profile?.id, userName: _profile?.full_name };
 
 initNavbar();
