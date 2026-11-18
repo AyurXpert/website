@@ -108,7 +108,9 @@ window.updateGrievanceStatus = async function(id, status) {
   if (!status) return;
   const updates = { status };
   if (status === 'resolved') updates.resolved_date = todayLocalStr();
-  await supabase.from('patient_grievances').update(updates).eq('id',id).eq('tenant_id',tenantId);
+  // Session 386e (G5): a refused or zero-row change is said, never a silent success (353A rule)
+  const { data: rows, error } = await supabase.from('patient_grievances').update(updates).eq('id',id).eq('tenant_id',tenantId).select('id');
+  if (error || !rows?.length) _toast(safeErrorMessage(error, 'The grievance was not changed.'), 'error');
   loadGrievances();
 };
 
@@ -301,14 +303,15 @@ window.openIncUpdate = function(id) {
 window.closeIncUpdateModal = function() { document.getElementById('inc-update-modal').classList.remove('show'); _editingIncId=null; };
 
 window.updateIncident = async function() {
-  const { error } = await supabase.from('incident_reports').update({
+  const { data: incRows, error } = await supabase.from('incident_reports').update({
     status:            document.getElementById('iu-status').value,
     root_cause:        document.getElementById('iu-root').value.trim()||null,
     corrective_action: document.getElementById('iu-corrective').value.trim()||null,
     reviewed_by:       profile.id,
     ...(document.getElementById('iu-status').value==='closed' ? { closed_at: new Date().toISOString() } : {}),
-  }).eq('id', _editingIncId);
-  if (error) { _toast(safeErrorMessage(error, 'Error. Please try again.'), 'error'); return; }
+  }).eq('id', _editingIncId).select('id');
+  // Session 386e (G5): reviewer + closing time are the server's; a zero-row change is an error, never "updated"
+  if (error || !incRows?.length) { _toast(safeErrorMessage(error, 'The incident was not updated.'), 'error'); return; }
   closeIncUpdateModal();
   _toast('Incident updated','success');
   await loadIncidents();

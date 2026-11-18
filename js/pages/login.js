@@ -1,8 +1,12 @@
-import { login, verifyMfaAndFinishLogin, verifyBackupCodeAndFinishLogin } from '../core/auth.js';
+import { login, verifyMfaAndFinishLogin, verifyBackupCodeAndFinishLogin, endStaleSession } from '../core/auth.js';
 import { supabase } from '../core/db/supabaseClient.js';
 import { isValidEmail } from '../utils/validators.js';
 import { RETURN_KEY, safeReturnPath } from '../utils/signInGate.js';
 import { getRememberedOrgCode, forgetOrgCode } from '../utils/rememberedOrg.js';
+
+// Session 386e (owner Q6): a shared computer -- a session another person left in this browser (closed browser, or idle past 15 minutes) is
+// ended before anyone signs in here. Not during this person's own MFA code step (login.html?mfa=1).
+if (new URLSearchParams(window.location.search).get('mfa') !== '1') endStaleSession();
 
 // §118 -- login.html?next=<print page>: after login, return to the document the user was trying to open.
 // Only our own print pages are accepted (safeReturnPath); a login without ?next= clears any older one.

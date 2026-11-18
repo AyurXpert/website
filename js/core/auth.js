@@ -16,7 +16,7 @@ import { logAudit } from './auditLogger.js';
 import { safeErrorMessage } from '../utils/errors.js';
 import { RETURN_KEY, safeReturnPath } from '../utils/signInGate.js';
 import { rememberOrgCode } from '../utils/rememberedOrg.js';
-import { getTabUser, setTabUser, clearTabUser, blockTab, isTabBlocked, onTabBlocked } from './tabUser.js';
+import { getTabUser, setTabUser, clearTabUser, blockTab, isTabBlocked, onTabBlocked, TAB_USER_KEY } from './tabUser.js';
 import { isRuleDHod } from '../utils/hodAccess.js';
 
 // TODO §253: a designation that has its own landing page (role home otherwise).
@@ -299,6 +299,7 @@ async function _finalizeLogin(user, profile) {
   sessionStorage.setItem(SESSION_KEYS.MONITORING_ACCESS, profile.has_monitoring_access ? '1' : '');
   setTabUser(profile.id); // §250: this tab now belongs to this user
   _noteSignIn(); // §434: a new sign-in starts the idle time again
+  _markTab();    // Session 386e (owner Q6): this browser tab is a live one
   // §319 (Session 362): this browser now remembers the account's OWN organisation for the login page's branding (only here: after a
   // SUCCESSFUL sign-in, MFA done -- never from an email lookup)
   rememberOrgCode(profile.tenants?.tenant_code);
@@ -462,6 +463,8 @@ export async function logout() {
   // Owner, 6 Nov 2026: the server could not be told (no connection), and the library then keeps the session: this browser's copy goes here, signed out means signed out
   if (error) { try { localStorage.removeItem(supabase.auth.storageKey); } catch { /* storage blocked */ } }
   sessionStorage.clear();
+  _tellOtherTabs('logout');   // Session 386e (owner Q6): the other tabs of this browser clear their copies too (incl. a pending ABHA address)
+  try { localStorage.removeItem(_LIVE_TABS); } catch { /* storage blocked */ }
   window.location.replace('login.html'); // replace prevents back-button returning to protected page
 }
 
@@ -676,6 +679,129 @@ function _frameGuard() {
   }
 }
 
+// ── Session 386e (owner Q6, 18 Nov 2026): a shared computer -- the browser was closed, so the next person is not signed in as the last one ──
+// The sign-in is kept by the browser (localStorage) after it is closed. Each open tab of this site carries a mark in its own sessionStorage
+// (gone when the browser is closed; Chrome must start with "Open the New Tab page", pilot site check item 37). A page that finds no mark
+// asks the other tabs of this browser ("anyone alive?", BroadcastChannel). No mark and no answer = the browser was closed since the
+// sign-in: this browser's copy of the session is removed (scope local: other devices stay signed in) BEFORE the page is shown.
+// Any doubt (storage blocked, no BroadcastChannel) = keep the session, never sign out on doubt. The 15-minute idle rule also runs before
+// the page is shown now, and on the sign-in page.
+const _TAB_MARK = 'ax_tab_alive';
+const _ALIVE_CHANNEL = 'ax-alive';
+let _aliveListener = null;
+// Owner OK 18 Nov 2026 (frozen / discarded tabs): every live tab also keeps its id in a list in localStorage -- added when a page may show,
+// removed only when the tab is really closed or navigates away (pagehide, not kept in the back-forward cache). A tab Chrome FREEZES or
+// DISCARDS (Memory Saver / Energy Saver / a background tab) runs no script and so never removes its id: it still counts as "browser open"
+// and a new tab is not signed out. Ids older than 12 hours are dropped (after a crash / power cut the list is never cleaned: the 15-minute
+// idle rule then protects, as on LIVE before 386e). The tab's own id lives in its sessionStorage, so a discarded tab keeps it on reload.
+const _LIVE_TABS = 'ax_live_tabs';
+const _TAB_ID = 'ax_tab_id';
+const _LIVE_TAB_MAX_MS = 12 * 60 * 60 * 1000;
+function _liveTabs() {
+  let m = {};
+  try { m = JSON.parse(localStorage.getItem(_LIVE_TABS) || '{}') || {}; } catch { m = {}; }
+  const now = Date.now(), out = {};
+  for (const [id, ts] of Object.entries(m)) if (typeof ts === 'number' && now - ts >= 0 && now - ts < _LIVE_TAB_MAX_MS) out[id] = ts;
+  return out;
+}
+function _saveLiveTabs(m) { try { localStorage.setItem(_LIVE_TABS, JSON.stringify(m)); } catch { /* storage blocked: the ping still decides */ } }
+function _myTabId() {
+  try {
+    let id = sessionStorage.getItem(_TAB_ID);
+    if (!id) { id = (crypto.randomUUID ? crypto.randomUUID() : String(Math.random()).slice(2)); sessionStorage.setItem(_TAB_ID, id); }
+    return id;
+  } catch { return null; }
+}
+let _liveTabWatching = false;
+function _registerLiveTab() {
+  const id = _myTabId(); if (!id) return;
+  const m = _liveTabs(); m[id] = Date.now(); _saveLiveTabs(m);
+  if (_liveTabWatching) return;
+  _liveTabWatching = true;
+  // a real close or navigate-away removes this tab; a page kept in the back-forward cache stays listed
+  // beforeunload too: Chrome runs it when the whole browser is QUIT (a pagehide-only page is skipped on a fast shutdown -- found in the
+  // 386e frozen-tab test, 18 Nov 2026); nothing is prompted. A page then kept in the back-forward cache is re-listed by pageshow.
+  window.addEventListener('beforeunload', () => { const t = _liveTabs(); delete t[id]; _saveLiveTabs(t); });
+  window.addEventListener('pagehide', e => { if (e.persisted) return; const t = _liveTabs(); delete t[id]; _saveLiveTabs(t); });
+  window.addEventListener('pageshow', () => { const t = _liveTabs(); t[id] = Date.now(); _saveLiveTabs(t); });
+  document.addEventListener('resume', () => { const t = _liveTabs(); t[id] = Date.now(); _saveLiveTabs(t); });
+}
+function _otherLiveTabListed() {
+  let own = null; try { own = sessionStorage.getItem(_TAB_ID); } catch { /* none */ }
+  return Object.keys(_liveTabs()).some(id => id !== own);
+}
+
+function _sessionStorageOk() {
+  try { sessionStorage.setItem('ax_probe', '1'); sessionStorage.removeItem('ax_probe'); return true; } catch { return false; }
+}
+function _tabMarked() { try { return sessionStorage.getItem(_TAB_MARK) === '1'; } catch { return false; } }
+function _markTab() {
+  try { sessionStorage.setItem(_TAB_MARK, '1'); } catch { /* storage blocked: the check is skipped then */ }
+  _registerLiveTab();
+  _listenAlive();
+}
+function _listenAlive() {
+  if (_aliveListener || typeof BroadcastChannel === 'undefined') return;
+  try {
+    _aliveListener = new BroadcastChannel(_ALIVE_CHANNEL);
+    _aliveListener.onmessage = e => {
+      if (e.data === 'anyone?' && _tabMarked()) _aliveListener.postMessage('here');
+      if (e.data === 'logout') {
+        // Session 386e: another tab signed out -- this tab forgets its data (e.g. a pending ABHA address) but keeps WHO it was opened as
+        // (and its live-tab mark), so the §250 check covers the page with "signed out" at once
+        try {
+          const keep = [TAB_USER_KEY, _TAB_MARK, _TAB_ID].map(k => [k, sessionStorage.getItem(k)]);
+          sessionStorage.clear();
+          for (const [k, v] of keep) if (v !== null) sessionStorage.setItem(k, v);
+        } catch { /* nothing to clear */ }
+        setTimeout(_checkTabUser, 0);
+      }
+    };
+  } catch { _aliveListener = null; }
+}
+function _tellOtherTabs(msg) {
+  if (typeof BroadcastChannel === 'undefined') return;
+  try { const c = new BroadcastChannel(_ALIVE_CHANNEL); c.postMessage(msg); c.close(); } catch { /* best effort */ }
+}
+// true = another live tab of this site answered (or we cannot ask: never sign out on doubt)
+function _otherTabAlive(waitMs = 400) {
+  if (typeof BroadcastChannel === 'undefined') return Promise.resolve(true);
+  return new Promise(resolve => {
+    let c;
+    try { c = new BroadcastChannel(_ALIVE_CHANNEL); } catch { resolve(true); return; }
+    const done = v => { clearTimeout(t); try { c.close(); } catch { /* closed */ } resolve(v); };
+    const t = setTimeout(() => done(false), waitMs);
+    c.onmessage = e => { if (e.data === 'here') done(true); };
+    c.postMessage('anyone?');
+  });
+}
+// true = this browser was closed since the sign-in: no tab mark here, no live tab id listed (frozen / discarded tabs stay listed), and no
+// open tab answers the ping
+async function _browserWasClosed() {
+  if (!_sessionStorageOk() || _tabMarked()) return false;
+  if (_otherLiveTabListed()) return false;
+  return !(await _otherTabAlive());
+}
+function _idleExpired() {
+  const last = Math.max(_lastActivity, _storedActivity());
+  return last > 0 && Date.now() - last >= _INACTIVITY_MS;
+}
+async function _dropThisBrowsersSession() {
+  try { localStorage.removeItem(_LIVE_TABS); } catch { /* storage blocked */ }
+  try { await supabase.auth.signOut({ scope: 'local' }); } catch { /* removed below */ }
+  try { localStorage.removeItem(supabase.auth.storageKey); } catch { /* storage blocked */ }
+  try { sessionStorage.clear(); } catch { /* nothing to clear */ }
+}
+
+// The sign-in page (login.js): an old session left in this browser by someone else is ended before anyone signs in. Not during the
+// MFA code step (login.html?mfa=1 = this person's own half-finished sign-in).
+export async function endStaleSession() {
+  let session = null;
+  try { ({ data: { session } } = await supabase.auth.getSession()); } catch { return; }
+  if (!session) return;
+  if (_idleExpired() || await _browserWasClosed()) await _dropThisBrowsersSession();
+}
+
 // 15-minute inactivity auto-logout (NDHM §2.1.4.7)
 // §434 (owner, 5 Nov 2026): ONE idle time for all tabs of a browser, kept in localStorage. Activity in any tab counts for every tab, and because the time
 // is stored, a computer that slept or a browser that was closed past the limit is signed out on its next page load.
@@ -839,6 +965,11 @@ export async function requireAuth(allowedRoles = [], redirectTo = 'login.html', 
     return new Promise(() => {});
   }
 
+  // Session 386e (owner Q6): idle past the limit, or the browser was closed since the sign-in (a shared computer) -- signed out BEFORE
+  // the page is shown. The idle case is the deliberate idle sign-out (logout(): as before); a closed browser removes only this browser's copy.
+  if (_idleExpired()) { await logout(); return new Promise(() => {}); }
+  if (await _browserWasClosed()) { await _dropThisBrowsersSession(); return _goToSignIn(); }
+
   // §250: this tab was opened as someone else, who has since been replaced in another tab --
   // never switch the page over to the new user silently: block, and stop the page's own code
   // (this promise never resolves, so nothing after `await requireAuth(...)` runs).
@@ -990,6 +1121,7 @@ export async function requireAuth(allowedRoles = [], redirectTo = 'login.html', 
   }
 
   setTabUser(session.user.id); // §250: remember who this tab was opened as
+  _markTab();                  // Session 386e (owner Q6): a live tab of this browser
   _watchTabUser();
   document.documentElement.style.visibility = ''; // show page — auth confirmed
   _startInactivityWatch(); // auto-logout after 15 min inactivity (warning at 13)

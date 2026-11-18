@@ -101,8 +101,13 @@ export function blockTab(nowEmail) {
     btn.textContent = 'Reload to continue';
     btn.style.cssText = 'min-height:44px;padding:10px 20px;border:none;border-radius:8px;background:#1a4a2e;color:#fff;font:600 15px "DM Sans",sans-serif;cursor:pointer';
     btn.addEventListener('click', () => {
-      // forget everything this tab knew about the old user, then open as whoever is signed in now
-      try { sessionStorage.clear(); } catch { /* ignore */ }
+      // forget everything this tab knew about the old user, then open as whoever is signed in now. Session 386e: the tab itself stays a
+      // live tab of this browser (its "alive" mark + id survive), so the reload is never mistaken for a browser that was closed.
+      try {
+        const keep = ['ax_tab_alive', 'ax_tab_id'].map(k => [k, sessionStorage.getItem(k)]);
+        sessionStorage.clear();
+        for (const [k, v] of keep) if (v !== null) sessionStorage.setItem(k, v);
+      } catch { /* ignore */ }
       window.location.reload();
     });
 

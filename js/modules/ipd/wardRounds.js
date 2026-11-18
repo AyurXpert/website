@@ -345,10 +345,12 @@ window.saveIpdOrders = async function() {
         }).select('id').single();
       if (pErr) throw pErr;
       prescriptionId = presc.id;
-      await _c.supabase.from('prescription_items').insert(rows.map(r => ({
+      // Session 386e (G2): a refused line is said, never a silent "saved"
+      const { error: iErr } = await _c.supabase.from('prescription_items').insert(rows.map(r => ({
         prescription_id: prescriptionId, medicine_id: r.medicine_id, medicine_name: r.name,
         dosage: r.dose, frequency: r.freq, duration: r.dur, anupana: r.anupana, timing: r.timing || null, quantity: 1,
       })));
+      if (iErr) throw iErr;
     }
 
     const marRows = rows.map(r => ({

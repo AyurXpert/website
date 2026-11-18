@@ -21,6 +21,12 @@ const supabase  = createClient(ENV.SUPABASE_URL, ENV.SUPABASE_ANON_KEY);
 const sess      = getCurrentProfile() || {};
 const tenantId  = getCurrentTenantId();
 const isAdmin   = ['super_admin','dept_admin'].includes(sess.role);
+// Session 386e (§505, owner Q1 / Q2): display copy of the SERVER's rule (_rec386e_ok / _staff_cred_read_ok) -- the server decides.
+// Staff health check-ups: read by the Super Admin, the Medical Superintendent and the Medical Director; recorded by the Super Admin and
+// the MS. Credentials: recorded by the Super Admin and the MS, never on their own row (a Dept Admin reads only its own department's).
+const _hrIsSA         = sess.role === 'super_admin' || sess.secondary_role === 'super_admin';
+const _hrStaffWrite   = _hrIsSA || sess.designation === 'medical_superintendent';
+const _hrHealthRead   = _hrStaffWrite || sess.designation === 'medical_director';
 
 wireDelegatedEvents();
 
@@ -665,6 +671,12 @@ function _populateStaffSelects() {
 // ═══════════════════════════════════════════════
 
 async function loadHealth() {
+  if (!_hrHealthRead) {   // Session 386e (§505): the server returns no colleague's health record to this account
+    _healthRecords = [];
+    document.getElementById('health-tbody').innerHTML =
+      '<tr><td colspan="9" class="empty">Staff health check-ups are seen only by the Super Admin, the Medical Superintendent and the Medical Director.</td></tr>';
+    return;
+  }
   const { data, error } = await supabase
     .from('employee_health_records')
     .select('*, profiles:profiles!profile_id(id, full_name, role)')
@@ -725,7 +737,7 @@ function _renderHealthStatus() {
     <td style="font-size:12px">${r.rec?.bmi != null ? r.rec.bmi.toFixed(1) : '—'}</td>
     <td><span style="font-size:11px;font-weight:600;color:${r.rec ? _fitnessColor(r.rec.fitness_status) : 'var(--text-muted)'}">${r.rec ? _fitnessLabel(r.rec.fitness_status) : '—'}</span></td>
     <td style="font-size:12px"><span style="color:${statusColors[r.statusClass]};font-weight:600">${r.statusLabel}</span>${r.rec?.next_checkup_date ? '<br><span style="font-size:10px;color:var(--text-muted)">Due: '+_fmtD(r.rec.next_checkup_date)+'</span>' : ''}</td>
-    <td><button class="btn btn-primary btn-sm" data-onclick="openHealthModal" data-onclick-a0="${r.id}" data-onclick-a1="${_esc(r.full_name||'')}">+ Record</button></td>
+    <td>${_hrStaffWrite ? `<button class="btn btn-primary btn-sm" data-onclick="openHealthModal" data-onclick-a0="${r.id}" data-onclick-a1="${_esc(r.full_name||'')}">+ Record</button>` : ''}</td>
   </tr>`).join('') : '<tr><td colspan="9" class="empty">No staff found</td></tr>';
 }
 
@@ -963,6 +975,8 @@ window.loadBillCredentials = async function() {
 
 async function _loadPendingCredentials() {
   const box = document.getElementById('bc-pending-list');
+  // Session 386e (owner, rehearsal R2): only the Super Admin / the Medical Superintendent verify what prints on bills (server: _credential_checker_ok)
+  if (!_hrStaffWrite) { _bcEmpty(box, 'Registrations are verified by the Super Admin or the Medical Superintendent.'); return; }
   const { data, error } = await supabase.rpc('list_pending_professional_credentials');
   if (error) { _bcEmpty(box, safeErrorMessage(error, 'Could not load pending submissions.')); return; }
   // Values recorded before verification existed: they keep printing, labelled "On file (before
@@ -1030,11 +1044,14 @@ async function _loadPendingCredentials() {
 async function _loadPrintedCredentials() {
   const box = document.getElementById('bc-staff-list');
   const { data, error } = await supabase.from('profiles')
-    .select('id, full_name, role, secondary_role, designation, registration_number, registration_council, qualification, hpr_id, credentials_verified_at, credentials_verified_by')
+    .select('id, full_name, role, secondary_role, designation, department_id, registration_number, registration_council, qualification, hpr_id, credentials_verified_at, credentials_verified_by')
     .eq('tenant_id', tenantId).eq('is_active', true).order('full_name');
   if (error) { _bcEmpty(box, safeErrorMessage(error, 'Could not load staff.')); return; }
-  const staff = (data || []).filter(p => BC_PROFESSIONAL_ROLES.includes(p.role) || BC_PROFESSIONAL_ROLES.includes(p.secondary_role));
-  if (!staff.length) { _bcEmpty(box, 'No professional staff yet.'); return; }
+  // Session 386e (owner, rehearsal R2): the Super Admin / the MS see everyone and correct; any other admin sees, read-only, only the staff of
+  // its OWN scoped department (no scope = none)
+  const staff = (data || []).filter(p => (BC_PROFESSIONAL_ROLES.includes(p.role) || BC_PROFESSIONAL_ROLES.includes(p.secondary_role))
+    && (_hrStaffWrite || (sess.scope_department_id && p.department_id === sess.scope_department_id)));
+  if (!staff.length) { _bcEmpty(box, _hrStaffWrite ? 'No professional staff yet.' : 'Registrations are managed by the Super Admin or the Medical Superintendent.'); return; }
   const names = Object.fromEntries((data || []).map(p => [p.id, p.full_name]));
 
   const head = _bcEl('tr', {}, ...['Name', 'Role', 'Registration No.', 'Council / board', 'Qualification', 'HPR ID', 'Verified', ''].map(h => _bcEl('th', { text: h, scope: 'col' })));
@@ -1044,6 +1061,7 @@ async function _loadPrintedCredentials() {
       : (p.registration_number || p.qualification || p.hpr_id ? 'On file (before verification)' : '—');
     const action = p.id === sess.id
       ? _bcEl('span', { class: 'bc-own', text: 'You' })
+      : !_hrStaffWrite ? _bcEl('span', { class: 'bc-own', text: '' })
       : _bcEl('button', { class: 'btn btn-outline btn-sm', type: 'button',
           data: { onclick: 'openCredentialCorrection', 'onclick-a0': p.id }, text: 'Correct' });
     return _bcEl('tr', {},
@@ -1141,6 +1159,7 @@ let _credEditId = null;
 
 async function loadCredentials() {
   const el = document.getElementById('cred-list');
+  document.getElementById('cred-add-btn').hidden = !_hrStaffWrite;   // Session 386e (§505): only the Super Admin / MS record credentials
   const alertEl = document.getElementById('cred-expiry-alerts');
   const { data } = await supabase.from('staff_credentials')
     .select('*,profiles!profile_id(full_name,role,hpr_id)')
@@ -1177,7 +1196,7 @@ async function loadCredentials() {
         <td style="padding:8px 12px;border-bottom:1px solid #f0f4f2;${expClass}">${_esc(c.registration_expiry||'—')}</td>
         <td style="padding:8px 12px;border-bottom:1px solid #f0f4f2;text-align:center">${privs.length ? privs.map(p=>`<span style="font-size:9px;background:#e8f5ee;color:#1a4a2e;border:1px solid #b8ddc6;border-radius:8px;padding:1px 5px;margin:1px;display:inline-block">${p}</span>`).join('') : '—'}</td>
         <td style="padding:8px 12px;border-bottom:1px solid #f0f4f2;text-align:center">${c.credentials_verified ? '<span style="color:#27ae60;font-weight:700">✅</span>' : '<span style="color:#e67e22">⏳</span>'}</td>
-        <td style="padding:8px 12px;border-bottom:1px solid #f0f4f2"><button data-onclick="openCredModal" data-onclick-a0="${c.id}" style="font-size:11px;padding:2px 8px;border:1px solid var(--border);background:#fff;border-radius:5px;cursor:pointer">Edit</button></td>
+        <td style="padding:8px 12px;border-bottom:1px solid #f0f4f2">${_hrStaffWrite && c.profile_id !== sess.id ? `<button data-onclick="openCredModal" data-onclick-a0="${c.id}" style="font-size:11px;padding:2px 8px;border:1px solid var(--border);background:#fff;border-radius:5px;cursor:pointer">Edit</button>` : ''}</td>
       </tr>`;
     }).join('')}</tbody></table></div>`;
 }
@@ -1236,17 +1255,17 @@ window.saveCred = async function() {
     can_perform_surgery:  document.getElementById('cred-can-surg').checked,
     can_administer_meds:  document.getElementById('cred-can-meds').checked,
     credentials_verified: document.getElementById('cred-verified').checked,
-    verified_by:          document.getElementById('cred-verified').checked ? sess.id : null,
-    verified_at:          document.getElementById('cred-verified').checked ? new Date().toISOString() : null,
     updated_at:           new Date().toISOString(),
   };
-  let error;
+  // Session 386e (§505): verified by / at are the server's; a refused or zero-row save is said, never "saved"
+  if (profileId === sess.id) { _toast('You cannot record or change your own credentials.', 'error'); return; }
+  let error, rows;
   if (_credEditId) {
-    ({ error } = await supabase.from('staff_credentials').update(payload).eq('id',_credEditId));
+    ({ data: rows, error } = await supabase.from('staff_credentials').update(payload).eq('id',_credEditId).select('id'));
   } else {
-    ({ error } = await supabase.from('staff_credentials').upsert(payload,{onConflict:'profile_id'}));
+    ({ data: rows, error } = await supabase.from('staff_credentials').upsert(payload,{onConflict:'profile_id'}).select('id'));
   }
-  if (error) { _toast(safeErrorMessage(error), 'error'); return; }
+  if (error || !rows?.length) { _toast(safeErrorMessage(error, 'The credentials were not saved — only the Super Admin or the Medical Superintendent records them.'), 'error'); return; }
   // Session 338: the HPR ID is part of the verified professional identity now (staff submit, an admin verifies or
   // corrects it under "Registration on bills"); set_staff_hpr_id() is closed to browsers. This modal only shows it.
   // Session 337: this NABH register no longer writes the Reg. No. that prints on bills /

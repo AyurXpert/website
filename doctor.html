@@ -4169,6 +4169,12 @@ body.final-mode .tab-body{padding-bottom:130px}   /* the banner's height on top 
                 <input id="vc-police-num" type="text" placeholder="e.g. FIR 123/2026"/>
               </div>
             </div>
+            <!-- Session 386e (owner Q3): a saved Visha case is never changed -- a correction is a new entry that names it, with a reason -->
+            <div class="field" id="vc-corr-wrap" hidden>
+              <label for="vc-corr-reason">Reason for the correction (required)</label>
+              <textarea id="vc-corr-reason" rows="2" maxlength="300" placeholder="e.g. Snake bite, not plant poison"></textarea>
+              <div style="font-size:12px;color:var(--text-muted);margin-top:4px">The saved entry is never changed. Saving makes a new entry that corrects it; the register shows the old one struck through.</div>
+            </div>
             <button class="btn btn-primary" id="btn-save-visha" data-onclick="saveVishaCase">Save to Register</button>
             <div id="visha-saved-banner" style="display:none;margin-top:10px;padding:10px 14px;background:#e8f5ee;border:1.5px solid var(--green-mid);border-radius:var(--radius);font-size:13px;color:var(--green-deep);font-weight:500">✓ Saved to Visha Case Register</div>
           </div>

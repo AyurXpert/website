@@ -3748,7 +3748,8 @@ window.saveTherapyRx = async function() {
   }).select('id').single();
   if (pErr) { _alert('error', 'Error: ' + pErr.message); return; }
 
-  await supabase.from('prescription_items').insert(
+  // Session 386e (G2): a refused line is said, never a silent "sent to Dispensary"
+  const { error: iErr } = await supabase.from('prescription_items').insert(
     items.map(i => ({
       prescription_id: presc.id,
       medicine_id:     null,
@@ -3759,6 +3760,7 @@ window.saveTherapyRx = async function() {
       quantity:        1,
     }))
   );
+  if (iErr) { _alert('error', 'The order was saved but its items were not: ' + safeErrorMessage(iErr, 'please try again.')); return; }
 
   closeRxDrawer();
   _alert('success', `${items.length} item(s) sent to Dispensary for ${_rxSession.patients?.name}.`);

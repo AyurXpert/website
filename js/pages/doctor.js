@@ -34,6 +34,7 @@ import { findingsLines, vitalsPrefill, queueOrder, payState, triageLabel } from 
 import { abhaText, loadLinkProblems, renderLinkProblems } from '../modules/abdm/linkStatus.js';   // Session 375 (§410 / §411)
 import { abdmOn, soonBox, closeAbdmPanel } from '../modules/abdm/comingSoon.js';   // Session 379a
 import { renderOpdProcedures } from '../modules/opd/opdProcedureOrders.js';   // Session 386d-1 (§602)
+import { teleconsultOn } from '../utils/teleSwitch.js';   // Session 386e (owner Q7)
 
 // Auth + navbar first — page must always be visible and navigable even if proforma module is absent
 await requireAuth(['doctor', 'trainee_doctor', 'super_admin', 'dept_admin']);
@@ -421,6 +422,7 @@ let _inventory       = [];
 let _opdList         = [];
 let _doctorOpdIds    = [];
 let _activeReferralId = null;
+let _vishaCurrentId = null;   // Session 386e (owner Q3): the Visha register entry of the open visit that is not yet corrected
 
 // ── Date label ────────────────────────────────────
 document.getElementById('q-date').textContent = new Date().toLocaleDateString('en-IN', {
@@ -1541,9 +1543,11 @@ window.onRefTypeChange = function(val) {
 // ── §18l — Accept / mark-seen referral ───────────
 window._acceptReferral = async function() {
   if (!_activeReferralId) return;
-  await supabase.from('referrals')
+  // Session 386e (G5): a refused or zero-row change is said, never a silent "seen"
+  const { data: refRows, error: refErr } = await supabase.from('referrals')
     .update({ status: 'accepted', target_visit_id: _activeVisitId })
-    .eq('id', _activeReferralId);
+    .eq('id', _activeReferralId).select('id');
+  if (refErr || !refRows?.length) { _toast(safeErrorMessage(refErr, 'The referral could not be marked as seen.'), 'error'); return; }
   document.getElementById('ref-banner').style.display = 'none';
   _activeReferralId = null;
   loadIncomingReferrals();
@@ -6134,9 +6138,11 @@ async function completeConsultation() {
         .insert({ visit_id: _activeVisitId, tenant_id: tenantId, patient_id: _activePatient.id })
         .select('id').single();
 
-      if (!pErr && presc) {
+      // Session 386e (G2): a refused prescription or line is said, never a silent "completed" with no medicines
+      if (pErr || !presc) throw pErr || new Error('The prescription could not be saved.');
+      {
         _savedRxId = presc.id;
-        await supabase.from('prescription_items').insert(
+        const { error: iErr } = await supabase.from('prescription_items').insert(
           rx.map(r => ({
             prescription_id: presc.id,
             medicine_id: null,
@@ -6149,6 +6155,7 @@ async function completeConsultation() {
             quantity: 1
           }))
         );
+        if (iErr) throw new Error('The prescription was saved but its medicines were not: ' + safeErrorMessage(iErr, 'please try again.'));
       }
     }
 
@@ -8310,6 +8317,7 @@ function _closeConsult() {
   document.getElementById('visha-class-panel').style.display  = 'none';
   document.getElementById('btn-escalate-emg').style.display   = 'none';
   document.getElementById('visha-saved-banner').style.display = 'none';
+  _vishaCurrentId = null; document.getElementById('vc-corr-wrap').hidden = true; document.getElementById('vc-corr-reason').value = '';   // Session 386e
   document.getElementById('vc-police-warn').style.display     = 'none';
   document.getElementById('no-rx-notice').style.display       = 'none';
   document.getElementById('btn-swasthya-card').style.display  = 'none';
@@ -8512,16 +8520,29 @@ function _onPoliceChange() {
   document.getElementById('vc-police-num-wrap').style.display = v === 'yes' ? '' : 'none';
 }
 
+// Session 386e (owner Q3): the Visha register is add-only with corrections -- the CURRENT entry of a visit is the one not yet corrected
 async function _loadVishaRecord(visitId) {
   const { data } = await supabase
     .from('poison_cases')
     .select('*')
     .eq('visit_id', visitId)
+    .is('superseded_by', null)
+    .order('entry_no', { ascending: false })
+    .limit(1)
     .maybeSingle();
+  _vishaCurrentId = data?.id || null;
+  document.getElementById('vc-corr-wrap').hidden = !data;
+  document.getElementById('vc-corr-reason').value = '';
 
-  const now = new Date();
-  document.getElementById('vc-datetime').value =
-    now.toLocaleDateString('en-IN') + ' ' + now.toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit' });
+  // Session 386e (owner, rehearsal R4): the case Date & Time is the ORIGINAL entry's (a correction never moves it); a new case = now
+  const _vTime = d => d.toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' }) + ' ' + d.toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit', timeZone: 'Asia/Kolkata' });
+  let caseTime = new Date();
+  if (data) {
+    const { data: orig } = await supabase.from('poison_cases').select('created_at')
+      .eq('visit_id', visitId).is('corrects_id', null).order('entry_no', { ascending: true }).limit(1).maybeSingle();
+    if (orig?.created_at) caseTime = new Date(orig.created_at);
+  }
+  document.getElementById('vc-datetime').value = _vTime(caseTime);
 
   if (data) {
     document.getElementById('vc-case-num').value         = data.case_number;
@@ -8540,7 +8561,9 @@ async function _loadVishaRecord(visitId) {
     _onVishaTypeChange();
     _onPoliceChange();
     document.getElementById('visha-saved-banner').style.display = '';
-    document.getElementById('btn-save-visha').textContent = 'Update Register';
+    document.getElementById('visha-saved-banner').textContent = `✓ Saved to Visha Case Register — entry #${data.entry_no ?? '—'}`
+      + (data.corrects_no ? ` (corrects entry #${data.corrects_no}; correction saved ${_vTime(new Date(data.created_at))})` : '');
+    document.getElementById('btn-save-visha').textContent = 'Save a correction';
   } else {
     // Auto-generate case number
     const year = now.getFullYear();
@@ -8642,20 +8665,24 @@ window.saveVishaCase = async function() {
     antidote_given:      document.getElementById('vc-antidote').value.trim() || null,
     police_reported:     document.getElementById('vc-police-reported').value,
     police_report_number: document.getElementById('vc-police-num').value.trim() || null,
-    updated_at:          new Date().toISOString(),
   };
+  // Session 386e (owner Q3): a saved entry is never overwritten -- a change is a NEW entry that corrects it, with a reason
+  if (_vishaCurrentId) {
+    const reason = document.getElementById('vc-corr-reason').value.trim();
+    if (reason.length < 5) { _toast('Write the reason for the correction (at least 5 characters).', 'error'); document.getElementById('vc-corr-reason').focus(); return; }
+    payload.corrects_id = _vishaCurrentId;
+    payload.correction_reason = reason;
+  }
 
-  const { error } = await supabase
-    .from('poison_cases')
-    .upsert(payload, { onConflict: 'visit_id' });
-
-  if (error) { _toast(safeErrorMessage(error, 'Failed to save.')); return; }
-  document.getElementById('visha-saved-banner').style.display = '';
-  document.getElementById('btn-save-visha').textContent = 'Update Register';
-  _toast('Visha case saved to register.');
+  const { data: saved, error } = await supabase.from('poison_cases').insert(payload).select('id, entry_no').single();
+  if (error || !saved) { _toast(safeErrorMessage(error, 'Failed to save.'), 'error'); return; }
+  _toast(payload.corrects_id ? `Correction saved — entry #${saved.entry_no}.` : `Visha case saved to register — entry #${saved.entry_no}.`);
+  await _loadVishaRecord(_activeVisitId);
 };
 
 // ── Boot ──────────────────────────────────────────
+// Session 386e (owner Q7): no Tele queue tab while the platform's teleconsultation switch is OFF (the pilot)
+teleconsultOn(supabase).then(on => { if (!on) { const b = document.getElementById('q-tab-tele'); if (b) b.hidden = true; } });
 _initNamaste();
 _initIcd10();
 await Promise.all([loadQueue(), loadAlerts(), loadEmergencyConfirmations(), loadDepositBox(), loadAwaitingReports(), loadInventory(), _loadOpdAttendanceBanner(), loadOpdList(), loadDoctorOpds(), renderPromoBanner('promo-banner', { supabase, tenantId })]);

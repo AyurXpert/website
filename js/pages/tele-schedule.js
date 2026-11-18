@@ -5,6 +5,7 @@ import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
 import { notify } from '../components/notify.js';
 import { monthEndStr, todayISTStr, istMonthStr, istDayStartUTC } from '../utils/dateUtils.js';
+import { teleconsultOn } from '../utils/teleSwitch.js';   // Session 386e (owner Q7)
 
 await requireAuth(['doctor','super_admin','dept_admin'], 'login.html');
 initNavbar();
@@ -178,5 +179,13 @@ window.exportTeleRegisterCSV = function() {
   a.click();
 };
 
-await loadSchedule();
-await loadTeleToday();
+// Session 386e (owner Q7): while the platform switch is OFF only the register of past teleconsultations is shown (the server refuses
+// every new schedule / tele visit anyway)
+if (await teleconsultOn(supabase)) {
+  await loadSchedule();
+  await loadTeleToday();
+} else {
+  // (rehearsal R5: the cards' own CSS display overrides the hidden attribute -- set the style itself)
+  const note = document.getElementById('tele-off-note'); note.hidden = false; note.style.display = '';
+  for (const id of ['tele-howto', 'tele-sched-card', 'tele-today-card']) { const e = document.getElementById(id); e.hidden = true; e.style.display = 'none'; }
+}

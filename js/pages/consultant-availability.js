@@ -52,12 +52,13 @@ function renderDoctors(slots) {
   const grid = document.getElementById('doctors-grid');
 
   if (!slots || slots.length === 0) {
-    grid.innerHTML = `
-      <div class="empty-grid">
-        <div class="empty-ico">📡</div>
-        <div class="empty-title">No schedules configured yet</div>
-        <div class="empty-sub">Please contact the reception for teleconsultation availability</div>
-      </div>`;
+    // Session 386e (owner, rehearsal R5): no schedule = no teleconsultation here (the platform switch is OFF for the pilot, or none is set):
+    // one plain line, no booking steps, no print / copy
+    const box = document.createElement('div'); box.className = 'empty-grid';
+    const t = document.createElement('div'); t.className = 'empty-title';
+    t.textContent = 'Teleconsultation is not available at this hospital at present. Please visit the OPD.';
+    box.appendChild(t); grid.replaceChildren(box);
+    for (const sel of ['.actions', '.book-card', '.section-head p']) document.querySelectorAll(sel).forEach(e => { e.style.display = 'none'; });
     return;
   }
 

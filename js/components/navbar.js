@@ -86,7 +86,9 @@ function _buildGroups(role, type, secondaryRole, hasMonitoringAccess, isDeptScop
         // ['doctor','super_admin','dept_admin'] -- a nurse clicking it got silently bounced
         // straight back to nursing.html (her ROLE_HOME), no message, no explanation. Narrowed
         // to match the destination's real gate exactly.
-        { href:'tele-schedule.html', label:'Tele Schedule', roles:ADMIN_ROLES.concat(['doctor']),types:null, module:'teleconsult'},
+        // Session 386e (owner Q7, 18 Nov 2026): teleconsultation is a platform switch, OFF for the pilot -- no menu link. Put this line back
+        // when the platform admin switches it on:
+        // { href:'tele-schedule.html', label:'Tele Schedule', roles:ADMIN_ROLES.concat(['doctor']),types:null, module:'teleconsult'},
         { href:'prophylaxis.html',   label:'Prophylaxis',  roles:CLINICAL.concat(ADMIN_ROLES),  types:null, module:'opd'        },
       ]
     },

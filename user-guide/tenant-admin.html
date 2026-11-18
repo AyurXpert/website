@@ -239,6 +239,7 @@
       <li><strong>Frozen on every signed document</strong> — a pharmacy bill (pharmacist + licence), prescription, medical certificate, discharge summary, MHA consent and OT record keeps the identity that was verified when it was created or signed. A later verification or correction changes new documents only. Documents made before this existed show the current verified details.</li>
       <li><strong>Drug / pharmacy licence no.</strong> — Organisation Profile → <em>Drug / pharmacy licence no. (optional)</em>. Only a <span class="badge badge-super_admin">super_admin</span> can change it.</li>
     </ol>
+    <p><strong>Staff health check-ups and the NABH Credentials &amp; Privileging register</strong> (hr.html → Health Check-ups / 🏅 Credentials): a staff member's health check-up is seen only by that person, the Super Admin, the Medical Superintendent and the Medical Director, and recorded only by the Super Admin or the Medical Superintendent (a saved check-up is never changed — record a new one). Credentials and clinical privileges are recorded only by the Super Admin or the Medical Superintendent, never on their own row; a Dept Admin sees the credentials of their own department's staff only. "Verified by" is set by the server.</p>
     <p>Every submission, verification, rejection, correction and licence change is recorded in the audit log (who, when, old → new value).</p>
 
     <h4 style="margin-top:14px">Who reads the audit log, and who approves what</h4>
@@ -251,7 +252,7 @@
 
     <h4 style="margin-top:14px">Your hospital's own links (set up before go-live)</h4>
     <ul style="margin: 8px 0 14px 20px; line-height: 1.9;">
-      <li><strong>Admin → 🏢 Organisation Profile → 🔗 Public links</strong> shows two links, each with a <strong>Copy</strong> button: your own <strong>sign-in page</strong> (<code>login.html?t=&lt;your code&gt;</code>) and the patients' <strong>teleconsultation timetable</strong> (<code>consultant-availability.html?tenant=&lt;your code&gt;</code>, it shows your logo when one is set).</li>
+      <li><strong>Admin → 🏢 Organisation Profile → 🔗 Public links</strong> shows two links, each with a <strong>Copy</strong> button: your own <strong>sign-in page</strong> (<code>login.html?t=&lt;your code&gt;</code>) and the patients' <strong>teleconsultation timetable</strong> (<code>consultant-availability.html?tenant=&lt;your code&gt;</code>, it shows your logo when one is set). While teleconsultation is switched off on the platform (the pilot) the timetable lists no doctor.</li>
       <li><strong>At setup, install the sign-in link as the desktop shortcut / bookmark on every computer of the hospital.</strong> It opens the sign-in page with your hospital's name and logo.</li>
       <li>After a successful sign-in, a browser also remembers the hospital (only its code — nothing about the person), so the next visit to the plain sign-in page shows your branding too. On a shared computer, <strong>“Not &lt;hospital&gt;? Use another organisation”</strong> under the name makes the browser forget it.</li>
     </ul>

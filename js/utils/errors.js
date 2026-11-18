@@ -133,6 +133,21 @@ export function safeErrorMessage(error, fallback = 'Something went wrong. Please
     return error.message;
   }
 
+  // Session 386e (security build): the refusals of the clinical-register / staff-record / prescription-line / teleconsultation guards and the
+  // platform switch -- plain, schema-free sentences written for staff (sql/session386e_security_build.sql)
+  const MSGS_386E = ['Your role cannot record ', 'Your role cannot change ', 'This field cannot be changed on ', 'This record belongs to another organisation.',
+    'Choose a patient of this organisation.', "That visit is not this patient's visit in this organisation.", 'That OPD is not of this organisation.',
+    'That staff member is not of this organisation.', 'That department is not of this organisation.', 'That programme is not of this organisation.',
+    'That admission is not of this organisation.', 'Only the Super Admin or the Medical Superintendent can ', 'Choose a staff member of this organisation.',
+    'You cannot record or change your own credentials.', 'A credential row stays with its staff member.', 'A saved health check-up cannot be changed.',
+    'A medicine can be added only to a prescription you saved', 'A saved prescription line cannot be changed', 'Teleconsultation is switched off for the pilot',
+    'A meeting link cannot be added', 'The Teleconsultation fee cannot be billed', 'Only an active platform administrator can change a platform switch.',
+    'Unknown platform switch.'];
+  if (['42501', '22023', 'P0002'].includes(error?.code) && (MSGS_386E.some(m => error?.message?.startsWith(m))
+      || /^A saved .{3,60} cannot be changed\. Record a new one to correct it\.$/.test(error?.message || ''))) {
+    return error.message;
+  }
+
   // Session 384 (TODO §490 / §491 / §492): the profiles guard, an unfinished sign-in (MFA code), the MFA reset rules, a patient name with markup
   const S384_MSGS = ['Finish signing in: enter the code', 'Enter the code from your authenticator app first', 'Platform administrator access is set by AyurXpert only',
     'An account cannot be moved to another organisation', 'On your own profile you can change only your personal details', 'Only monitoring access, the department scope',

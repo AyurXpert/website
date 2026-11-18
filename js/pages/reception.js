@@ -38,6 +38,7 @@ import { mountNcismStrip } from '../modules/reception/ncismStrip.js';
 import { openNcismRange } from '../modules/reception/ncismRange.js';
 import { triageLabel } from '../modules/screening/findings.js';   // Session 374B (B4)
 import { TAB_LABEL, effectiveTabs, splitTabs, normalisePane, loadPrefs, saveOwnPrefs, openArrangeDialog } from '../modules/reception/layoutPrefs.js';
+import { teleconsultOn } from '../utils/teleSwitch.js';   // Session 386e (owner Q7)
 import {
   requestABHAOtp, enrollABHA,
   checkAndGenerateMobileOTP, verifyCommMobileOtp, finalizeAbhaEnrollment,
@@ -639,6 +640,16 @@ let _feeAnswer = null;      // the server's last answer
 let _feeOverride = null;    // { fee: {id,label,amount}, reason } chosen by reception
 let _newIssue = false;      // "Different issue this time" (full fee)
 let _referralId = null;     // a doctor's internal referral to this OPD (the server checks it)
+// Session 386e (owner Q7): while the platform's teleconsultation switch is OFF (the pilot) a new visit cannot be a teleconsultation -- the
+// option is removed from the registration form; in Edit Queue Entry it stays (disabled) so an older teleconsultation keeps its label.
+// The server refuses a teleconsultation visit / meeting link / Teleconsultation fee anyway.
+teleconsultOn(supabase).then(on => {
+  if (on) return;
+  document.querySelector('#visit-category option[value="teleconsultation"]')?.remove();
+  const q = document.querySelector('#qe-category option[value="teleconsultation"]');
+  if (q) { q.disabled = true; q.textContent = 'Teleconsult (switched off)'; }
+});
+
 // Session 374 (owner rehearsal 2 Nov 2026, G7 / G9): a teleconsultation is priced ONLY with the Teleconsultation fee and paid online only
 const _isTeleCat = () => document.getElementById('visit-category').value === 'teleconsultation';
 async function loadFees(opdId) {
