@@ -1,4 +1,4 @@
-import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.0/+esm'
+import { createClient } from '../../../vendor/supabase@2.110.0/supabase-js.min.js'  // Session 386f (§614): served from our own site
 import { ENV } from '../../config/env.js'
 import { getTabUser, jwtClaims, blockTab, isTabBlocked } from '../tabUser.js'
 

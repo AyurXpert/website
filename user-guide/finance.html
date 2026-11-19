@@ -2,11 +2,10 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Financial Management — User Guide | AyurXpert HMS</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../css/fonts/cg-400-600-700_dm-400-500-600.css"/>
   <style>
     /* ─── Design Tokens ─────────────────────────────── */
     :root {
@@ -363,6 +362,7 @@
       h2 { break-before: page; }
     }
   </style>
+<script src="../js/utils/printButton.js" defer></script>
 </head>
 <body>
 
@@ -372,7 +372,7 @@
     <h1>Financial Management — Complete User Guide</h1>
     <div class="banner-sub">AyurXpert HMS · Covers reception.html · dispensaryPOS.html · ipd.html · finance.html · insurance-claims.html · fee-admin.html</div>
   </div>
-  <button class="print-btn" onclick="window.print()">Print / Save PDF</button>
+  <button class="print-btn" data-print>Print / Save PDF</button>
 </header>
 
 <div class="layout">

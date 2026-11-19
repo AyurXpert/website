@@ -3,7 +3,8 @@
 //   - Navigation (HTML)  → Network first: whatever the server answers goes to the browser (a 404 / 5xx is the real page, a redirect is
 //                          followed); only when the server cannot be reached at all: one retry → cached copy → offline.html
 //   - Local assets (JS/CSS/images) → Cache first → network → cache update
-//   - External APIs (Supabase, Google Fonts, CDN) → Network only, no caching
+//   - External APIs (Supabase, ABDM) → Network only, no caching. Session 386f (§614): no CDN / Google Fonts any more -- the
+//     libraries and fonts are our own files (vendor/, css/fonts/)
 
 // Session 357c (TODO §108 (c)): the cache is named after the build (sw-build.js, written by scripts/sync-website.ps1 on every website
 // sync), so each deploy installs a new worker and clears the old cache. A missing sw-build.js never stops the worker installing.
@@ -47,18 +48,30 @@ const PRECACHE = [
   './js/utils/dateUtils.js',
   './js/utils/validators.js',
   './js/utils/passwordSecurity.js',
+  // Session 386f (§614): the self-hosted Supabase JS (every signed-in page needs it) + the font stylesheets (one per page font set)
+  './css/fonts/cg-400-600-700-i400_dm-300-400-500-600.css',
+  './css/fonts/cg-400-600-700_dm-300-400-500-600.css',
+  './css/fonts/cg-400-600-700_dm-400-500-600.css',
+  './css/fonts/cg-400-600-i400_dm-300-400-500-700.css',
+  './css/fonts/cg-400-600-i400_dm-300-400-500.css',
+  './css/fonts/cg-400-600_dm-300-400-500.css',
+  './css/fonts/cg-600-700_dm-400-600-700.css',
+  './css/fonts/cg-600_dm-400-500-600-700.css',
+  './vendor/supabase@2.110.0/supabase-js.min.js',
+  './vendor/supabase@2.110.0/auth-js.min.js',
+  './vendor/supabase@2.110.0/functions-js.min.js',
+  './vendor/supabase@2.110.0/postgrest-js.min.js',
+  './vendor/supabase@2.110.0/realtime-js.min.js',
+  './vendor/supabase@2.110.0/storage-js.min.js',
+  './vendor/supabase@2.110.0/phoenix-0.4.4.min.js',
+  './vendor/supabase@2.110.0/iceberg-js-0.8.1.min.js',
+  './vendor/supabase@2.110.0/tslib-2.8.1.min.js',
 ];
 
 // ── External origins that should never be cached ────────────────────────────
 function isExternal(url) {
   return (
-    url.includes('supabase.co')            ||
-    url.includes('googleapis.com')         ||
-    url.includes('gstatic.com')            ||
-    url.includes('jsdelivr.net')           ||
-    url.includes('cdnjs.cloudflare.com')   ||
-    url.includes('cloudflareinsights.com') ||
-    url.includes('fonts.gstatic.com')      ||
+    !url.startsWith(self.location.origin)  ||   // Session 386f (§614): anything not our own site (Supabase, ABDM ...) is never cached
     url.includes('chrome-extension')
   );
 }

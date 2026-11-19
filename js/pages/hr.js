@@ -1,4 +1,4 @@
-import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.0/+esm';
+import { createClient } from '../../vendor/supabase@2.110.0/supabase-js.min.js';  // Session 386f (§614): served from our own site
 import { requireAuth, hasModule, getCurrentProfile, getCurrentTenantId } from '../core/auth.js';
 import { initNavbar } from '../components/navbar.js';
 import { ENV } from '../config/env.js';

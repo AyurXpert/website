@@ -6800,7 +6800,7 @@ async function _renderNcismCapacityCard(t) {
       <input type="checkbox" id="ncism-pg-${d.ncism_code}" ${seats > 0 ? 'checked' : ''} data-onchange="toggleNcismPgDept" data-onchange-a0="@this" data-onchange-a1="${d.ncism_code}" style="width:16px;height:16px;accent-color:var(--green-mid);cursor:pointer"/>
       <span style="flex:1;font-size:13px;color:var(--text-dark)">${_esc(d.name)}</span>
       <input type="number" id="ncism-pgs-${d.ncism_code}" min="1" max="30" value="${seats || 1}" ${seats > 0 ? '' : 'disabled'}
-        style="width:56px;height:30px;text-align:center;border:1.5px solid var(--border);border-radius:6px;font-family:'DM Sans',sans-serif" data-onchange="_ncismUpdateTotal" onclick="event.stopPropagation()"/>
+        style="width:56px;height:30px;text-align:center;border:1.5px solid var(--border);border-radius:6px;font-family:'DM Sans',sans-serif" data-onchange="_ncismUpdateTotal"/>
       <span style="font-size:11px;color:var(--text-muted);width:60px">seats</span>
     </label>`;
   };
@@ -7180,7 +7180,7 @@ window.searchSellPatient = function() {
     const { data } = isPhone ? await query.eq('phone',q).limit(5) : await query.ilike('name',`%${q}%`).limit(5);
     const res = document.getElementById('sell-pt-results');
     if (!data?.length) { res.style.display = 'none'; return; }
-    res.innerHTML = data.map(p=>`<div style="padding:8px 12px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--border)" data-onclick="selectSellPatient" data-onclick-a0="${_esc(p.id)}" data-onclick-a1="${_esc(p.name)}" data-onclick-a2="${_esc(p.phone||'')}" onmouseover="this.style.background='var(--green-light)'" onmouseout="this.style.background=''"><strong>${_esc(p.name)}</strong> <span style="color:var(--text-muted);font-size:11px">${_esc(p.phone||'')}</span></div>`).join('');
+    res.innerHTML = data.map(p=>`<div style="padding:8px 12px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--border)" data-onclick="selectSellPatient" data-onclick-a0="${_esc(p.id)}" data-onclick-a1="${_esc(p.name)}" data-onclick-a2="${_esc(p.phone||'')}"><strong>${_esc(p.name)}</strong> <span style="color:var(--text-muted);font-size:11px">${_esc(p.phone||'')}</span></div>`).join('');
     res.style.display = '';
   }, 300);
 };

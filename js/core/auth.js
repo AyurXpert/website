@@ -650,11 +650,13 @@ function _injectSecurityMeta() {
   add({ 'http-equiv': 'Content-Security-Policy',
         content: [
           "default-src 'none'",
-          "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://static.cloudflareinsights.com",
-          "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com",
+          // Session 386f (TODO §614 / §510, owner D1 / D9, 19 Nov 2026): no 'unsafe-inline' for scripts, no CDN, no Google Fonts, no
+          // Cloudflare analytics -- every library and font is served from our own site (vendor/, css/fonts.css).
+          "script-src 'self'",
+          "style-src 'self' 'unsafe-inline'",
           "img-src 'self' data: blob: https://*.supabase.co",
-          "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://abhasbx.abdm.gov.in https://phrsbx.abdm.gov.in https://healthid.abdm.gov.in https://cloudflareinsights.com https://static.cloudflareinsights.com",
-          "font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com https://fonts.googleapis.com",
+          "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://abhasbx.abdm.gov.in https://phrsbx.abdm.gov.in https://healthid.abdm.gov.in",
+          "font-src 'self'",
           "manifest-src 'self'",
           "worker-src 'self'",
           "object-src 'none'",

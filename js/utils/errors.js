@@ -250,6 +250,12 @@ export function safeErrorMessage(error, fallback = 'Something went wrong. Please
   if (['P0002', '42501', '22023'].includes(error?.code) && S386B2B2_MSGS.some(m => error?.message?.startsWith(m))) {
     return error.message;
   }
+  // Session 386f (for 386-TIA, owner 19 Nov 2026): an ID that is not of the caller's organisation / a row with no organisation --
+  // plain, schema-free, shown word for word (the server raises them with 42501; harmless before 386-TIA is applied)
+  const S386TIA_MSGS = ['This entry is linked to a record that is not in your organisation.', 'This entry has no organisation.'];
+  if (error?.code === '42501' && S386TIA_MSGS.some(m => error?.message?.startsWith(m))) {
+    return error.message;
+  }
   // Session 386c (owner 4a): the MRP rule -- plain, schema-free
   const S386C_MSGS = ['The MRP is changed with "Change MRP"', 'Only the Chief Pharmacist, an accountant or the finance manager can change an MRP',
     'That stock row is not in this organisation', 'Enter the new MRP in rupees', 'The MRP is already', 'Give the reason for the new MRP'];
