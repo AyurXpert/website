@@ -5702,8 +5702,7 @@ window.collectLabPayment = async function(orderId) {
     return;
   }
   const res = await createInvestigationBill({
-    supabase, labOrderId: orderId, feeIds: priced.lines.map(l => l.fee_structure_id), paymentMode: mode, reference,
-    regime: _labGst ? 'gst_v1' : 'legacy',
+    supabase, labOrderId: orderId, lines: priced.lines, paymentMode: mode, reference,   // 387-J1b: each line with its tests
   });
   if (res.error) { _alert('error', safeErrorMessage(res.error, 'Could not create the investigation bill.')); return; }
   if (res.bill_id) {

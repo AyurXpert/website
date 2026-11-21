@@ -799,6 +799,18 @@ export function safeErrorMessage(error, fallback = 'Something went wrong. Please
       && (J1_MSGS.some(m => error?.message?.startsWith(m)) || J1_RE.some(r => r.test(error?.message || '')))) {
     return error.message;
   }
+  // Session 387-J1b (TODO §684, owner 21 Nov 2026): OPD prices fixed by the server -- an imaging fee set at the order, the audited
+  // fee change only while unbilled, and an OPD lab bill whose lines must name every test of the order once. Shown as written;
+  // every J1b refusal is run through this helper by scripts/check-387j1b-pages.mjs.
+  const J1B_MSGS = ["A study's fee is set when it is ordered", 'This study is billed already', 'This record has no price yet',
+    'The fee can no longer be changed here.', 'Add at least one charge to the bill.', 'Too many charge lines on one bill.',
+    "This bill does not match the order's tests",
+    'An OPD study is ordered by a doctor of the visit', "A study's name and modality are set when it is ordered"];
+  const J1B_RE = [/^Line \d+: (no charge selected|the tests this charge covers are missing -- reload the page and collect again|a test name is missing|the quantity must be a whole number|the quantity must be 1, or the number of tests the charge covers \(\d+\))\.$/];
+  if (['P0001','42501','22023','P0002'].includes(error?.code)
+      && (J1B_MSGS.some(m => error?.message?.startsWith(m)) || J1B_RE.some(r => r.test(error?.message || '')))) {
+    return error.message;
+  }
   if (error?.code === '42501' && error?.message === 'Not authorized') {   // 359: an inactive / relieved account, or no right at all
     return 'Your account is not allowed to do this (it may not be active). Ask the Super Admin.';
   }

@@ -62,10 +62,17 @@ export async function createOpdBill({ supabase, visitId, feeIds, payerType, paym
 
 // The lab/radiology charge, billed when reception collects it (legacy: only when it is not already
 // on the visit bill -- an order already billed is just marked collected); marks the order paid.
-export async function createInvestigationBill({ supabase, labOrderId, feeIds, paymentMode, reference = null, regime = 'gst_v1' }) {
+// Session 387-J1b (TODO §684, owner D4 (A) 21 Nov 2026): each line is sent WITH the tests it covers, one line per
+// computeLabBillingLines() line (labBilling.js) -- the server refuses the bill unless every test of the order is named
+// exactly once, and merges a repeated fee into one line with a quantity (both billing regimes).
+function _labLines(lines) {
+  return (lines || []).filter(l => l && l.fee_structure_id)
+    .map(l => ({ fee_structure_id: l.fee_structure_id, tests: (l.tests || []).map(String) }));
+}
+export async function createInvestigationBill({ supabase, labOrderId, lines, paymentMode, reference = null }) {
   // Session 327: the receipt (RCPT number) is issued by this same call; UPI / card need the transaction reference.
   const { data, error } = await supabase.rpc('create_investigation_bill', {
-    p_lab_order: labOrderId, p_lines: _lines(feeIds, regime), p_payment_mode: paymentMode,
+    p_lab_order: labOrderId, p_lines: _labLines(lines), p_payment_mode: paymentMode,
     p_reference: paymentMode === 'cash' ? null : (reference || null),
   });
   return error ? { error } : data;
