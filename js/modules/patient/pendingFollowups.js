@@ -16,8 +16,9 @@ const _btnCss = 'min-height:44px;padding:0 14px;background:var(--green-deep);col
 export async function loadPendingFollowups({ supabase, tenantId, container, countEl, section }) {
   container.replaceChildren(_el('div', 'padding:14px;font-size:12px;color:var(--text-muted)', 'Loading…'));
   const [aw, inc] = await Promise.all([
-    supabase.from('visits').select('id, created_at, awaiting_reports_since, returned_with_reports_at, doctor_id, patients(name, uhid), doctor:profiles!visits_doctor_id_fkey(full_name)')
-      .eq('tenant_id', tenantId).eq('status', 'awaiting_reports').eq('is_deleted', false).order('awaiting_reports_since'),
+    // 387-J1 rehearsal F10 (owner, 20 Nov 2026): the SERVER's list = exactly the visits that block a new registration (one rule):
+    // 'waiting' (Back with reports) and 'reopened' (the doctor re-opened it today -- the patient goes to the doctor)
+    supabase.rpc('list_registration_waits'),
     supabase.from('patients').select('id, name, uhid, phone, address, date_of_birth, blood_group, is_unidentified, created_at')
       .eq('tenant_id', tenantId).eq('registration_incomplete', true).order('created_at', { ascending: false }).limit(100),
   ]);
@@ -35,17 +36,25 @@ export async function loadPendingFollowups({ supabase, tenantId, container, coun
   const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
   awRows.forEach(v => {
     const row = _el('div', 'padding:8px 12px;border-top:1px solid var(--border);font-size:12px;line-height:1.45');
-    row.append(_el('div', 'font-weight:600', `${v.patients?.name || '—'} · ${v.patients?.uhid || '—'}`));
-    row.append(_el('div', 'color:var(--text-mid)', `Dr ${v.doctor?.full_name || '—'} · waiting since ${_fmtDay(v.awaiting_reports_since)} · closed after 7 days if not back`));
-    const backToday = v.returned_with_reports_at && new Date(v.returned_with_reports_at).toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' }) === today;
+    row.append(_el('div', 'font-weight:600', `${v.patient_name || '—'} · ${v.uhid || '—'}`));
+    if (v.kind === 'reopened') {
+      // the doctor has the visit open now: no button -- the patient goes to the doctor (the server refuses Back with reports here)
+      const at = v.reopened_at ? new Date(v.reopened_at) : null;
+      const when = at ? `${_fmtDay(v.reopened_at)}, ${at.toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: false })}` : '—';
+      row.append(_el('div', 'color:var(--green-deep);font-weight:600', `🩺 Open with Dr ${v.doctor_name || '—'} now (re-opened ${when})`));
+      out.push(row);
+      return;
+    }
+    row.append(_el('div', 'color:var(--text-mid)', `Dr ${v.doctor_name || '—'} · waiting since ${_fmtDay(v.awaiting_since)} · closed after 7 days if not back`));
+    const backToday = v.returned_at && new Date(v.returned_at).toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' }) === today;
     if (backToday) row.append(_el('div', 'color:var(--green-deep);font-weight:600', '✓ Marked back today — the doctor has been told'));
     const b = _el('button', _btnCss + ';margin-top:6px', backToday ? 'Back again (tell the doctor)' : 'Back with reports');
     b.type = 'button';
     b.addEventListener('click', async () => {
       b.disabled = true;
-      const { error } = await supabase.rpc('mark_returned_with_reports', { p_visit_id: v.id });
+      const { error } = await supabase.rpc('mark_returned_with_reports', { p_visit_id: v.visit_id });
       if (error) { notify(safeErrorMessage(error, 'The return could not be recorded.'), 'error'); b.disabled = false; return; }
-      notify(`${v.patients?.name || 'Patient'}: the doctor has been told the patient is back with the reports. No new visit or fee.`, 'success');
+      notify(`${v.patient_name || 'Patient'}: the doctor has been told the patient is back with the reports. No new visit or fee.`, 'success');
       loadPendingFollowups(ctx);
     });
     row.append(b);

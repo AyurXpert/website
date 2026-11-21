@@ -53,6 +53,9 @@ export const SOURCE_FEE_CATEGORIES = { pk_session: ['procedure'], procedure: ['p
 // Session 386d-1 (§602): an OPD procedure order's item (on a visit) -- procedure fees offered in OPD
 SOURCE_LABEL.opd_procedure = 'OPD procedure'
 SOURCE_FEE_CATEGORIES.opd_procedure = ['procedure']
+// Session 387-J1 (D10): an OPD imaging order's item (on a visit) -- radiology fees
+SOURCE_LABEL.opd_imaging = 'OPD imaging'
+SOURCE_FEE_CATEGORIES.opd_imaging = ['radiology']
 export const sourceLabel = s => SOURCE_LABEL[s] || String(s || 'Item')
 export const feeCategoriesFor = s => SOURCE_FEE_CATEGORIES[s] || ['procedure']
 
@@ -95,10 +98,10 @@ export async function renderOpenChargeIssues(container, { supabase, tenantId, pr
 
   const allowed = canResolveUnpriced(profile)
   // Session 386d-1 (§602): an OPD procedure's item waits on the visit, not on an admission's lock
-  const opd = items.every(it => it.source === 'opd_procedure')
+  const opd = items.every(it => it.source === 'opd_procedure' || it.source === 'opd_imaging')   // + 387-J1 OPD imaging
   const box = el('div', { style: ERR, role: 'alert' },
     el('strong', null, opd
-      ? 'No price set for these procedures — they cannot be billed until each one gets its fee or is cancelled:'
+      ? 'No price set for these items — they cannot be billed until each one gets its fee or is cancelled:'
       : 'No price set for these items — the charges cannot be locked and the bill cannot be made until each one is priced or cancelled:'))
   for (const it of items) {
     const row = el('div', { style: 'margin-top:8px;padding:8px;border:1px solid var(--border);border-radius:6px;background:#fff' },

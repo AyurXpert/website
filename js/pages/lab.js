@@ -1034,6 +1034,7 @@ function renderImgQueue() {
       <div class="order-meta">
         <span class="modality-pill mod-${o.modality}" style="margin-right:4px">${MOD_LABEL[o.modality]||o.modality}</span>
         ${o.is_outside_referral?'<span style="font-size:10px;color:#1a4080">🔗 Outside</span>':''}
+        ${o.payment_status === 'pending' ? '<span style="font-size:10px;color:#7a4a00;font-weight:700">⏳ Payment due</span>' : o.payment_status === 'waived' ? '<span style="font-size:10px;color:#7a1a1a;font-weight:700">🚨 Urgent — unpaid</span>' : ''}
         · ${{ordered:'Ordered',performed:'Performed',completed:'Report Ready',referred_outside:'Referred Out'}[o.status]||o.status}
       </div>
       <div class="order-tests">${_esc(o.study_name||'')}</div>

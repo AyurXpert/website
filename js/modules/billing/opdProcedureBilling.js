@@ -147,7 +147,7 @@ export async function loadOpdUnpricedPanel(container, { supabase, tenantId, prof
   const reload = () => loadOpdUnpricedPanel(container, { supabase, tenantId, profile })
   const { data: items, error } = await supabase.from('ipd_unpriced_items')
     .select('id, source, source_table, item_name, item_date, detail, raised_at, visit_id, visits(created_at, patients(name, uhid))')
-    .eq('tenant_id', tenantId).eq('source', 'opd_procedure').is('resolved_at', null).order('raised_at')
+    .eq('tenant_id', tenantId).in('source', ['opd_procedure', 'opd_imaging']).is('resolved_at', null).order('raised_at')   // Session 387-J1: + OPD imaging
   container.replaceChildren()
   if (error) {
     container.hidden = false
@@ -158,7 +158,7 @@ export async function loadOpdUnpricedPanel(container, { supabase, tenantId, prof
   if (!(items || []).length) { container.hidden = true; return }
   container.hidden = false
   container.appendChild(el('h2', { id: 'opd-unpriced-h', style: "font-family:'Cormorant Garamond',serif;font-size:20px;color:var(--green-deep);margin:12px 0 4px" },
-    `No price set — OPD procedures (${items.length})`))
+    `No price set — OPD procedures and imaging (${items.length})`))
   container.appendChild(el('div', { style: NOTE }, 'Reception cannot bill these until each one gets its fee (the order then goes back to Reception → 🩹 Procedures) or is cancelled with a reason.'))
   const byVisit = new Map()
   for (const it of items) { if (!byVisit.has(it.visit_id)) byVisit.set(it.visit_id, []); byVisit.get(it.visit_id).push(it) }

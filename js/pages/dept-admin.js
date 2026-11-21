@@ -160,6 +160,7 @@ async function renderTraineePostings(){
     .select('id,profile_id,area,posting_start_date,posting_end_date')
     .eq('tenant_id',tenantId).eq('department_id',deptId)
     .lte('posting_start_date',today).gte('posting_end_date',today)
+    .is('cancelled_at', null)   // 387-J1 rehearsal (owner, 20 Nov 2026): a cancelled posting is not the current one (377b rule)
     .in('profile_id', _trainees.map(t=>t.id));
   const currentByProfile = {}; (current||[]).forEach(c => { currentByProfile[c.profile_id] = c; });
 

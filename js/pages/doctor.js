@@ -25,7 +25,7 @@ import { printDocument } from '../utils/printDocument.js';
 import { aggregateByMedicine } from '../modules/inventory/stockByMedicine.js';
 import { identityLines } from '../utils/signerIdentity.js';
 import { getOpdWorkflow, screeningOpdId } from '../modules/opd/screeningOpd.js';
-import { AWAITING_SIGNOFF, isAwaitingSignOff, anyAwaitingSignOff, hiddenValueText } from '../modules/lab/signOff.js';   // §267
+import { AWAITING_SIGNOFF, DOCTOR_PROVISIONAL, isAwaitingSignOff, anyAwaitingSignOff, hiddenValueText } from '../modules/lab/signOff.js';   // §267
 import { loadLabCatalogue, namesBySection } from '../modules/lab/catalogue.js';
 import { loadMyPkSessions, resetMyPkSessions } from '../modules/panchakarma/myPkSessions.js';
 import { initAlertBell } from '../components/alertBell.js';
@@ -103,8 +103,13 @@ const _ctx     = { tenantId, userId, userName: profile.full_name };
 // medico-legal document. _canReview covers every role that could plausibly
 // supervise (a plain 'doctor' review's their own department's trainees; admin
 // roles can review across departments too).
-const _isTrainee  = profile.role === 'trainee_doctor';
-const _canReview  = ['doctor', 'super_admin', 'dept_admin'].includes(profile.role);
+// Session 387-J1 (§8 item 22): who is a trainee / who can finalise = the SERVER's one rule (my_clinical_position: _trainee_position),
+// never the role alone -- an intern or PG scholar holding the role doctor gets the trainee path. Fallback (function missing) = the old rule.
+const _clinPos = await (async () => {
+  try { const { data, error } = await supabase.rpc('my_clinical_position'); return error ? null : data; } catch { return null; }
+})();
+const _isTrainee  = _clinPos ? !!_clinPos.trainee : profile.role === 'trainee_doctor';
+const _canReview  = _clinPos ? !!_clinPos.can_finalize : profile.role === 'doctor';
 if (_isTrainee) {   // Session 305: trainees cannot send admission advice (doctor-only in the database)
   const advBtn = document.getElementById('btn-save-advice');
   if (advBtn) advBtn.style.display = 'none';
@@ -141,6 +146,7 @@ let _activeDraftedBy  = null;  // that draft's original trainee author (profile.
 // of _collectConsultationFields() today, so they're out of scope here too --
 // not an oversight, just matching the existing boundary.
 let _draftDirty       = false;
+let _formDirty        = false;   // Session 387-J1 (D13): typed or changed since the visit was opened -> ✕ asks first
 let _draftSaving       = false;
 let _pendingDraftNotes = null;  // fetched draft's form_data, held while the resume banner is up
 // Session 358 (TODO §265-D): the open visit came back with the reports (visits.awaiting_reports_since) -> the final note; whether
@@ -357,6 +363,7 @@ async function _scopedOpdIds() {
       .eq('tenant_id', tenantId).eq('profile_id', userId)
       .lte('posting_start_date', today).gte('posting_end_date', today)
       .eq('area', 'opd')
+      .is('cancelled_at', null)   // 387-J1 rehearsal (owner, 20 Nov 2026): a cancelled posting is not the current one (377b rule)
       .order('posting_start_date', { ascending: false })
       .limit(1).maybeSingle();
     if (posting?.department_id) return _opdIdsForDept(posting.department_id);
@@ -998,49 +1005,23 @@ const _ipdNice = s => ({ scheduled: 'Scheduled', in_progress: 'In progress', com
 async function loadPendingReviews() {
   const list = document.getElementById('q-list');
   list.innerHTML = '<div class="q-empty"><div class="q-empty-icon">⏳</div>Loading…</div>';
-
-  let query = supabase
-    .from('consultation_notes')
-    .select('id, visit_id, modern_diagnosis, ayurveda_diagnosis, provisional_modern, created_at, visits(id, token_number, chief_complaint, patients(id, uhid, name)), profiles!drafted_by(full_name)')
-    .eq('tenant_id', tenantId)
-    .eq('review_status', 'pending_review')
-    .order('created_at', { ascending: true });
-
-  // Reviewer's own department scope (if any) narrows this the same way a
-  // trainee's queue is narrowed -- a Kayachikitsa professor only reviews
-  // Kayachikitsa trainees' drafts. Tenant-wide for anyone with no scope set
-  // (typically super_admin/dept_admin).
-  const opdIds = await _scopedOpdIds();
-
-  const { data, error } = await query;
+  // Session 387-J1: the server lists the open drafts on open visits (the reviewer's department scope applies there)
+  const { data, error } = await supabase.rpc('list_pending_reviews');
   if (error) { list.innerHTML = `<div class="q-empty" style="color:#e74c3c">Error: ${_esc(safeErrorMessage(error, 'Could not load pending reviews.'))}</div>`; return; }
-
-  let rows = data || [];
-  if (opdIds) {
-    // consultation_notes has no opd_id directly -- filter via the joined visit's opd
-    // by re-checking visit membership against the scoped set fetched for loadQueue.
-    const { data: scopedVisits } = await supabase.from('visits').select('id').eq('tenant_id', tenantId).in('opd_id', opdIds);
-    const scopedVisitIds = new Set((scopedVisits || []).map(v => v.id));
-    rows = rows.filter(r => scopedVisitIds.has(r.visit_id));
-  }
-
+  const rows = data || [];
   document.getElementById('q-review-count').textContent = rows.length;
   if (!rows.length) { list.innerHTML = '<div class="q-empty"><div class="q-empty-icon">📝</div>No drafts pending review</div>'; return; }
-
-  list.innerHTML = rows.map(r => {
-    const v = r.visits || {};
-    const diag = r.provisional_modern || r.modern_diagnosis || r.ayurveda_diagnosis || '—';
-    return `<div class="q-card" data-onclick="openReviewDraft" data-onclick-a0="${_esc(r.id)}">
+  list.innerHTML = rows.map(r => `<div class="q-card" data-onclick="openReviewDraft" data-onclick-a0="${_esc(r.note_id)}">
       <div class="q-card-top">
-        <div class="q-token" style="background:#fff4e5;color:#7a4a00;font-size:9px;font-weight:700;min-width:36px">#${v.token_number||'—'}</div>
-        <div class="q-name">${_esc(v.patients?.name || '—')}</div>
+        <div class="q-token" style="background:#fff4e5;color:#7a4a00;font-size:9px;font-weight:700;min-width:36px">#${_esc(r.token_number ?? '—')}</div>
+        <div class="q-name">${_esc(r.patient_name || '—')}</div>
       </div>
       <div class="q-meta">
-        <span class="badge" style="background:#fff4e5;color:#7a4a00">Drafted by ${_esc(r.profiles?.full_name || '—')}</span>
+        <span class="badge" style="background:#fff4e5;color:#7a4a00">Drafted by ${_esc(r.drafted_by_name || '—')}</span>
+        ${r.opd_name ? `<span class="badge badge-cat">${_esc(r.opd_name)}</span>` : ''}
       </div>
-      <div class="q-complaint">${_esc(v.chief_complaint || diag)}</div>
-    </div>`;
-  }).join('');
+      <div class="q-complaint">${_esc(r.chief_complaint || '—')}</div>
+    </div>`).join('');
 }
 
 window.openReviewDraft = async function(consultationNoteId) {
@@ -1067,6 +1048,28 @@ window.openReviewDraft = async function(consultationNoteId) {
   ].filter(Boolean);
   document.getElementById('draft-summary').innerHTML = summaryLines.join('<br>') || 'No detailed notes recorded.';
   document.getElementById('draft-review-panel').style.display = 'block';
+  // Session 387-J1 (§2): the trainee's FULL draft fills the form -- every tab, the medicine rows, the intended outcome, education and
+  // referral -- for the consultant to check and edit; ✓ Finalize then saves ONE note in the consultant's name (the draft is kept as the
+  // trainee's logbook entry).
+  document.getElementById('rx-rows').innerHTML = '';
+  _applyDraftToForm(draft);
+  const dp = draft.draft_payload || {};
+  if (['prescription', 'no_prescription', 'awaiting_reports', 'awaiting_today'].includes(dp.outcome)) {
+    const r = document.querySelector(`input[name="opd-outcome"][value="${dp.outcome}"]`);
+    if (r) { r.checked = true; window.onOpdOutcomeChange(dp.outcome); }
+  }
+  if (dp.outcome_note) document.getElementById('opd-outcome-note').value = dp.outcome_note;
+  const edu = dp.education || {};
+  [['edu-disease', 'disease'], ['edu-meds', 'meds'], ['edu-adr', 'adr'], ['edu-pathya', 'pathya'], ['edu-dina', 'dina'], ['edu-followup', 'followup'], ['edu-ack', 'ack']]
+    .forEach(([id, k]) => { const el = document.getElementById(id); if (el) el.checked = !!edu[k]; });
+  if (edu.language && document.getElementById('edu-language')) document.getElementById('edu-language').value = edu.language;
+  if (edu.notes && document.getElementById('edu-notes')) document.getElementById('edu-notes').value = edu.notes;
+  const ref = dp.referral || {};
+  if (ref.ref_type) { document.getElementById('ref-type').value = ref.ref_type; window.onRefTypeChange?.(ref.ref_type); }
+  if (ref.target_opd_id) document.getElementById('ref-target-opd').value = ref.target_opd_id;
+  if (ref.urgency) document.getElementById('ref-urgency').value = ref.urgency;
+  _updateCompleteBtn();
+  _draftDirty = false; _formDirty = false;
 
   const btn = document.getElementById('btn-complete');
   btn.textContent = '✓ Finalize & Send to Pharmacy';
@@ -1375,7 +1378,46 @@ async function loadDepositBox() {
 // Session 358 (TODO §265-D): own visits waiting for reports (list_awaiting_reports: own only; the Super Admin sees every one, to
 // re-assign -- Q5). "Open with reports" re-opens the visit on the server (only its own doctor) and opens the consultation.
 let _awRows = [];
+// Session 387-J1 (§3): the doctor's own visits waiting for TODAY's report -- "Open now" re-opens the SAME visit (no new visit or fee)
+let _todayRows = [];
+async function loadWaitingToday() {
+  const box = document.getElementById('aw-today-box');
+  const list = document.getElementById('aw-today-list');
+  if (!box || !list || _isTrainee) return;
+  const { data, error } = await supabase.rpc('list_waiting_today');
+  _todayRows = error ? [] : (data || []);
+  if (!_todayRows.length) { box.hidden = true; list.replaceChildren(); return; }
+  list.replaceChildren(..._todayRows.map(r => {
+    const row = document.createElement('div');
+    row.style.cssText = 'padding:6px 0;border-top:1px dashed var(--border);font-size:11.5px;line-height:1.45';
+    const name = document.createElement('div');
+    name.style.fontWeight = '600';
+    name.textContent = `${r.token_number ? '#' + r.token_number + ' · ' : ''}${r.patient_name || '—'} · ${r.uhid || '—'}`;
+    const meta = document.createElement('div');
+    meta.style.color = 'var(--text-mid)';
+    meta.textContent = r.orders_open === 0 ? '✓ Reports ready — open when the patient is back' : `Reports ready ${r.orders_ready} of ${r.orders_ready + r.orders_open}`;
+    const b = document.createElement('button');
+    b.type = 'button'; b.dataset.onclick = 'openTodayVisit'; b.dataset.onclickA0 = r.visit_id;
+    b.style.cssText = 'margin:4px 6px 0 0;min-height:44px;padding:0 12px;background:var(--green-deep);color:#fff;border:none;border-radius:6px;font-family:\'DM Sans\',sans-serif;font-size:12px;font-weight:600;cursor:pointer';
+    b.textContent = r.status === 'in_progress' ? 'Continue' : 'Open now';
+    row.append(name, meta, b);
+    return row;
+  }));
+  box.hidden = false;
+}
+window.openTodayVisit = async function(visitId) {
+  const r = _todayRows.find(x => x.visit_id === visitId);
+  if (!r) return;
+  if (r.status === 'awaiting_reports') {
+    const { error } = await supabase.rpc('reopen_visit_for_reports', { p_visit_id: visitId });
+    if (error) { _toast(safeErrorMessage(error, 'The visit could not be re-opened.'), 'error'); loadWaitingToday(); return; }
+  }
+  await window.startConsultation(visitId);
+  loadWaitingToday();
+};
+
 async function loadAwaitingReports() {
+  loadWaitingToday();   // Session 387-J1: the same moments refresh both lists
   const box = document.getElementById('aw-rep-box');
   const list = document.getElementById('aw-rep-list');
   if (!box || !list || _isTrainee) return;
@@ -1581,7 +1623,7 @@ function subscribeRealtime() {
       loadEmergencyConfirmations();   // Session 356: an emergency admission under this doctor arrives as an alert
       loadDepositBox();               // Session 357: admitted / deposit paid / pre-auth rejected / advice expired arrive as alerts
       loadAwaitingReports();          // Session 358: reports ready / back with reports / re-assigned / did not return
-      _toast(`New on-request: ${payload.new.patient_name} — ${payload.new.message}`, 'alert');
+      _toast(`🔔 ${payload.new.patient_name ? payload.new.patient_name + ' — ' : ''}${payload.new.message}`, 'alert');   // Session 387-J1: every kind of alert, not only on-request
     })
     .subscribe();
 
@@ -1634,6 +1676,7 @@ window.togglePatientDetail = function() {
 
 // ── Start consultation ────────────────────────────
 window.startConsultation = async function(visitId) {
+  _formDirty = false;   // Session 387-J1 (D13)
   closeIpdRound();   // Session 295 -- never leave the ward round view on top of a consultation
   // Real bug found live-testing the PK Care Plan wizard (Session 209): clicking a
   // different queue card directly -- without first closing the previous consultation
@@ -1835,17 +1878,17 @@ window.startConsultation = async function(visitId) {
   _renderExamGuide(examGuide);
 
   // §18r — Shalakya-Netra OPD
-  const isNetra = _activeNcismCode === 'SHAL'
-    ? visit?.opds?.name?.toLowerCase().includes('netra')
-    : visit?.opds?.name?.toLowerCase().includes('netra') || visit?.opds?.name?.toLowerCase().includes('ophthal');
+  // Session 387-J1 (§15.4): the eye (Netra) and ENT sections belong to SHALAKYA (code SHAK); SHAL is Shalya Tantra and shows neither.
+  // An OPD name counts only as whole words ("ent" inside "Department" / "Treatment" no longer shows the ENT section).
+  const _opdNm = (visit?.opds?.name || '').toLowerCase();
+  const _opdWord = re => new RegExp('(^|[^a-z])(' + re + ')([^a-z]|$)').test(_opdNm);
+  const _isShalya = _activeNcismCode === 'SHAL';
+  const isNetra = !_isShalya && _opdWord('netra|eye|ophthal[a-z]*');
   _isNetra = isNetra;
   document.getElementById('netra-section').style.display = isNetra ? '' : 'none';
 
-  // §18t — Shalakya-KNM OPD
-  const isKnm = visit?.opds?.name?.toLowerCase().includes('karna')
-    || visit?.opds?.name?.toLowerCase().includes('knm')
-    || visit?.opds?.name?.toLowerCase().includes('ent')
-    || (_activeNcismCode === 'SHAL' && !isNetra);
+  // Section 18t -- Shalakya-KNM OPD
+  const isKnm = !_isShalya && !isNetra && (_activeNcismCode === 'SHAK' || _opdWord('karna|knm|ent|nasa|kantha'));
   _isKnm = isKnm;
   document.getElementById('ent-section').style.display = isKnm ? '' : 'none';
 
@@ -5332,6 +5375,7 @@ function _completeLabel(disp) {
   if (disp === 'referral') return '✓ Complete & Generate Referral';
   const out = _opdOutcome();
   if (out === 'awaiting_reports') return '🔬 Save — awaiting reports';
+  if (out === 'awaiting_today') return '🔬 Save — waiting for today\'s report';   // Session 387-J1
   if (out === 'no_prescription') return '✓ Complete without prescription';
   return '✓ Complete & Send to Pharmacy';
 }
@@ -5340,8 +5384,9 @@ window.onOpdOutcomeChange = function(val) {
   const radio = document.querySelector(`input[name="opd-outcome"][value="${val}"]`);
   if (radio) radio.closest('.disp-opt').classList.add('selected');
   document.getElementById('opd-outcome-note-wrap').hidden = val !== 'no_prescription';
-  document.getElementById('opd-outcome-hint').textContent = val === 'awaiting_reports'
-    ? 'Order the investigations first (Investigations tab) and record the provisional diagnosis (Assessment & Diagnosis tab). Medicines for now are allowed.'
+  document.getElementById('opd-outcome-hint').textContent = val === 'awaiting_reports' || val === 'awaiting_today'
+    ? (val === 'awaiting_today' ? 'For a test or study ordered TODAY: the patient comes back on this same visit today — no new visit or fee. You are told when the report is ready. ' : '')
+      + 'Order the investigations first (Investigations tab) and record the provisional diagnosis (Assessment & Diagnosis tab). Medicines for now are allowed.'
     : val === 'no_prescription' ? 'Remove any medicine rows — a visit completed without a prescription gets no prescription afterwards.' : '';
   document.getElementById('btn-complete').textContent = _completeLabel('opd');
   _updateCompleteBtn();
@@ -5717,6 +5762,16 @@ window._copyRxFromHistory = function(items) {
   return { added, skipped };
 };
 
+window.chooseNoPrescription = function() {
+  // Session 387-J1 (§5.1): "Complete without prescription" reachable from the greyed button and the Prescription tab
+  const r = document.querySelector('input[name=disposition][value="opd"]');
+  if (r && !r.checked) { r.checked = true; window.onDispChange('opd'); }
+  const o = document.querySelector('input[name="opd-outcome"][value="no_prescription"]');
+  if (o) { o.checked = true; window.onOpdOutcomeChange('no_prescription'); }
+  _switchTab('disp');
+  document.getElementById('opd-outcome-note')?.focus();
+};
+
 // Enable Complete button only when at least one named medicine row exists -- Session 358 (§243): only for "with a prescription"
 // (an Admission / Referral, "without a prescription", "awaiting reports" or a final note after an interim prescription needs none)
 function _updateCompleteBtn() {
@@ -5725,6 +5780,9 @@ function _updateCompleteBtn() {
   const disp = document.querySelector('input[name=disposition]:checked')?.value || 'opd';
   const needsRx = disp === 'opd' && _opdOutcome() === 'prescription' && !(_finalMode && _awaitHasRx);
   document.getElementById('btn-complete').disabled = needsRx && !hasRx;
+  // Session 387-J1 (§5.1): a greyed Complete always says why, with the way out
+  const why = document.getElementById('complete-why');
+  if (why) why.hidden = !(needsRx && !hasRx) || _isTrainee;
 }
 
 // ── Drug-Drug Interaction (DDI) Check — MOM.4 ────────────────────
@@ -5880,13 +5938,10 @@ async function _collectConsultationFields() {
   const disposition = document.querySelector('input[name=disposition]:checked')?.value || 'opd';
   const chiefComplaint = document.getElementById('h-complaint').value.trim();
 
-  // chief_complaint and pain_score live in visits table, not consultation_notes
+  // chief_complaint and pain_score live in visits -- Session 387-J1: saved by the server with the consultation (complete_consultation /
+  // submit_consultation_for_review), no longer written on every autosave
   const painVal = document.getElementById('h-pain-score').value;
-  const visitUpd = { chief_complaint: chiefComplaint || undefined };
-  if (painVal !== '') visitUpd.pain_score = parseInt(painVal);
-  if (Object.keys(visitUpd).length) {
-    await supabase.from('visits').update(visitUpd).eq('id', _activeVisitId);
-  }
+  const visit = { chief_complaint: chiefComplaint || null, pain_score: painVal === '' ? null : String(parseInt(painVal, 10)) };
 
   const notes = {
       // History
@@ -6026,7 +6081,7 @@ async function _collectConsultationFields() {
   // this department (all-null when there is no previous visit / nothing recorded).
   Object.assign(notes, getProgressData());
 
-  return { notes, disposition };
+  return { notes, disposition, visit };
 }
 
 // Session 358: the progress reminder is an in-page panel (no native confirm in a clinical flow) -- _progressRemindOk at the top
@@ -6064,7 +6119,7 @@ async function completeConsultation() {
   btn.textContent = 'Saving…';
 
   try {
-    const { notes, disposition } = await _collectConsultationFields();
+    const { notes, disposition, visit } = await _collectConsultationFields();
 
     // Session 358 (§243 / §265-D): the OPD outcome; a visit back with the reports finishes with the FINAL note (server-checked
     // in finish_consultation -- these page checks only name the missing piece first)
@@ -6075,13 +6130,14 @@ async function completeConsultation() {
       if (_getRxData().length) return _stop('Remove the medicine rows, or choose "With a prescription".', 'rx');
       if (outcomeNote.length < 5) { document.getElementById('opd-outcome-note').focus(); return _stop('Write a short note — the reason / the advice given (at least 5 characters).', 'disp'); }
     }
-    if (outcome === 'awaiting_reports' && !notes.provisional_modern && !notes.provisional_ayurveda) {
-      return _stop('Record the provisional diagnosis before saving the visit as awaiting reports.', 'assess');
+    const _awaiting = outcome === 'awaiting_reports' || outcome === 'awaiting_today';   // Session 387-J1: same-day reports
+    if (_awaiting && !notes.provisional_modern && !notes.provisional_ayurveda) {
+      // Session 387-J1: the provisional diagnosis is on Assessment & Diagnosis (was sent to Investigations, doc §8 item 3)
+      return _stop('Record the provisional diagnosis (Assessment & Diagnosis tab) before saving the visit as awaiting reports.', 'diag');
     }
-    if (_finalMode && outcome !== 'awaiting_reports' && !notes.modern_diagnosis && !notes.ayurveda_diagnosis && !notes.diagnosis_namc_code && !notes.diagnosis_icd10_code) {
+    if (_finalMode && !_awaiting && !notes.modern_diagnosis && !notes.ayurveda_diagnosis && !notes.diagnosis_namc_code && !notes.diagnosis_icd10_code) {
       return _stop('Record the final diagnosis.', 'diag');
     }
-    if (outcome === 'awaiting_reports') notes.note_stage = 'provisional';   // the server keeps it only on a first note
 
     // Session 356 (TODO §265-A, D1): under the Admission disposition, Complete sends the advice in the
     // SAME click, before the consultation is saved -- if the advice cannot be saved, nothing is saved and
@@ -6099,169 +6155,51 @@ async function completeConsultation() {
       }
     }
 
-    // Session 127 -- finalizing a trainee's draft credits the original
-    // author permanently, even though this consultation_notes row is a brand
-    // new one written by the reviewing doctor (v1 deliberately doesn't hydrate
-    // the trainee's fields into this form -- see openReviewDraft()).
-    if (_activeDraftId) notes.drafted_by = _activeDraftedBy;
-
-    // Save to consultation_notes
-    const { error: cnErr } = await supabase.from('consultation_notes').insert({
-      visit_id:  _activeVisitId,
-      tenant_id: tenantId,
-      doctor_id: userId,
-      ...notes
-    });
-    if (cnErr) {
-      console.error('consultation_notes error — message:', cnErr.message, '| details:', cnErr.details, '| hint:', cnErr.hint, '| code:', cnErr.code);
-      throw cnErr;
-    }
-
-    // Session 127 -- close out the original draft this consultation reviewed
-    // (so it stops showing in Pending Review) and hand the lab orders the
-    // trainee already placed for this visit over to the lab/reception, now
-    // under the finalizing doctor's sign-off.
-    if (_activeDraftId) {
-      await supabase.from('consultation_notes')
-        .update({ review_status: 'finalized', finalized_by: userId }).eq('id', _activeDraftId);
-      await supabase.from('lab_orders')
-        .update({ review_status: 'finalized', finalized_by: userId })
-        .eq('visit_id', _activeVisitId).eq('review_status', 'pending_review');
-    }
-
-    // Create prescription record for pharmacy
+    // Session 387-J1 (§1, D1): ONE server call saves the note, the prescription, patient education, an internal referral + its alerts,
+    // the trainee's draft (review, D6), the visit's status AND outcome and the audit rows -- all or nothing. A refusal saves NOTHING.
     const rx = _getRxData();
-    let _savedRxId = null; // Session 308c — used below to auto-open the real, valid printout
-    if (rx.length > 0) {
-      const { data: presc, error: pErr } = await supabase
-        .from('prescriptions')
-        .insert({ visit_id: _activeVisitId, tenant_id: tenantId, patient_id: _activePatient.id })
-        .select('id').single();
-
-      // Session 386e (G2): a refused prescription or line is said, never a silent "completed" with no medicines
-      if (pErr || !presc) throw pErr || new Error('The prescription could not be saved.');
-      {
-        _savedRxId = presc.id;
-        const { error: iErr } = await supabase.from('prescription_items').insert(
-          rx.map(r => ({
-            prescription_id: presc.id,
-            medicine_id: null,
-            medicine_name: r.name,
-            dosage: r.dose,
-            frequency: r.freq,
-            duration: r.dur,
-            anupana: r.anupana,
-            timing: r.timing || null,
-            quantity: 1
-          }))
-        );
-        if (iErr) throw new Error('The prescription was saved but its medicines were not: ' + safeErrorMessage(iErr, 'please try again.'));
-      }
-    }
-
-    // §23z — Save patient education record if any checkbox ticked
-    const eduAny = ['edu-disease','edu-meds','edu-adr','edu-pathya','edu-dina','edu-followup'].some(id => document.getElementById(id)?.checked);
-    if (eduAny) {
-      await supabase.from('patient_education_records').insert({
-        tenant_id:               tenantId,
-        visit_id:                _activeVisitId,
-        patient_id:              _activePatient.id,
-        doctor_id:               userId,
-        disease_explained:       document.getElementById('edu-disease')?.checked || false,
-        medications_explained:   document.getElementById('edu-meds')?.checked    || false,
-        adr_risks_explained:     document.getElementById('edu-adr')?.checked     || false,
-        pathya_apathya_explained:document.getElementById('edu-pathya')?.checked  || false,
-        dinacharya_explained:    document.getElementById('edu-dina')?.checked    || false,
-        followup_explained:      document.getElementById('edu-followup')?.checked|| false,
-        language_used:           document.getElementById('edu-language')?.value  || 'Kannada',
-        patient_acknowledged:    document.getElementById('edu-ack')?.checked     || false,
-        education_notes:         document.getElementById('edu-notes')?.value.trim() || null,
-      });
-    }
-
-    // Session 358 (§243 / §265-D): without a prescription, awaiting reports and the final note after the reports are finished by
-    // the SERVER (finish_consultation); the other ways keep the direct Complete below (owner Q3)
-    if (_finalMode || outcome === 'no_prescription' || outcome === 'awaiting_reports') {
-      const params = _finalMode && outcome !== 'awaiting_reports'
-        ? { p_visit_id: _activeVisitId, p_outcome: 'final', p_note: outcomeNote || null, p_final_disposition: outcome }
-        : { p_visit_id: _activeVisitId, p_outcome: outcome, p_note: outcomeNote || null };
-      const { error: fErr } = await supabase.rpc('finish_consultation', params);
-      if (fErr) {
-        _toast(safeErrorMessage(fErr, 'The visit could not be completed.') + ' The consultation note is saved.', 'error');
-        btn.disabled = false;
-        onDispChange(disposition);
-        return;
-      }
-    }
-
-    // Mark visit completed -- Session 356: checked (a refused or zero-row update is an error, never a false "complete")
-    const { data: doneRows, error: vErr } = (_finalMode || outcome === 'no_prescription' || outcome === 'awaiting_reports')
-      ? { data: [{ id: _activeVisitId }], error: null }
-      : await supabase.from('visits').update({ status: 'completed' }).eq('id', _activeVisitId).select('id');
-    if (vErr || !doneRows?.length) {
-      _toast(vErr ? safeErrorMessage(vErr, 'The visit could not be marked completed.') + ' The consultation note is saved.'
-                  : 'The consultation note is saved, but the visit could not be marked completed. Please try again.', 'error');
+    const refTypeVal = document.getElementById('ref-type').value;
+    const uv = (document.getElementById('ref-urgency').value || '').toLowerCase();
+    const urgDb = uv.includes('emergency') ? 'emergency' : uv.includes('urgent') && uv.includes('semi') ? 'semi_urgent' : uv.includes('urgent') ? 'urgent' : 'routine';
+    const _cb = id => !!document.getElementById(id)?.checked;
+    const payload = {
+      notes,
+      outcome,
+      final: !!_finalMode && !_awaiting,
+      outcome_note: outcomeNote || null,
+      rx,
+      visit,
+      review_draft_id: _activeDraftId || null,
+      education: {
+        disease: _cb('edu-disease'), meds: _cb('edu-meds'), adr: _cb('edu-adr'), pathya: _cb('edu-pathya'), dina: _cb('edu-dina'),
+        followup: _cb('edu-followup'), language: document.getElementById('edu-language')?.value || 'Kannada', ack: _cb('edu-ack'),
+        notes: document.getElementById('edu-notes')?.value.trim() || null,
+      },
+      referral: disposition !== 'referral' ? null : {
+        type: refTypeVal === 'internal' ? 'internal' : refTypeVal ? 'external' : '',
+        target_opd_id: refTypeVal === 'internal' ? (document.getElementById('ref-target-opd').value || null) : null,
+        urgency: urgDb, reason: notes.ref_reason || null, to_doctor: notes.ref_doctor || null, to_hospital: notes.ref_hospital || null,
+      },
+    };
+    if (disposition === 'referral' && !payload.referral.type) return _stop('Choose the referral type.', 'disp');
+    if (payload.referral?.type === 'internal' && !payload.referral.target_opd_id) return _stop('Choose the OPD the patient is referred to.', 'disp');
+    const { data: done, error: ccErr } = await supabase.rpc('complete_consultation', { p_visit_id: _activeVisitId, p_payload: payload });
+    if (ccErr) {
+      _toast(safeErrorMessage(ccErr, 'The consultation could not be saved.') + ' Nothing was saved — correct it and press again.', 'error');
       btn.disabled = false;
       onDispChange(disposition);
       return;
     }
-
-    await logAudit('complete_consultation', 'visits', _activeVisitId, {
-      patient_name: _activePatient?.name,
-      modern_diagnosis: notes.modern_diagnosis,
-      ayurveda_diagnosis: notes.ayurveda_diagnosis,
-      disposition,
-      medicines_count: rx.length
-    }, _ctx);
-
-    // §18l — Save internal referral record + alert target OPD doctors
-    let refSaved = false;
-    if (disposition === 'referral') {
-      const refTypeVal    = document.getElementById('ref-type').value;
-      const refTargetOpd  = document.getElementById('ref-target-opd').value;
-      if (refTypeVal === 'internal' && refTargetOpd) {
-        const uv = (document.getElementById('ref-urgency').value || '').toLowerCase();
-        const urgDb = uv.includes('emergency') ? 'emergency' : uv.includes('urgent') && uv.includes('semi') ? 'semi_urgent' : uv.includes('urgent') ? 'urgent' : 'routine';
-        const { data: newRef } = await supabase.from('referrals').insert({
-          tenant_id:            tenantId,
-          patient_id:           _activePatient.id,
-          source_visit_id:      _activeVisitId,
-          source_opd_id:        _activeVisit?.opd_id || null,
-          target_opd_id:        refTargetOpd,
-          referring_doctor_id:  userId,
-          reason:               notes.ref_reason || 'Internal referral',
-          clinical_notes:       notes.ref_doctor || null,
-          urgency:              urgDb,
-          referral_type:        'internal',
-          status:               'pending',
-        }).select('id').single();
-        if (newRef) {
-          refSaved = true;
-          const { data: tgtDoctors } = await supabase.from('opd_doctors')
-            .select('doctor_id').eq('opd_id', refTargetOpd).eq('tenant_id', tenantId).eq('active_on', todayISTStr());   // 371B (B7)
-          if (tgtDoctors?.length) {
-            const tgtName = _opdList.find(o => o.id === refTargetOpd)?.name || 'OPD';
-            await supabase.from('doctor_alerts').insert(
-              tgtDoctors.map(d => ({
-                tenant_id:    tenantId,
-                doctor_id:    d.doctor_id,
-                visit_id:     _activeVisitId,
-                patient_name: _activePatient.name,
-                message:      `📋 Referral from ${profile.full_name}: ${_activePatient.name} referred to ${tgtName} — ${notes.ref_reason || 'see notes'}. Urgency: ${urgDb.replace('_',' ')}.`,
-                is_read:      false,
-              }))
-            );
-          }
-        }
-      }
-    }
+    const _savedRxId = done?.prescription_id || null;
+    const refSaved = !!done?.referral_id;
 
     // Session 205 (cont.): honest reflection of whether the advice was actually
     // sent -- previously said "Admission order created" unconditionally even
     // though the Admission tab's fields were never saved anywhere at all.
     const dispMsg = disposition === 'admission' ? 'admission advice sent to reception'
       : disposition === 'referral'  ? (refSaved ? 'Referral sent — target OPD alerted' : 'Referral noted')
-      : outcome === 'awaiting_reports' ? 'saved as awaiting reports — in your 🔬 Awaiting reports list'   // Session 358
+      : outcome === 'awaiting_reports' ? 'waiting for reports — in your 🔬 Awaiting reports list'   // Session 358 (wording: 387-J1 F7)
+      : outcome === 'awaiting_today' ? 'waiting for today\'s report — in your queue; you are told when it is ready'   // Session 387-J1
       : outcome === 'no_prescription' ? 'completed without a prescription'
       : rx.length ? 'sent to pharmacy' : 'completed';
     // Session 294 -- 'pk' is no longer a disposition value (the Panchakarma tab is
@@ -6276,8 +6214,11 @@ async function completeConsultation() {
     // async save, not synchronously inside the click handler that most browsers require for an
     // auto-allowed popup) — so the saved prescription's one valid printout is offered as an
     // explicit button in the completion toast instead of opened automatically.
-    if (_savedRxId) _toastWithPrintAction(`${_activePatient?.name} — consultation complete, ${dispMsg}${pkMsg}`, _savedRxId);
-    else _toast(`${_activePatient?.name} — consultation complete, ${dispMsg}${pkMsg}`, 'info');
+    // 387-J1 rehearsal F7 (owner, 20 Nov 2026): a visit waiting for reports is NOT complete -- "saved", never "consultation complete"
+    const _waiting = outcome === 'awaiting_reports' || outcome === 'awaiting_today';
+    const _head = _waiting ? 'saved' : 'consultation complete';
+    if (_savedRxId) _toastWithPrintAction(`${_activePatient?.name} — ${_head}, ${dispMsg}${pkMsg}`, _savedRxId);
+    else _toast(`${_activePatient?.name} — ${_head}, ${dispMsg}${pkMsg}`, 'info');
     await _clearConsultationDraft(_activeVisitId);  // Session 185 — real note saved, autosave copy no longer needed
     const _wasUnidentified = !!_activePatient?.is_unidentified;   // Session 358 (read before _closeConsult clears it)
     // Session 374A (item 0.1): keep the visit + patient for the ABDM call below -- _closeConsult() empties both, so the call read
@@ -6328,16 +6269,21 @@ async function submitForReview() {
   btn.textContent = 'Submitting…';
 
   try {
-    const { notes } = await _collectConsultationFields();
-
-    const { error } = await supabase.from('consultation_notes').insert({
-      visit_id:      _activeVisitId,
-      tenant_id:     tenantId,
-      doctor_id:     userId,
-      drafted_by:    userId,
-      review_status: 'pending_review',
-      ...notes,
-    });
+    const { notes, disposition, visit } = await _collectConsultationFields();
+    const _cb = id => !!document.getElementById(id)?.checked;
+    const refTypeVal = document.getElementById('ref-type').value;
+    // Session 387-J1 (§2, D8): the FULL draft -- every tab, the medicines, the intended outcome, education and referral -- reaches the
+    // consultant to verify and edit (never re-type). One draft per visit (the server refuses a second one).
+    const { error } = await supabase.rpc('submit_consultation_for_review', { p_visit_id: _activeVisitId, p_payload: {
+      notes, visit, rx: _getRxData(),
+      outcome: disposition === 'opd' ? _opdOutcome() : disposition,
+      outcome_note: document.getElementById('opd-outcome-note').value.trim() || null,
+      education: { disease: _cb('edu-disease'), meds: _cb('edu-meds'), adr: _cb('edu-adr'), pathya: _cb('edu-pathya'), dina: _cb('edu-dina'),
+                   followup: _cb('edu-followup'), language: document.getElementById('edu-language')?.value || null, ack: _cb('edu-ack'),
+                   notes: document.getElementById('edu-notes')?.value.trim() || null },
+      referral: disposition !== 'referral' ? null : { ref_type: refTypeVal || null, target_opd_id: document.getElementById('ref-target-opd').value || null,
+                   urgency: document.getElementById('ref-urgency').value || null },
+    } });
     if (error) throw error;
 
     _toast(`${_activePatient?.name} — submitted for Professor review.`, 'info');
@@ -8289,10 +8235,21 @@ window.confirmReturnToScreening = async function() {
 };
 
 // ── Close consultation ────────────────────────────
-document.getElementById('btn-close').addEventListener('click', _closeConsult);
+// Session 387-J1 (D13): ✕ asks only when something was typed or changed since the visit was opened (or last saved)
+document.getElementById('c-active').addEventListener('input',  () => { _formDirty = true; });
+document.getElementById('c-active').addEventListener('change', () => { _formDirty = true; });
+document.getElementById('btn-close').addEventListener('click', () => {
+  if (!_formDirty) { _closeConsult(); return; }
+  document.getElementById('close-confirm-panel').hidden = false;
+  document.getElementById('close-confirm-keep').focus();
+});
+window.closeConfirmKeep = function() { document.getElementById('close-confirm-panel').hidden = true; };
+window.closeConfirmClose = function() { document.getElementById('close-confirm-panel').hidden = true; _closeConsult(); };
 document.getElementById('btn-mobile-back').addEventListener('click', _closeConsult);
 
 function _closeConsult() {
+  _formDirty        = false;
+  document.getElementById('close-confirm-panel').hidden = true;
   _activeVisitId    = null;
   _activePatient    = null;
   _activeVisit      = null;
@@ -8577,51 +8534,37 @@ async function _loadVishaRecord(visitId) {
   }
 }
 
-window.escalateToEmergency = async function() {
+// Session 387-J1 (§5.3): an in-page panel instead of the native confirm(); the SERVER finds the marked Emergency OPD and closes this
+// Agadatantra visit (outcome "escalated") -- the page no longer looks the OPD up by name or closes the visit by a browser update
+window.escalateToEmergency = function() {
+  const vishaType = document.getElementById('d-visha-type').value;
+  const VISHA_LABELS = { sthavara:'Sthavara', jangama:'Jangama', kritima:'Kritima', dushivisha:'Dushivisha', garavisha:'Garavisha', drug_induced:'Drug-induced' };
+  document.getElementById('esc-confirm-text').textContent =
+    `Escalate ${_activePatient?.name || 'this patient'} to the Emergency OPD? This creates an emergency visit (${VISHA_LABELS[vishaType] || 'Visha'} case), alerts the Emergency doctor on duty and closes this Agadatantra consultation.`;
+  document.getElementById('esc-confirm-panel').hidden = false;
+  document.getElementById('esc-confirm-no').focus();
+};
+window.escalateCancel = function() { document.getElementById('esc-confirm-panel').hidden = true; };
+window.escalateConfirm = async function() {
+  document.getElementById('esc-confirm-panel').hidden = true;
   const ptName    = _activePatient?.name || 'Patient';
   const vishaType = document.getElementById('d-visha-type').value;
   const VISHA_LABELS = { sthavara:'Sthavara', jangama:'Jangama', kritima:'Kritima', dushivisha:'Dushivisha', garavisha:'Garavisha', drug_induced:'Drug-induced' };
   const vishaLabel = VISHA_LABELS[vishaType] || 'Visha';
-
-  const ok = confirm(`Escalate ${ptName} to Emergency OPD?\n\nThis will:\n• Create a new emergency visit (${vishaLabel} case)\n• Alert Emergency MO on duty\n• Close this Agadatantra consultation\n\nProceed?`);
-  if (!ok) return;
-
   const btn = document.getElementById('btn-escalate-emg');
   btn.disabled = true;
   btn.textContent = 'Escalating…';
-
   try {
-    // Find Emergency / Atyayika OPD for this tenant
-    const { data: allOpds } = await supabase
-      .from('opds').select('id,name,ncism_code')
-      .eq('tenant_id', tenantId).eq('is_active', true);
-
-    const emergOpd = allOpds?.find(o =>
-      o.name?.toLowerCase().includes('emergency') ||
-      o.name?.toLowerCase().includes('atyayika') ||
-      o.ncism_code?.toLowerCase().includes('emerg')
-    );
-
-    if (!emergOpd) {
-      _toast('Emergency / Atyayika OPD not found. Please configure it in OPD Admin first.', 'error');
-      btn.disabled = false; btn.textContent = '⚠ Escalate to Emergency';
-      return;
-    }
-
-    // Create new Emergency visit, on the server (§432: a doctor no longer inserts visits; the server gives the next token of the day)
     const complaint = `ESCALATED from Agadatantra — ${vishaLabel} Visha case. Original token: ${_activeVisit?.token_number || '—'}.`;
     const { data: newVisit, error: vErr } = await supabase.rpc('escalate_visit_to_emergency', {
-      p_visit_id: _activeVisitId, p_opd_id: emergOpd.id, p_complaint: complaint,
+      p_visit_id: _activeVisitId, p_opd_id: null, p_complaint: complaint,
     });
-
     if (vErr) throw vErr;
     const nextToken = newVisit.token_number;
-
-    // Alert all on-duty Emergency doctors
-    const { data: emergDoctors } = await supabase
+    const { data: nv } = await supabase.from('visits').select('opd_id').eq('id', newVisit.id).maybeSingle();
+    const { data: emergDoctors } = nv?.opd_id ? await supabase
       .from('opd_doctors').select('doctor_id')
-      .eq('opd_id', emergOpd.id).eq('tenant_id', tenantId).eq('active_on', todayISTStr());   // 371B (B7)
-
+      .eq('opd_id', nv.opd_id).eq('tenant_id', tenantId).eq('active_on', todayISTStr()) : { data: [] };   // 371B (B7)
     if (emergDoctors?.length) {
       await supabase.from('doctor_alerts').insert(
         emergDoctors.map(d => ({
@@ -8634,13 +8577,8 @@ window.escalateToEmergency = async function() {
         }))
       );
     }
-
-    // Mark current Agadatantra visit as completed
-    await supabase.from('visits').update({ status: 'completed' }).eq('id', _activeVisitId);
-
     _toast(`Patient escalated — Emergency Token #${nextToken}. ${emergDoctors?.length || 0} MO(s) alerted.`, 'alert');
     setTimeout(_closeConsult, 1200);
-
   } catch (err) {
     _toast(safeErrorMessage(err, 'Escalation failed. Please try again.'), 'error');
     btn.disabled = false;
@@ -9170,7 +9108,9 @@ Not billed today. If done at our lab, the patient pays at reception on that day;
   if (bypassPayment) msg += `\n\n🚨 Emergency bypass — lab can proceed immediately. Payment is still owed and will show as pending at reception.`;
   else msg += `\n\n⏳ Payment pending — patient must pay at reception before the lab can collect the sample.`;
   if (labGst) msg += `\n\n🧾 The charge is invoiced at reception when the patient pays.`;
-  if (noBill) msg += `\n\n⚠ No bill found for this visit -- lab charges were not added. Please add them manually via reception.`;
+  // 387-J1 rehearsal F6 (owner, 20 Nov 2026): the old note told staff to add the charge by hand -- stale: reception has no manual add; the order
+  // is collected ONCE at 💰 Lab & Imaging Bills (create_investigation_bill prices it from the fee master and refuses a second collection)
+  if (noBill) msg += `\n\nℹ This visit has no OPD bill yet, so the charge was not added to one. Reception collects it once, from this order, at 💰 Lab & Imaging Bills — nothing to add by hand.`;
   else msg += unpricedNote;
   alert(msg);
   loadLabResults();
@@ -9213,9 +9153,9 @@ async function loadLabResults() {
         ${nextVisitOpen && o.due_by ? `<span style="font-size:10px;color:var(--text-muted)">due by ${_fmtDate(o.due_by)}</span>` : ''}
         ${o.payment_status === 'pending' && !nextVisitOpen && !o.performed_outside ? '<span style="color:#7a4a00;font-size:10px;font-weight:700">⏳ PAYMENT PENDING</span>' : ''}
         ${criticals.length ? '<span style="color:var(--red);font-size:11px;font-weight:700">⚠ CRITICAL</span>' : ''}
-        ${anyAwaitingSignOff(items, o) ? `<span style="font-size:10px;font-weight:700;padding:1px 6px;border-radius:6px;background:var(--gold-light,#fdf3e2);color:#7a4a00" title="Released by the lab; the pathologist / lab in-charge has not signed it off yet">⏳ ${_esc(AWAITING_SIGNOFF.toUpperCase())}</span>` : ''}
+        ${anyAwaitingSignOff(items, o) ? `<span style="font-size:10px;font-weight:700;padding:1px 6px;border-radius:6px;background:var(--gold-light,#fdf3e2);color:#7a4a00" title="Released by the lab; the pathologist / lab in-charge has not signed it off yet">⏳ ${_esc(DOCTOR_PROVISIONAL.toUpperCase())}</span>` : ''}
       </div>
-      <div style="line-height:1.8">${items.map(i => `<span style="font-size:11px;${i.is_critical?'color:var(--red);font-weight:700':i.is_abnormal?'color:#7a5c00':''}">${_esc(i.test_name)}${hiddenValueText(i, o) ? ' — <em>' + _esc(hiddenValueText(i, o)) + '</em>' : i.result_value?' = <strong>'+_esc(i.result_value)+'</strong>':''}${!hiddenValueText(i, o) && isAwaitingSignOff(i, o) ? ' <span title="' + _esc(AWAITING_SIGNOFF) + '">⏳</span>' : ''}</span>`).join(' · ')}</div>
+      <div style="line-height:1.8">${items.map(i => `<span style="font-size:11px;${i.is_critical?'color:var(--red);font-weight:700':i.is_abnormal?'color:#7a5c00':''}">${_esc(i.test_name)}${hiddenValueText(i, o) ? ' — <em>' + _esc(hiddenValueText(i, o)) + '</em>' : i.result_value?' = <strong>'+_esc(i.result_value)+'</strong>':''}${!hiddenValueText(i, o) && isAwaitingSignOff(i, o) ? ' <span title="' + _esc(DOCTOR_PROVISIONAL) + '">⏳</span>' : ''}</span>`).join(' · ')}</div>
     </div>`;
   }).join('');
   document.getElementById('lab-results-body').innerHTML = html;

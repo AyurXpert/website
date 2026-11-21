@@ -1656,7 +1656,7 @@ body.lab-bills-only #rx-work-pane{flex:1 1 600px!important;display:block!importa
             <button class="rx-sub q-tab" id="tab-incomplete" type="button" data-group="patients">⚠ Incomplete registrations <span id="incomplete-count"></span></button>
             <!-- owner 31 Oct 2026: Billing = Visits & Bills · Lab bills · Admission billing · Discharge billing -->
             <button class="rx-sub q-tab" id="tab-vbsearch" type="button" data-group="billing" style="display:none">🔎 Visits &amp; Bills</button>
-            <button class="rx-sub q-tab" id="tab-labbills" type="button" data-group="billing">💰 Lab Bills <span id="labbills-count"></span></button>
+            <button class="rx-sub q-tab" id="tab-labbills" type="button" data-group="billing">💰 Lab &amp; Imaging Bills <span id="labbills-count"></span></button>
             <button class="rx-sub q-tab" id="tab-procbills" type="button" data-group="billing">🩹 Procedures <span id="procbills-count"></span></button>
             <button class="rx-sub q-tab" id="tab-admbill" type="button" data-group="billing">🛏️ Admission billing</button>
             <button class="rx-sub q-tab" id="tab-disbill" type="button" data-group="billing">🧾 Discharge billing</button>
@@ -1687,6 +1687,8 @@ body.lab-bills-only #rx-work-pane{flex:1 1 600px!important;display:block!importa
         <button type="button" class="q-edit-btn" id="wk-outside" data-onclick="openOutsideLab" style="width:auto;min-height:44px;padding:0 12px;background:#fff;color:var(--green-deep);border:1.5px solid var(--green-deep)">🧾 Outside / non-hospital patient</button>
       </div>
       <div id="wk-slot" style="padding:0 12px"></div>
+      <!-- Session 387-J1 (§4): OPD imaging ordered by the doctor, billed here like lab (js/modules/billing/opdImagingBilling.js) -->
+      <div id="img-bills-items"></div>
       <div id="lab-bills-items"><div class="q-empty"><div class="q-empty-icon">💰</div><div class="q-empty-text">Loading…</div></div></div>
     </div>
     <div class="queue-body" id="admission-requests-list" style="display:none">

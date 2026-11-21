@@ -590,6 +590,8 @@ body.final-mode .tab-body{padding-bottom:130px}   /* the banner's height on top 
 }
 .btn-complete:hover:not(:disabled){background:#1f5c37}
 .btn-complete:disabled{opacity:.6;cursor:not-allowed}
+.complete-why{font-size:12px;color:var(--text-mid);align-self:center;max-width:240px}
+.link-btn{background:none;border:none;padding:0;color:var(--green-deep);text-decoration:underline;font:inherit;font-weight:600;cursor:pointer;min-height:24px}
 .btn-print-rx{
   height:46px;padding:0 20px;background:var(--white);color:var(--green-deep);
   border:1.5px solid var(--green-deep);border-radius:var(--radius);
@@ -1225,6 +1227,11 @@ body.final-mode .tab-body{padding-bottom:130px}   /* the banner's height on top 
     </div>
     <!-- Session 358 (TODO §265-D): own visits waiting for reports (the server list: list_awaiting_reports; the Super Admin sees all
          to re-assign). Kept up to 7 days, then closed by the daily job as "did not return". -->
+    <!-- Session 387-J1 (§3): own visits waiting for TODAY's report (list_waiting_today) -- the patient returns on the same visit, no new fee -->
+    <div id="aw-today-box" hidden style="padding:8px 10px;border-bottom:1px solid var(--border);background:#eef6ff;border-left:3px solid var(--blue,#1a4080);flex-shrink:0;max-height:200px;overflow:auto">
+      <div style="font-size:11.5px;font-weight:700;color:var(--blue,#1a4080);margin-bottom:4px">🔬 Waiting for today's report</div>
+      <div id="aw-today-list"></div>
+    </div>
     <div id="aw-rep-box" hidden style="padding:8px 10px;border-bottom:1px solid var(--border);background:var(--cream);border-left:3px solid var(--blue,#1a4080);flex-shrink:0;max-height:240px;overflow:auto">
       <div style="font-size:11.5px;font-weight:700;color:var(--blue,#1a4080);margin-bottom:4px">🔬 Awaiting reports</div>
       <div id="aw-rep-list"></div>
@@ -3460,6 +3467,8 @@ body.final-mode .tab-body{padding-bottom:130px}   /* the banner's height on top 
         <!-- TAB 5: PRESCRIPTION                         -->
         <!-- ═══════════════════════════════════════════ -->
         <div id="tab-rx" hidden>
+          <!-- Session 387-J1 (§5.1): the way to finish without a prescription, visible from the Prescription tab too -->
+          <div id="rx-norx-link" style="margin-bottom:10px;font-size:12px;color:var(--text-mid)">No medicines needed? <button type="button" class="link-btn" data-onclick="chooseNoPrescription">Finish without a prescription (with a reason) →</button></div>
           <!-- NCISM §18b — advisory shown when OPD has allows_prescription = false -->
           <div id="no-rx-notice" style="display:none;margin-bottom:14px;padding:12px 16px;background:#fffbf0;border:1.5px solid var(--gold);border-radius:var(--radius);display:flex;gap:10px;align-items:flex-start">
             <span style="font-size:18px;line-height:1.3">⚠</span>
@@ -3675,8 +3684,8 @@ body.final-mode .tab-body{padding-bottom:130px}   /* the banner's height on top 
               <label class="disp-opt selected" id="disp-opd">
                 <input type="radio" name="disposition" value="opd" checked data-onchange="onDispChange" data-onchange-a0="@value"/>
                 <div class="disp-opt-text">
-                  <div class="disp-opt-label">OPD — Home with Prescription</div>
-                  <div class="disp-opt-desc">Patient is stable, managed as outpatient. Prescription sent to pharmacy. Review on a future date.</div>
+                  <div class="disp-opt-label">OPD — finish here</div>
+                  <div class="disp-opt-desc">Patient is managed as an outpatient — with or without a prescription, or waiting for reports (choose below).</div>
                 </div>
               </label>
 
@@ -3724,10 +3733,19 @@ body.final-mode .tab-body{padding-bottom:130px}   /* the banner's height on top 
                   <div class="disp-opt-desc">The visit stays open in your 🔬 Awaiting reports list for up to 7 days; the patient comes back to you with the reports. Record the provisional diagnosis now.</div>
                 </div>
               </label>
+              <!-- Session 387-J1 (§3): the same-day wait -- the patient comes back on THIS visit today, no new visit or fee -->
+              <label class="disp-opt" id="opd-out-today">
+                <input type="radio" name="opd-outcome" value="awaiting_today" data-onchange="onOpdOutcomeChange" data-onchange-a0="@value"/>
+                <div class="disp-opt-text">
+                  <div class="disp-opt-label">🔬 Waiting for today's report</div>
+                  <div class="disp-opt-desc">A test or study ordered today: the patient waits and comes back to you on this same visit — no new visit or fee. You are told when the report is ready. If not finished today it moves to Awaiting reports.</div>
+                </div>
+              </label>
             </div>
-            <div id="opd-outcome-note-wrap" hidden style="margin-top:8px">
+            <!-- Session 387-J1 rehearsal F1 (owner, 20 Nov 2026): the required note box styled like Disposition Notes (.field: full width under its label, 3 lines) -->
+            <div id="opd-outcome-note-wrap" class="field" hidden style="margin-top:8px">
               <label for="opd-outcome-note">Note — the reason / the advice given <span style="color:var(--red)">*</span></label>
-              <textarea id="opd-outcome-note" maxlength="500" placeholder="e.g. Diet and yoga advice given; review after 2 weeks"></textarea>
+              <textarea id="opd-outcome-note" maxlength="500" rows="3" placeholder="e.g. Diet and yoga advice given; review after 2 weeks" style="min-height:72px"></textarea>
             </div>
             <div id="opd-outcome-hint" style="font-size:12px;color:var(--text-muted);margin-top:6px"></div>
           </div>
@@ -4309,9 +4327,22 @@ body.final-mode .tab-body{padding-bottom:130px}   /* the banner's height on top 
         <button type="button" data-onclick="progressRemindAnyway" style="min-height:44px;padding:0 14px;background:var(--green-deep);color:#fff;border:none;border-radius:6px;font-weight:600;cursor:pointer">Complete anyway</button>
         <button type="button" data-onclick="progressRemindRecord" style="min-height:44px;padding:0 14px;background:#fff;border:1px solid var(--border);border-radius:6px;cursor:pointer">Go back and record it</button>
       </div>
+      <!-- Session 387-J1 (D13): ✕ asks only when something was typed or changed -->
+      <div id="close-confirm-panel" class="action-bar-panel" hidden role="alertdialog" aria-labelledby="close-confirm-text" style="padding:10px 14px;background:#fffbf0;border-top:1px solid #f0dca0">
+        <div id="close-confirm-text" style="font-size:12.5px;margin-bottom:6px">Close this patient? What you typed is kept as a draft (offered when you open the visit again); the patient stays In progress in your queue.</div>
+        <button type="button" id="close-confirm-keep" data-onclick="closeConfirmKeep" style="min-height:44px;padding:0 14px;background:var(--green-deep);color:#fff;border:none;border-radius:6px;font-weight:600;cursor:pointer">Keep working</button>
+        <button type="button" data-onclick="closeConfirmClose" style="min-height:44px;padding:0 14px;background:#fff;border:1px solid var(--border);border-radius:6px;cursor:pointer">Close</button>
+      </div>
+      <!-- Session 387-J1 (§5.3): Escalate to Emergency asks in-page (no native confirm in a clinical flow) -->
+      <div id="esc-confirm-panel" class="action-bar-panel" hidden role="alertdialog" aria-labelledby="esc-confirm-text" style="padding:10px 14px;background:#fdecea;border-top:1px solid #f0b8b0">
+        <div id="esc-confirm-text" style="font-size:12.5px;margin-bottom:6px"></div>
+        <button type="button" data-onclick="escalateConfirm" style="min-height:44px;padding:0 14px;background:var(--red);color:#fff;border:none;border-radius:6px;font-weight:600;cursor:pointer">Escalate now</button>
+        <button type="button" id="esc-confirm-no" data-onclick="escalateCancel" style="min-height:44px;padding:0 14px;background:#fff;border:1px solid var(--border);border-radius:6px;cursor:pointer">Cancel</button>
+      </div>
       <!-- Action bar -->
       <div class="action-bar" id="c-active-action-bar">
-        <button class="btn-complete" id="btn-complete">✓ Complete &amp; Send to Pharmacy</button>
+        <button class="btn-complete" id="btn-complete" aria-describedby="complete-why">✓ Complete &amp; Send to Pharmacy</button>
+        <span id="complete-why" class="complete-why" hidden>Add a medicine, or <button type="button" class="link-btn" data-onclick="chooseNoPrescription">finish without a prescription →</button></span>
         <a class="btn-print-rx" id="btn-join-call" href="#" target="_blank" rel="noopener" style="display:none;background:#2563eb;color:#fff;border-color:#2563eb">🎥 Join Call</a>
         <button class="btn-escalate-emg" id="btn-escalate-emg" style="display:none" data-onclick="escalateToEmergency">⚠ Escalate to Emergency</button>
         <button class="btn-swasthya-card" id="btn-swasthya-card" style="display:none" data-onclick="printSwasthyaCard">🌿 Swasthya Card</button>

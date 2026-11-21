@@ -765,6 +765,40 @@ export function safeErrorMessage(error, fallback = 'Something went wrong. Please
   if (['P0001','42501','22023','P0002','23514'].includes(error?.code) && S375_MSGS.some(m => error?.message?.startsWith(m))) {
     return error.message;
   }
+  // Session 387-J1 (owner OK 20 Nov 2026): the OPD consultation core's refusals -- one-step Complete, the trainee draft / review, same-day
+  // reports, OPD imaging billed at reception, the prescription and imaging doors -- shown as written (plain words, no schema). Every
+  // message the J1 migration raises is run through this helper by scripts/check-387j1-messages.mjs (fails on any generic text).
+  const J1_MSGS = ['An imaging payment event is never changed or deleted.', 'Complete the consultation with ✓ Complete',
+    "A trainee's draft is finalised with ✓ Finalize", 'An IPD prescription needs an active admission of this patient',
+    'An OPD prescription is saved with ✓ Complete', 'A prescription is written through a visit (✓ Complete)',
+    "This patient is waiting for today's report with ", 'This patient has a visit waiting for reports with ', "This patient's visit with ", 'An IPD study needs an active admission of this patient.',
+    'Only the ordering doctor records a study as done outside', 'Payment is still pending for this study',
+    "A study's visit or admission does not change", 'Imaging payments are recorded by the billing counter',
+    'Only the ordering doctor, or a doctor of the same department on a later visit, records this study as done outside',
+    'The consultation is not in the expected form.', 'The consultation is too long to save', 'A consultation field has a value in the wrong form',
+    'The prescription is not in the expected form.', 'A prescription can have at most 60 medicines.', 'A medicine line is not in the expected form.',
+    'Your account is not linked to an organisation.', 'You are an intern / PG scholar: submit the consultation',
+    'Choose how this visit finishes.', 'The chief complaint must be at most 1000 characters', 'The pain score is 0 to 10.',
+    'Add at least one medicine, or finish without a prescription', 'Remove the medicine rows, or choose "With a prescription".',
+    "Waiting for today's report needs a lab test or study ordered today", 'The note must be at most 500 characters',
+    'Fill in the referral details.', 'The referral details are too long', 'That OPD is not an active OPD of your organisation.',
+    "Refer to another OPD (this is the patient's own OPD).", 'Name the hospital or the doctor the patient is referred to.',
+    "The trainee's draft is no longer waiting for review", 'The education note is too long',
+    'Only an active intern / PG scholar submits a consultation for review.', 'Intern / PG verification is switched off in this organisation',
+    'This visit is not in your current posting.', 'This visit is not open for a draft', 'A draft for this visit is already with the consultant.',
+    'A consultant has already written the note of this visit.', 'Choose how this visit should finish.',
+    'The outcome note, referral or education details are too long', "Only a doctor reviews trainees' drafts.",
+    'Choose 1 to 20 imaging orders to bill.', 'Bill the imaging orders of one visit at a time.',
+    'Only an open, unpaid study can be sent to radiology as urgent.', 'Only an unpaid OPD study can have its charge waived.',
+    'The study has no priced radiology fee', 'The imaging order is no longer open for billing', 'That fee is not an active, approved radiology fee',
+    'No Emergency OPD is marked in this organisation'];
+  const J1_RE = [/^A saved [a-z ]+ cannot be changed here \(blocked: [^)]*\)\.$/, /^Medicine "[\s\S]*": the [a-z ]+ is too long or holds < or >\.$/,
+    /^"[\s\S]*" (has a negative price|has an invalid price or GST percent|is already paid or waived|is not billed at reception \(an IPD, outside or older study\))\.$/,
+    /^That (fee|thread-change fee) is not an active .+ fee of this organisation/];
+  if (['P0001','42501','22023','P0002','23505','23514'].includes(error?.code)
+      && (J1_MSGS.some(m => error?.message?.startsWith(m)) || J1_RE.some(r => r.test(error?.message || '')))) {
+    return error.message;
+  }
   if (error?.code === '42501' && error?.message === 'Not authorized') {   // 359: an inactive / relieved account, or no right at all
     return 'Your account is not allowed to do this (it may not be active). Ask the Super Admin.';
   }

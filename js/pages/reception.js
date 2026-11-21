@@ -12,6 +12,7 @@ import { getEffectivePrice } from '../modules/billing/effectivePrice.js';
 import { computeLabBillingLines, labItemsToSelection, labCollectGate } from '../modules/billing/labBilling.js';
 import { getOpdBillingRegime, previewOpdBill, createOpdBill, createInvestigationBill, DOCUMENT_TYPE_LABEL } from '../modules/billing/opdGstBilling.js';
 import { loadOpdProcedureBills, watchOpdProcedureCount } from '../modules/billing/opdProcedureBilling.js';   // Session 386d-1 (§602, L6)
+import { loadOpdImagingBills } from '../modules/billing/opdImagingBilling.js';   // Session 387-J1 (§4)
 import { canCollectOpd, canReprintDocs, canPrintOwnDocs, isCollectableOpdBill, opdCollectControlsHtml, collectOpdBill, openReceipt, openBill, billReprintHtml } from '../modules/billing/opdPayments.js';
 import { mountVisitsBillsSearch } from '../modules/billing/visitsBillsSearch.js';
 import { billCategory } from '../modules/billing/billCategory.js';
@@ -5371,7 +5372,19 @@ document.getElementById('tab-appts').addEventListener('click', () => {
 document.getElementById('tab-labbills').addEventListener('click', () => {
   _activateTab('tab-labbills', 'lab-bills-list');
   loadPendingLabBills();
+  loadImagingBills();
 });
+// Session 387-J1 (§4, D9): the doctor's OPD imaging orders are billed here like lab (server-priced, a receipt)
+function loadImagingBills() {
+  return loadOpdImagingBills(document.getElementById('img-bills-items'), {
+    supabase, tenantId, profile,
+    onBilled: res => {
+      const doc = res.document_number ? `${DOCUMENT_TYPE_LABEL[res.document_type] || 'Bill'} ${res.document_number}` : 'bill';
+      _alert('success', `Payment collected (${doc} — ₹${Number(res.amount || 0).toFixed(2)}).${res.receipt_no ? ' Receipt ' + res.receipt_no + '.' : ''}`);
+      if (_canPrintOwn && res.bill_id && res.payment_id) openBill(res.bill_id);
+    },
+  });
+}
 // Session 386d-1 (§602): OPD procedure orders -> the server-priced procedure bill
 function loadProcedureBills() {
   return loadOpdProcedureBills(document.getElementById('proc-bills-items'), {

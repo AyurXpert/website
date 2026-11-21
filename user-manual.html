@@ -443,7 +443,7 @@ p:last-child{margin-bottom:0}
       <div class="subsection-title">Intern and PG Scholar</div>
       <div class="steps">
         <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">On the doctor page</div><div class="step-desc">You land on doctor.html with your posting department's queue. Open a patient and record the case; you can order investigations.</div></div></div>
-        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Submit for Review</div><div class="step-desc">Where the hospital uses verification, your button reads <strong>📝 Submit for Review</strong>: a consultant verifies and completes the case from <strong>Pending Review</strong>. Where it does not, consultants complete every consultation. A trainee's draft does not reach the lab until it is finalised.</div></div></div>
+        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Submit for Review</div><div class="step-desc">Where the hospital uses verification, your button reads <strong>📝 Submit for Review</strong>: your <strong>whole draft</strong> — every tab, the medicines, how the visit should finish, education and referral — goes to a consultant, who opens it from <strong>📝 Review</strong> with the form already filled, checks and edits it, and presses <strong>✓ Finalize</strong>. One draft per visit. The signed note is in the consultant's name, crediting you; your draft stays as your logbook entry. This applies to every intern and PG scholar, also one whose account has the role Doctor. Where verification is off, consultants complete every consultation. A trainee's draft does not reach the lab until it is finalised.</div></div></div>
         <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Screening — interns only</div><div class="step-desc">An intern on today's duty list screens like any screener, but must choose the <strong>supervising doctor</strong> before routing; the name is recorded. PG scholars do not screen.</div></div></div>
         <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Patient in the wrong OPD</div><div class="step-desc">You cannot press ↩ Return to Screening yourself: the server allows only a consultant. Ask the visit's doctor, a doctor on duty in that OPD, or the Medical Superintendent.</div></div></div>
       </div>
@@ -692,7 +692,7 @@ p:last-child{margin-bottom:0}
        ══════════════════════════════════════════════ -->
   <div class="section" id="reception">
     <div class="section-title">Reception</div>
-    <p>Page: <strong>reception.html</strong> &nbsp;|&nbsp; Access: receptionist, nurse, dept_admin, super_admin (a cashier sees only 💰 Lab Bills; doctors only at a clinic, PK centre or dispensary)</p>
+    <p>Page: <strong>reception.html</strong> &nbsp;|&nbsp; Access: receptionist, nurse, dept_admin, super_admin (a cashier sees only 💰 Lab &amp; Imaging Bills; doctors only at a clinic, PK centre or dispensary)</p>
     <p>This is where every patient's day begins. You find or register the patient, the server works out the fee, you collect the payment, and the patient joins the doctor's queue. The steps below follow the order of a working day: <strong>what to click</strong>, then <strong>what you should see</strong>.</p>
 
     <div class="subsection">
@@ -760,7 +760,8 @@ p:last-child{margin-bottom:0}
     <div class="subsection">
       <div class="subsection-title">8. Lab-only walk-in</div>
       <div class="steps">
-        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Billing → 💰 Lab Bills → 🧪 Lab only (walk-in)</div><div class="step-desc">Click: <strong>🧪 Lab only (walk-in)</strong> → type the name, UHID or mobile → <strong>Find</strong>. You see: the hospital's patients that match — pick one. If the patient is not there, press <strong>+ New walk-in</strong> and enter name, age, sex and mobile. Then tick the tests → <strong>🧪 Book lab tests</strong> → collect the payment in the list below; the lab takes the sample after payment.</div></div></div>
+        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Billing → 💰 Lab &amp; Imaging Bills — imaging</div><div class="step-desc">X-ray / USG studies the doctor ordered are listed under <strong>🩻 Imaging to bill</strong>, by patient. Tick the studies → choose Cash / UPI / Card (UPI / card need the reference) → <strong>Collect &amp; bill</strong>: the server prices them and gives a receipt. Radiology does an unpaid study only after <strong>🚨 Urgent — unpaid</strong> (a reason; the money is still owed). A study with no price set is not billed: the accountant / finance manager / MS / Super Admin chooses its fee in Finance → "No price set". Studies ordered before this change are not billed afterwards.</div></div></div>
+        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Billing → 💰 Lab &amp; Imaging Bills → 🧪 Lab only (walk-in)</div><div class="step-desc">Click: <strong>🧪 Lab only (walk-in)</strong> → type the name, UHID or mobile → <strong>Find</strong>. You see: the hospital's patients that match — pick one. If the patient is not there, press <strong>+ New walk-in</strong> and enter name, age, sex and mobile. Then tick the tests → <strong>🧪 Book lab tests</strong> → collect the payment in the list below; the lab takes the sample after payment.</div></div></div>
         <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">🧾 Outside / non-hospital patient</div><div class="step-desc">Click: <strong>🧾 Outside / non-hospital patient</strong> (next to Lab only). You see: the details form straight away (name, age, sex, mobile) → the tests → book → the payment in the list → the order goes to the lab. You see the hospital's own test list. A test with <strong>no price set</strong> cannot be ticked ("No price set for: …") — it is never billed partly; ask the admin to set the fee.</div></div></div>
       </div>
     </div>
@@ -788,7 +789,7 @@ p:last-child{margin-bottom:0}
       <table class="feature-table">
         <tr><th>Tab</th><th>Inside</th></tr>
         <tr><td>Patients</td><td>🕐 Queue · 📅 Appointments · ⚠ Incomplete registrations (with a count)</td></tr>
-        <tr><td>Billing</td><td>🔎 Visits &amp; Bills · 💰 Lab Bills · 🛏️ Admission billing · 🧾 Discharge billing. Admission and Discharge billing open the IPD page for now: on the patient's row, 💳 (Account — deposits, payments, receipts), 💰 (Generate IPD Bill) and, in the Account, 🧾 Final Bill.</td></tr>
+        <tr><td>Billing</td><td>🔎 Visits &amp; Bills · 💰 Lab &amp; Imaging Bills · 🛏️ Admission billing · 🧾 Discharge billing. Admission and Discharge billing open the IPD page for now: on the patient's row, 💳 (Account — deposits, payments, receipts), 💰 (Generate IPD Bill) and, in the Account, 🧾 Final Bill.</td></tr>
         <tr><td>Admissions</td><td>🛏️ Admission Requests (🛏️ Collect deposit &amp; admit →)</td></tr>
         <tr><td>Lab Reports</td><td>🔬 Waiting for reports</td></tr>
         <tr><td>More ▾</td><td>ABHA Req. Queue (the Scan &amp; Share requests), PK Care Plans, 🤝 Close my shift</td></tr>
@@ -921,13 +922,16 @@ p:last-child{margin-bottom:0}
 
     <div class="subsection">
       <div class="subsection-title">How an OPD visit finishes (Disposition tab)</div>
-      <p>Under <strong>OPD — Home with Prescription</strong>, choose <strong>How does this OPD visit finish?</strong>:</p>
+      <p>Under <strong>OPD — finish here</strong>, choose <strong>How does this OPD visit finish?</strong>. Everything is saved in <strong>one step</strong> when you press the button: the note, the prescription, patient education, a referral and the outcome — if anything is refused, <strong>nothing</strong> is saved and the message says what to correct. If the button is grey, the line next to it says why ("Add a medicine, or finish without a prescription →"); the same link is at the top of the Prescription tab.</p>
       <table class="feature-table">
         <tr><th>Choice</th><th>Button</th><th>What happens</th></tr>
         <tr><td>With a prescription</td><td>✓ Complete &amp; Send to Pharmacy</td><td>As before — needs at least one medicine row; the medicines go to the pharmacy.</td></tr>
         <tr><td>Without a prescription</td><td>✓ Complete without prescription</td><td>Advice, diet, review or Panchakarma review only. A short note (the reason / the advice given, 5 to 500 characters) is required. Nothing goes to the pharmacy, and no prescription can be added to that visit afterwards.</td></tr>
         <tr><td>Investigations ordered — awaiting reports</td><td>🔬 Save — awaiting reports</td><td>Order the investigations first and record the <strong>provisional diagnosis</strong>. The visit stays open in your <strong>🔬 Awaiting reports</strong> list (above the queue) for up to 7 days. Medicines for now are allowed.</td></tr>
+        <tr><td>🔬 Waiting for today's report</td><td>🔬 Save — waiting for today's report</td><td>For a test or study ordered <strong>today</strong> while the patient waits. Record the provisional diagnosis. The visit shows in <strong>🔬 Waiting for today's report</strong> above your queue; you get a 🔔 alert when the report is released. When the patient is back, press <strong>Open now</strong> — the <strong>same visit</strong>, no new visit, token or fee (reception cannot make a second visit for that OPD today). Record the final diagnosis and complete. If it is not finished today, it moves to your 🔬 Awaiting reports list the next morning.</td></tr>
       </table>
+      <p><strong>Lab results "Provisional — awaiting pathologist sign-off":</strong> a lab result released by the lab but not yet signed by the pathologist / lab in-charge is shown and alerted as provisional. When it is signed you get a 🔔 "Signed report" alert; the signed report replaces the provisional one.</p>
+      <p><strong>✕ (close without saving)</strong> asks first only when you typed or changed something since you opened the patient; what you typed is kept as a draft.</p>
       <p><strong>When the reports come back:</strong> the 🔬 Awaiting reports list shows "reports ready 2 of 2" and you get a 🔔 alert when the last report is released; reception marks the patient <strong>Back with reports</strong> (no new visit, token or fee) and you are alerted again. Press <strong>Open with reports</strong> — only the visit's own doctor can. The form is filled from the first note (the medicines are not copied); record the <strong>final diagnosis</strong> and the disposition, then complete. The first note stays as the provisional note; the final note is a new note on the same visit.</p>
       <p>If the patient does not come back within <strong>7 days</strong>, the visit is closed automatically as <strong>Incomplete — did not return with the reports</strong> and you are alerted. If the doctor is away, the Super Admin can <strong>Re-assign</strong> the visit to another doctor (with a reason) from the same list.</p>
     </div>
@@ -1241,7 +1245,7 @@ p:last-child{margin-bottom:0}
         <tr><td>register.html</td><td>Everyone (creates new org)</td></tr>
         <tr><td>signup.html</td><td>Staff with an invite link</td></tr>
         <tr><td>admin.html</td><td>All roles (role-filtered content)</td></tr>
-        <tr><td>reception.html</td><td>receptionist, nurse, dept_admin, super_admin; a cashier sees only 💰 Lab Bills; doctors only at a clinic, PK centre or dispensary</td></tr>
+        <tr><td>reception.html</td><td>receptionist, nurse, dept_admin, super_admin; a cashier sees only 💰 Lab &amp; Imaging Bills; doctors only at a clinic, PK centre or dispensary</td></tr>
         <tr><td>shift-close.html</td><td>Staff who take cash at a counter. Doctors only at a clinic, PK centre or dispensary</td></tr>
         <tr><td>lab-nabl.html</td><td>lab_tech, nurse, dept_admin, super_admin, the pathologist, the lab in-charge. At a hospital, teaching hospital or college, doctors only as head of a department, MS, Deputy MS or RMO. Purchase requisitions are raised by the lab, the pharmacy, accounts and administrators, and approved by accounts and administrators</td></tr>
         <tr><td>aushadha-nirman.html</td><td>pharmacist, dept_admin, super_admin. At a hospital, teaching hospital or college, doctors only as head of a department, MS, Deputy MS or RMO. The register is written by the pharmacy, the Rasashastra department and administrators</td></tr>
