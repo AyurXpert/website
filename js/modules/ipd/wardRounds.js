@@ -13,6 +13,8 @@
 
 import { openDischarge, closeDischarge } from './dischargeSummary.js';
 import { istDateStr, todayISTStr } from '../../utils/dateUtils.js';
+import { renderScheduleCard } from '../scheduler/planCalendar.js';   // Session 388s1
+import { safeErrorMessage } from '../../utils/errors.js';
 
 let _c = null;        // { supabase, esc, tenantId, userId, isTrainee, toast, fmtDate, getInventory }
 let _adm = null;      // the open admission (row from doctor.js's IPD list)
@@ -522,9 +524,18 @@ window.saveDietOrder = async function() {
 // the entry point to start one.
 async function _loadPkForAdm(admId) {
   const { data } = await _c.supabase.from('pk_care_plans')
-    .select('id, status, created_at, pk_care_plan_protocols(protocol_label)')
+    .select('id, status, setting, created_at, pk_care_plan_protocols(protocol_label)')
     .eq('ipd_admission_id', admId).order('created_at', { ascending: false });
   _pkPlanForAdm = (data || [])[0] || null;
+  // Session 388s1 (G1): an Admission plan that could not start at the admission (e.g. consent missing) is still 'finalized' and linked only
+  // by its admission advice -- the ward round offers 🌸 Activate Panchakarma plan for it
+  if (!_pkPlanForAdm && _adm?.admission_advice_id) {
+    const { data: w } = await _c.supabase.from('pk_care_plans')
+      .select('id, status, setting, created_at, pk_care_plan_protocols(protocol_label)')
+      .eq('admission_advice_id', _adm.admission_advice_id).eq('status', 'finalized').eq('setting', 'admission')
+      .order('created_at', { ascending: false }).limit(1);
+    _pkPlanForAdm = (w || [])[0] || null;
+  }
   _renderPkTab();
 }
 
@@ -547,7 +558,27 @@ function _renderPkTab() {
         <a class="ordm-btn ordm-btn-sign" style="text-decoration:none;display:inline-flex;align-items:center" href="ipd.html?admission_id=${encodeURIComponent(_adm.id)}">🏥 Open in IPD →</a>
       </div>
     </div>`;
+  // Session 388s1 (decision 5 / G1): the sessions' state for the doctor, and Activate for a plan that waits
+  const waiting = _pkPlanForAdm.status === 'finalized' && _pkPlanForAdm.setting === 'admission';
+  if (waiting) {
+    const btn = document.createElement('button');
+    btn.type = 'button'; btn.className = 'ordm-add'; btn.addEventListener('click', _activatePkForCurrentAdm);
+    btn.textContent = '🌸 Activate Panchakarma plan';
+    const msg = document.createElement('div'); msg.id = 'ordpk-activate-msg'; msg.setAttribute('role', 'status'); msg.style.cssText = 'font-size:12.5px;margin-top:6px';
+    box.append(btn, msg);
+  }
+  const card = document.createElement('div'); card.style.marginTop = '10px';
+  box.append(card);
+  renderScheduleCard({ supabase: _c.supabase, container: card, planId: _pkPlanForAdm.id });
 }
+
+async function _activatePkForCurrentAdm() {
+  if (!_adm || !_pkPlanForAdm) return;
+  const msg = document.getElementById('ordpk-activate-msg');
+  const { error } = await _c.supabase.rpc('activate_pk_care_plan_for_admission', { p_plan_id: _pkPlanForAdm.id, p_admission_id: _adm.id });
+  if (error) { if (msg) { msg.style.color = '#8b1a1a'; msg.textContent = '⚠ ' + safeErrorMessage(error, 'The plan could not be activated.'); } return; }
+  await _loadPkForAdm(_adm.id);
+};
 
 window._openPkForCurrentAdm = function() { if (_adm) _c.openPkForAdmission?.(_adm); };
 

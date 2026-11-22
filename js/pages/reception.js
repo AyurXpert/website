@@ -6056,7 +6056,7 @@ let _pkPlansSubscription = null;
 async function loadPkCarePlanRequests() {
   const { data, error } = await supabase
     .from('pk_care_plans')
-    .select('id, setting, estimated_total, advance_amount_suggested, created_at, patients(name, phone), profiles!doctor_id(full_name), pk_care_plan_protocols(protocol_label, niruha_formula_name, custom_formulation_name)')
+    .select('id, setting, estimated_total, advance_amount_suggested, created_at, patients(name, phone), profiles!doctor_id(full_name), pk_care_plan_protocols(protocol_label, niruha_formula_name, custom_formulation_name), sched_holds(status, expires_at, created_at)')
     .eq('tenant_id', tenantId)
     .eq('status', 'finalized')
     .in('setting', ['day_care', 'opd'])
@@ -6084,6 +6084,11 @@ async function loadPkCarePlanRequests() {
       })
       .join(', ') || '—';
     const suggested = Number(r.advance_amount_suggested || 0);
+    // Session 388s1 (S1): the doctor's held slots -- until when, or released (the sessions are then searched again at activation)
+    const hold = (r.sched_holds || []).sort((x, y) => String(y.created_at).localeCompare(String(x.created_at)))[0];
+    const holdLine = !hold ? 'No slots held — the sessions are searched when you activate.'
+      : hold.status === 'held' ? `📌 Slots held until ${new Date(hold.expires_at).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}`
+      : 'Held slots released (not activated in time) — the sessions are searched again when you activate.';
     return `<div class="q-item">
       <div class="q-token waiting">🌸</div>
       <div class="q-info">
@@ -6091,6 +6096,7 @@ async function loadPkCarePlanRequests() {
         <div class="q-row2"><span style="color:var(--text-mid)">${_esc(SETTING_LABELS[r.setting] || r.setting)} · ${_esc(protocolNames)}</span></div>
         <div class="q-row2"><span style="color:var(--text-mid)">Advised by ${_esc(r.profiles?.full_name || '—')} · waiting ${waitedFor}</span></div>
         <div class="q-row3">Estimated total: <strong>₹${Number(r.estimated_total || 0).toLocaleString('en-IN')}</strong> · Suggested advance: <strong>₹${suggested.toLocaleString('en-IN')}</strong></div>
+        <div class="q-row3" style="color:var(--text-mid)">${_esc(holdLine)}</div>
         <div class="q-row3" style="display:flex;gap:6px;align-items:center;margin-top:4px">
           <input type="number" class="pk-advance-amount" value="${suggested}" min="0" style="width:100px;height:30px;border:1px solid var(--border);border-radius:6px;padding:0 8px;font-size:12px"/>
           <select class="pk-advance-mode" style="height:30px;border:1px solid var(--border);border-radius:6px;font-size:12px">
@@ -6113,7 +6119,24 @@ window.activatePkCarePlan = async function(planId, btnEl) {
   const amount = parseFloat(row.querySelector('.pk-advance-amount').value) || 0;
   const mode = row.querySelector('.pk-advance-mode').value;
   if (amount <= 0) { _alert('error', 'Enter the advance amount actually collected.'); return; }
-  if (!confirm(`Collect ₹${amount.toLocaleString('en-IN')} (${mode}) as advance and activate this Panchakarma Care Plan?`)) return;
+  // Session 388s1: an in-page confirmation (no native confirm() in a money flow)
+  row.querySelector('.pk-confirm')?.remove();
+  const strip = document.createElement('div');
+  strip.className = 'pk-confirm';
+  strip.style.cssText = 'display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:6px;font-size:12px';
+  const q = document.createElement('span'); q.textContent = `Collect ₹${amount.toLocaleString('en-IN')} (${mode}) and activate?`;
+  const yes = document.createElement('button'); yes.type = 'button'; yes.className = 'q-edit-btn'; yes.style.cssText = 'width:auto;min-height:32px;padding:0 10px;background:var(--green-deep);color:#fff';
+  yes.textContent = 'Yes, collect and activate'; yes.addEventListener('click', () => _activatePkCarePlanConfirm(planId, yes));
+  const no = document.createElement('button'); no.type = 'button'; no.className = 'q-edit-btn'; no.style.cssText = 'width:auto;min-height:32px;padding:0 10px';
+  no.textContent = 'Cancel'; no.addEventListener('click', () => strip.remove());
+  strip.append(q, yes, no);
+  row.querySelector('.q-info').append(strip);
+};
+async function _activatePkCarePlanConfirm(planId, btnEl) {
+  const row = btnEl.closest('.q-item');
+  const amount = parseFloat(row.querySelector('.pk-advance-amount').value) || 0;
+  const mode = row.querySelector('.pk-advance-mode').value;
+  btnEl.disabled = true;
 
   // Session 210: one atomic RPC (bill + plan update + real session generation) --
   // replaces the previous 2-step client sequence, which could leave an orphaned bill
@@ -6122,10 +6145,15 @@ window.activatePkCarePlan = async function(planId, btnEl) {
   const { error } = await supabase.rpc('activate_pk_care_plan', {
     p_plan_id: planId, p_advance_amount: amount, p_payment_mode: mode,
   });
-  if (error) { _alert('error', safeErrorMessage(error, 'Could not activate this care plan.')); return; }
+  if (error) { btnEl.disabled = false; _alert('error', safeErrorMessage(error, 'Could not activate this care plan.')); return; }
 
   await logAudit('pk_care_plan_activated', 'pk_care_plans', planId, { amount, mode }, _ctx);
-  _alert('success', `Advance collected — Panchakarma Care Plan is now active, sessions generated.`);
+  // Session 388s1: what the scheduler did (scheduled / not scheduled yet -- the PK in-charge is alerted for those)
+  const { data: st } = await supabase.rpc('pk_plan_schedule_status', { p_plan_id: planId });
+  const ss = st?.sessions || [];
+  const notYet = ss.filter(x => x.state === 'unassigned').length;
+  _alert('success', `Advance collected — Panchakarma Care Plan is active: ${ss.length - notYet} session(s) scheduled`
+    + (notYet ? `, ${notYet} not scheduled yet (the PK in-charge has been told).` : '.'));
   loadPkCarePlanRequests();
 };
 

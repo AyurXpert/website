@@ -56,6 +56,22 @@ export function safeErrorMessage(error, fallback = 'Something went wrong. Please
     return error.message;
   }
 
+  // Session 388s1: the treatment scheduler -- plain, schema-free, written to be shown (the clash message names the therapist / room / couch)
+  const SCHED_MSGS = ['That time is already taken', 'Panchakarma consent', 'Only the planning doctor', 'Only a saved plan waiting', 'This care plan has no saved days', 'Shift times are changed through', 'A Panchakarma day cannot be planned before today', 'Therapist not available:', 'Room not available:', 'Reschedule:', 'The Medical Superintendent / Deputy MS decides this request',
+    'Give the planned admission date', 'The planned admission date is', 'The course starts before the planned admission date', 'Only the PK in-charge',
+    'Only a scheduled session is moved', 'Give a reason (5–300', 'Choose a date today or later', 'A chosen therapist is not', 'That room is not in your organisation',
+    'The planning calendar is for', 'The calendar needs the course days', 'The capacity view is for', 'The schedule settings are changed by', 'Unknown setting',
+    'A session is marked missed or cancelled only', 'That Droni is not in the chosen room', 'This room is booked by Droni', 'Dronis go only in a',
+    'A Droni stays in its room', 'This room has Dronis', 'Not authorized to auto-assign', 'Admission-setting plans are activated when', 'Care plan not found',
+    'Session not found', 'Patient not found', 'Not available for this account', 'Nothing to change'];
+  if (['P0001', 'P0002', '22023', '42501', '23P01'].includes(error?.code) && SCHED_MSGS.some(m => error?.message?.startsWith(m))) {
+    return error.message;
+  }
+  // S1-F22: the session table's own room-overlap rule (from before S1) reached by a direct write -- the same plain words
+  if (error?.code === '23P01' && /pk_sessions_room_overlap_excl/.test(error?.message || '')) {
+    return 'That time is already taken: the room is booked then.';
+  }
+
   // Session 306 statutory-register guards (sql/session306_statutory_registers_lockdown.sql) —
   // plain, schema-free messages written to be shown to staff as-is.
   const REGISTER_MSGS = ['NDPS balance', 'An NDPS entry', 'An opening balance', 'Quantity must',

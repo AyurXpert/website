@@ -287,6 +287,11 @@ input[type="checkbox"]{width:16px;height:16px;accent-color:var(--green-deep);ver
 .rx-item-row input:focus{outline:none;border-color:var(--green-mid)}
 .rx-btn-rm{width:28px;height:28px;border:1px solid var(--border);border-radius:5px;background:#f5f5f5;cursor:pointer;font-size:13px;color:var(--red);display:flex;align-items:center;justify-content:center;flex-shrink:0}
 .rx-btn-add{height:32px;padding:0 14px;background:var(--green-light);color:var(--green-deep);border:1.5px solid var(--green-mid);border-radius:7px;font-size:12px;font-weight:500;font-family:'DM Sans',sans-serif;cursor:pointer;margin-top:2px}
+/* Session 388s1 (owner, 21 Nov 2026): capacity view -- alternate row colours and the row under the mouse (dark text keeps > 12:1 contrast) */
+.sched-zebra tr:nth-child(even) td{background:var(--green-light)}
+.sched-zebra tr:not(:first-child):hover td{background:var(--gold-light)}
+.sched-zebra-list .sched-zebra-row:nth-child(even){background:var(--green-light)}
+.sched-zebra-list .sched-zebra-row:hover{background:var(--gold-light)}
 </style>
 <link rel="stylesheet" href="css/notify.css"/>
 </head>
@@ -494,6 +499,7 @@ input[type="checkbox"]{width:16px;height:16px;accent-color:var(--green-deep);ver
           <select id="assign-room">
             <option value="">— Not assigned —</option>
           </select>
+          <div class="field-note" id="assign-room-note" style="display:none"></div>
         </div>
       </div>
 
@@ -601,10 +607,25 @@ input[type="checkbox"]{width:16px;height:16px;accent-color:var(--green-deep);ver
         <div class="field">
           <label for="comp-reschedule-date">Reschedule To (optional)</label>
           <div style="display:flex;gap:8px;flex-wrap:wrap">
-            <input id="comp-reschedule-date" type="date" aria-label="New date"/>
+            <input id="comp-reschedule-date" type="date" aria-label="New date" data-onchange="onReschedDateChange"/>
             <input id="comp-reschedule-time" type="time" aria-label="New time" style="min-height:36px"/>
           </div>
           <div class="field-note">Creates a new session for this same patient/therapy on the date and time above — the skipped one stays on record as skipped. The server checks the slot is free (patient, therapist, room); if the new slot is refused, nothing is saved.</div>
+        </div>
+        <!-- S1-F32 (388s1 rehearsal C10): the PK in-charge may also choose the therapist(s) and the room / Droni of the new session
+             (pre-filled with the current ones; gender-matched; the server checks the roster, the shift, leave and the room) -->
+        <div id="comp-resched-resources" style="display:none">
+          <div class="field">
+            <label for="comp-resched-therapist">New session: main therapist</label>
+            <select id="comp-resched-therapist" data-onchange="onReschedTherapistChange" data-onchange-a0="@value"></select>
+            <div id="comp-resched-extra"></div>
+            <span data-onclick="addReschedExtraTherapist" style="cursor:pointer;color:var(--green-mid);font-size:12px;font-weight:600;text-decoration:underline">+ Add another therapist</span>
+          </div>
+          <div class="field">
+            <label for="comp-resched-room">New session: treatment room / Droni</label>
+            <select id="comp-resched-room"></select>
+            <div class="field-note" id="comp-resched-note">Pre-filled with the current therapists and room. Therapists of the patient's gender only; "not on the roster" = the server will refuse that therapist for the new date.</div>
+          </div>
         </div>
       </div>
     </div>
@@ -1263,6 +1284,25 @@ input[type="checkbox"]{width:16px;height:16px;accent-color:var(--green-deep);ver
        entirely from already-loaded _sessions/_rooms (no extra query). Admin/room-admin only --
        a plain therapist's _sessions is already narrowed to "mine", which would make most of
        the grid falsely look empty. -->
+  <!-- Session 388s1 (owner decisions 8, 9; S8, S9, S11): the PK in-charge's capacity view, schedule settings and couches -->
+  <details id="sched-capacity-details" style="margin-bottom:14px;display:none">
+    <summary style="cursor:pointer;font-weight:600;font-size:13px;color:var(--green-deep);padding:10px 14px;background:var(--cream);border:1.5px solid var(--border);border-radius:8px;list-style:none">📊 Capacity — tomorrow and this week <span style="font-size:11px;color:var(--text-muted);text-transform:none;letter-spacing:0;font-weight:400">(not-scheduled sessions first, then therapists and rooms / Dronis)</span></summary>
+    <div style="background:var(--white);border:1.5px solid var(--border);border-top:none;border-radius:0 0 8px 8px;padding:14px">
+      <div id="sched-capacity-body">Loading…</div>
+    </div>
+  </details>
+  <details id="sched-settings-details" style="margin-bottom:14px;display:none">
+    <summary style="cursor:pointer;font-weight:600;font-size:13px;color:var(--green-deep);padding:10px 14px;background:var(--cream);border:1.5px solid var(--border);border-radius:8px;list-style:none">⏱ Schedule settings <span style="font-size:11px;color:var(--text-muted);text-transform:none;letter-spacing:0;font-weight:400">(working day, phase windows, shifts — Super Admin or PK in-charge, with a reason)</span></summary>
+    <div style="background:var(--white);border:1.5px solid var(--border);border-top:none;border-radius:0 0 8px 8px;padding:14px">
+      <div id="sched-settings-body">Loading…</div>
+    </div>
+  </details>
+  <details id="sched-couches-details" style="margin-bottom:14px;display:none">
+    <summary style="cursor:pointer;font-weight:600;font-size:13px;color:var(--green-deep);padding:10px 14px;background:var(--cream);border:1.5px solid var(--border);border-radius:8px;list-style:none">🛏 Dronis and the Kaumara room <span style="font-size:11px;color:var(--text-muted);text-transform:none;letter-spacing:0;font-weight:400">(only for a room with two or more Dronis; male-only or female-only rooms)</span></summary>
+    <div style="background:var(--white);border:1.5px solid var(--border);border-top:none;border-radius:0 0 8px 8px;padding:14px">
+      <div id="sched-couches-body">Loading…</div>
+    </div>
+  </details>
   <details id="pkroom-occupancy-details" style="margin-bottom:14px;display:none">
     <summary style="cursor:pointer;font-weight:600;font-size:13px;color:var(--green-deep);padding:10px 14px;background:var(--cream);border:1.5px solid var(--border);border-radius:8px;list-style:none">🏠 Room Occupancy <span style="font-size:11px;color:var(--text-muted);text-transform:none;letter-spacing:0;font-weight:400">(who's using which room, and when it's free — click an empty slot to schedule)</span></summary>
     <div style="background:var(--white);border:1.5px solid var(--border);border-top:none;border-radius:0 0 8px 8px;padding:14px 16px">

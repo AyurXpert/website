@@ -6,6 +6,7 @@ import { escapeHtml as _esc } from '../utils/validators.js';
 import { genderLabel } from '../utils/gender.js';   // Session 371B
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
+import { showPlanCalendar, holdPlan, renderScheduleCard } from '../modules/scheduler/planCalendar.js';   // Session 388s1
 import { isNCISMType } from '../config/ncism.js';
 import { addOpdBillFeeItems } from '../modules/billing/opdBillItems.js';
 import { getOpdBillingRegime } from '../modules/billing/opdGstBilling.js';
@@ -3910,7 +3911,7 @@ function _renderPkCalendar() {
         <div style="font-weight:700;font-size:14px;color:var(--green-deep)">${_esc(p.protocol_label)} <span style="font-size:11px;color:var(--text-muted)">(${new Set(_pkExpandDays(p).map(r => r.day_number)).size} days)</span></div>
         <div style="display:flex;align-items:center;gap:6px">
           <label style="font-size:11px;color:var(--text-mid)">Start</label>
-          <input type="date" value="${_esc(p.start_date)}" data-onchange="_pkSetProtocolStart" data-onchange-a0="${pi}" data-onchange-a1="@this" style="height:32px;border:1.5px solid var(--border);border-radius:6px;padding:0 8px;font-size:12.5px"/>
+          <input type="date" value="${_esc(p.start_date)}" min="${_esc(istDateStr(new Date()))}" data-onchange="_pkSetProtocolStart" data-onchange-a0="${pi}" data-onchange-a1="@this" style="height:32px;border:1.5px solid var(--border);border-radius:6px;padding:0 8px;font-size:12.5px"/>
           <!-- Session 269 follow-up -- Dr. Venkatesh: the button was there for every
                protocol including Basti (never actually missing), just easy to miss in
                its default unopened state (plain white/outline) next to Basti's more
@@ -4092,8 +4093,16 @@ window._pkAdjustBlockLength = function(pi, bi, delta) {
   _renderPkCalendar();
 };
 
+// S1-F17 (388s1 rehearsal C5): a course never starts before today (IST) -- the server refuses such a day too
+function _pkStartBeforeToday(dateStr) { return !!dateStr && dateStr < istDateStr(new Date()); }
+function _pkSayPastStart(dateStr) {
+  const box = document.getElementById('pk-capacity-cal');
+  const txt = `⚠ ${dateStr.split('-').reverse().join('-')} is in the past — a course starts today or later.`;
+  if (box) box.textContent = txt; else alert(txt);
+}
 window._pkSetProtocolStart = function(pi, inputEl) {
   const p = _pkProtocols[Number(pi)]; if (!p) return;
+  if (_pkStartBeforeToday(inputEl.value)) { _pkSayPastStart(inputEl.value); inputEl.value = p.start_date; return; }
   p.start_date = inputEl.value || p.start_date;
   _renderPkCalendar();
 };
@@ -4214,6 +4223,7 @@ window._pkDatePickerNav = function(pi, delta) {
 
 window._pkPickStartDate = function(pi, dateStr) {
   const p = _pkProtocols[Number(pi)]; if (!p) return;
+  if (_pkStartBeforeToday(dateStr)) { _pkSayPastStart(dateStr); return; }
   p.start_date = dateStr;
   // Stay open on the picked date's month -- lets the doctor see the shaded span
   // immediately without an extra click, and keep adjusting if needed.
@@ -4742,6 +4752,22 @@ window._pkRecomputeStep4 = async function() {
   // for via the real admission (this exact bug was caught live before shipping).
   const setting = _pkForAdmissionId ? 'ipd_admission' : (document.querySelector('input[name="pk-setting"]:checked')?.value || 'day_care');
   document.getElementById('pk-room-type-field').style.display = setting === 'admission' ? '' : 'none';
+  // Session 388s1: the planned admission date (default = the course's first day); its slots are held until the end of that day
+  const admDate = document.getElementById('pk-adm-date');
+  document.getElementById('pk-adm-date-field').style.display = setting === 'admission' ? '' : 'none';
+  if (setting === 'admission' && admDate && !admDate.value) admDate.value = _pkCourseItems().first || '';
+  // S1-F16 (388s1 rehearsal C5): the admission's department is chosen here -- departments with beds, the Panchakarma one pre-selected
+  // (NCISM code PK, or a name starting "Panchakarma"); never found by an exact name only (Srishti / WASA: "Panchakarma & Upakarma")
+  const admDeptField = document.getElementById('pk-adm-dept-field');
+  if (admDeptField) admDeptField.style.display = setting === 'admission' ? '' : 'none';
+  const admDeptSel = document.getElementById('pk-adm-dept');
+  if (setting === 'admission' && admDeptSel && admDeptSel.options.length <= 1) {
+    for (const d of (_admDepts || [])) admDeptSel.append(new Option(d.name, d.id));
+    const pk = (_admDepts || []).find(d => d.ncism_code === 'PK') || (_admDepts || []).find(d => /^panchakarma/i.test(d.name || ''));
+    if (pk) admDeptSel.value = pk.id;
+    const hint = document.getElementById('pk-adm-dept-hint');
+    if (hint && !(_admDepts || []).length) hint.textContent = 'No department has beds yet — the beds are set up in Bed Admin before a patient can be admitted.';
+  }
 
   const est = _pkComputeEstimate();
   let roomLine = '';
@@ -4776,6 +4802,40 @@ window._pkRecomputeStep4 = async function() {
   el.innerHTML = `Treatment: <strong>₹${est.total.toLocaleString('en-IN')}</strong>${roomLine}`
     + `<br><span style="font-size:14px;font-weight:700;color:var(--green-deep)">Estimated Total: ₹${total.toLocaleString('en-IN')}</span><br>Suggested advance (${pct}%, preview): <strong>₹${advance.toLocaleString('en-IN')}</strong>`
     + (est.unpriced ? `<br><span style="color:#c0392b">⚠ ${est.unpriced} day(s) have no billing code assigned — excluded from this total.</span>` : '');
+};
+
+// Session 388s1 (owner decision 1): the free-capacity calendar for this course -- day offsets from the course's first day, the same
+// day rows the save writes (home days are not hospital sessions); a click moves every protocol's start by the same number of days
+function _pkCourseItems() {
+  const rows = [];
+  _pkProtocols.forEach(p => _pkExpandDays(p).forEach(r => { if (r.location_mode !== 'home') rows.push({ p, r }); }));
+  if (!rows.length) return { items: [], first: null };
+  const first = rows.reduce((m, x) => (x.r.planned_date < m ? x.r.planned_date : m), rows[0].r.planned_date);
+  const dayMs = 86400000;
+  const items = rows.map(({ p, r }) => ({
+    offset: Math.round((new Date(r.planned_date + 'T00:00:00') - new Date(first + 'T00:00:00')) / dayMs),
+    seq: r.sequence_order, phase: r.phase, activity: r.activity_label, ayush_code: r.ayush_code || null,
+    duration: p.doctor_duration_minutes || null, man_power: p.doctor_man_power || null, room: p.doctor_requires_room ?? null,
+  }));
+  return { items, first };
+}
+window._pkCheckCapacity = async function() {
+  const box = document.getElementById('pk-capacity-cal');
+  const { items, first } = _pkCourseItems();
+  if (!items.length || !_activePatient?.id) { box.textContent = 'Choose the protocol(s) and their days first.'; return; }
+  await showPlanCalendar({ supabase, container: box, patientId: _activePatient.id, items, from: istDateStr(new Date()),
+    onPick: (date) => {
+      // S1-F1 (rehearsal C1): any failure is shown on the page, never silent
+      try {
+        const shift = Math.round((new Date(date + 'T00:00:00') - new Date(first + 'T00:00:00')) / 86400000);
+        _pkProtocols.forEach(p => { const d = new Date(p.start_date + 'T00:00:00'); d.setDate(d.getDate() + shift); p.start_date = istDateStr(d); });
+        _renderPkCalendar();
+        box.textContent = `Course start moved to ${date}. Press "🗓 Check free capacity" again to see the new dates.`;
+      } catch (e) {
+        console.error('[doctor] pick start date:', e);
+        box.textContent = `⚠ The start date could not be moved (${e?.message || e}). Type the date in the Start box instead.`;
+      }
+    } });
 };
 
 window._pkGoToStep = function(n) {
@@ -5096,6 +5156,13 @@ window.savePkCarePlan = async function() {
   // Session 297 -- a plan opened from an admission's ward round has no Setting choice
   // (see openPkWizardForAdmission()) -- it always activates for that admission.
   const setting = _pkForAdmissionId ? 'ipd_admission' : (settingEl ? settingEl.value : 'day_care');
+  // S1-F17: no hospital day before today (the server refuses it too); an IPD plan (activated now) is checked the same way
+  const pastDay = _pkProtocols.flatMap(p => _pkExpandDays(p)).find(r => _pkStartBeforeToday(r.planned_date));
+  if (pastDay) { alert(`${pastDay.planned_date.split('-').reverse().join('-')} is in the past — move the course start to today or later (Step 2), then save.`); return; }
+  // S1-F16: an Admission plan needs its department BEFORE anything is saved (else a saved plan that never reaches reception)
+  if (setting === 'admission' && !document.getElementById('pk-adm-dept')?.value) {
+    alert('Choose the department to admit the patient to (Step 4 → Admit to department), then save.'); return;
+  }
 
   const btn = document.getElementById('btn-save-pk-plan');
   btn.disabled = true; btn.textContent = 'Saving…';
@@ -5147,6 +5214,8 @@ window.savePkCarePlan = async function() {
     alert(safeErrorMessage(error, 'Could not save the Panchakarma care plan.')); return;
   }
 
+  // S1-F4 (388s1 rehearsal C1): a refused protocol / day / medicine row is a failed save, never "✓ Saved" (No false saved)
+  const saveErrs = [];
   for (let pi = 0; pi < _pkProtocols.length; pi++) {
     const p = _pkProtocols[pi];
     // Session 279 -- the Niruha block's own doctor-typed name (whether picked from
@@ -5198,7 +5267,7 @@ window.savePkCarePlan = async function() {
       ({ data: proto, error: protoErr } = await supabase.from('pk_care_plan_protocols').insert({ care_plan_id: plan.id, status: 'pending', ...protoFields }).select('id').single());
       if (!protoErr) p.db_id = proto.id;
     }
-    if (protoErr) { console.warn('[doctor] pk_care_plan_protocols save:', protoErr.message); continue; }
+    if (protoErr) { console.warn('[doctor] pk_care_plan_protocols save:', protoErr.message); saveErrs.push(`${p.protocol_label}: ${safeErrorMessage(protoErr, 'not saved')}`); continue; }
 
     const dayRows = _pkExpandDays(p).map(r => ({
       protocol_instance_id: proto.id, day_number: r.day_number, phase: r.phase,
@@ -5215,7 +5284,7 @@ window.savePkCarePlan = async function() {
       doctor_requires_room: p.doctor_requires_room ?? null,
     }));
     const { error: daysErr } = await supabase.from('pk_care_plan_days').insert(dayRows);
-    if (daysErr) console.warn('[doctor] pk_care_plan_days insert:', daysErr.message);
+    if (daysErr) { console.warn('[doctor] pk_care_plan_days insert:', daysErr.message); saveErrs.push(`${p.protocol_label} (days): ${safeErrorMessage(daysErr, 'not saved')}`); }
 
     // Session 254 -- each medicine carries which activity it belongs to (Deepana-Pachana
     // vs. Snehapana vs. the protocol's administration step, etc.), not just the protocol
@@ -5267,8 +5336,17 @@ window.savePkCarePlan = async function() {
     });
     if (medRows.length) {
       const { error: medErr } = await supabase.from('pk_care_plan_medicines').insert(medRows);
-      if (medErr) console.warn('[doctor] pk_care_plan_medicines insert:', medErr.message);
+      if (medErr) { console.warn('[doctor] pk_care_plan_medicines insert:', medErr.message); saveErrs.push(`${p.protocol_label} (medicines): ${safeErrorMessage(medErr, 'not saved')}`); }
     }
+  }
+
+  if (saveErrs.length) {
+    _pkEditingPlanId = plan.id;   // the next press updates this plan (its days are replaced)
+    btn.disabled = false; btn.textContent = '🌸 Update Care Plan';
+    const st = document.getElementById('pk-save-status');
+    st.style.display = '';
+    st.textContent = `⚠ The care plan is NOT complete — not sent to Reception and no slots held. ${saveErrs.join(' · ')}. Fix this and press 🌸 Update Care Plan.`;
+    return;
   }
 
   await logAudit(isEditing ? 'pk_care_plan_updated' : 'pk_care_plan_created', 'pk_care_plans', plan.id, {
@@ -5282,7 +5360,7 @@ window.savePkCarePlan = async function() {
   // lighter reception.html queue instead (sourced from pk_care_plans directly).
   let handoffMsg = `will appear in Reception's Panchakarma Care Plan queue`;
   if (setting === 'admission') {
-    const pkDept = _admDepts.find(d => d.name === 'Panchakarma') || null;
+    const pkDept = _admDepts.find(d => d.id === document.getElementById('pk-adm-dept')?.value) || null;   // S1-F16
     const protocolNames = _pkProtocols.map(p => p.protocol_label).join(', ');
     const adviceFields = {
       clinical_indication: `Panchakarma Care Plan: ${protocolNames}`,
@@ -5336,6 +5414,16 @@ window.savePkCarePlan = async function() {
       : `activated immediately for this admission — Panchakarma sessions have been generated and auto-assigned where possible`;
   }
 
+  // Session 388s1 (owner decisions 1, 2, 6): a plan waiting for reception or for the admission holds its slots now -- after every
+  // gate above has passed (the pediatric gates stay in this one save, §18.4); the result is shown in the page, never an alert
+  const holdBox = document.getElementById('pk-hold-status');
+  if (holdBox) holdBox.replaceChildren();
+  if (setting === 'opd' || setting === 'day_care' || (setting === 'admission' && !handoffMsg.startsWith('could NOT'))) {
+    await holdPlan({ supabase, planId: plan.id, admissionDate: setting === 'admission' ? (document.getElementById('pk-adm-date')?.value || null) : null, container: holdBox });
+  }
+  const cardBox = document.getElementById('pk-schedule-card');
+  if (cardBox) await renderScheduleCard({ supabase, container: cardBox, planId: plan.id });
+
   _pkPlanSaved = true;
   // Session 268 -- keep pointing at this same plan id (whether it was just created or
   // just updated) so a second save later in the same wizard session correctly continues
@@ -5344,7 +5432,9 @@ window.savePkCarePlan = async function() {
   btn.disabled = false; btn.textContent = '🌸 Update Care Plan';
   const status = document.getElementById('pk-save-status');
   status.style.display = '';
-  status.textContent = `✓ ${isEditing ? 'Updated' : 'Saved'} — ${_activePatient?.name}'s Panchakarma care plan (${_pkProtocols.length} protocol${_pkProtocols.length > 1 ? 's' : ''}) is finalized and ${handoffMsg}.`;
+  // S1-F15: a failed hand-off to reception is never shown as a plain success
+  const handoffFailed = /^could( NOT| not)/.test(handoffMsg);
+  status.textContent = `${handoffFailed ? '⚠' : '✓'} ${isEditing ? 'Updated' : 'Saved'} — ${_activePatient?.name}'s Panchakarma care plan (${_pkProtocols.length} protocol${_pkProtocols.length > 1 ? 's' : ''}) is finalized and ${handoffMsg}.`;
 };
 
 // ── Disposition change ────────────────────────────

@@ -12,7 +12,8 @@ let _ctx = null;
 let _range = 'today';
 let _token = 0;
 
-const STATUS = { scheduled: 'Scheduled', in_progress: 'In progress', completed: 'Completed', skipped: 'Skipped', cancelled: 'Cancelled' };
+// Session 388s1 (S6): missed (the 22:00 IST job) and cancelled are real statuses now; a scheduled session with no time = not scheduled yet
+const STATUS = { scheduled: 'Scheduled', in_progress: 'In progress', completed: 'Completed', skipped: 'Skipped', cancelled: 'Cancelled', missed: 'Missed' };
 const PHASE = { purvakarma: 'Purvakarma', pradhanakarma: 'Pradhana karma', paschatkarma: 'Paschat karma' };
 
 function _addDays(ymd, n) {
@@ -81,14 +82,15 @@ function _card(s) {
     s.pk_treatment_rooms?.room_name ? 'Room: ' + s.pk_treatment_rooms.room_name : (s.therapy_room_number ? 'Room: ' + s.therapy_room_number : null)].filter(Boolean).join(' · ');
   card.appendChild(_el('div', 'pk-tab-line', who));
   const st = _el('div', 'pk-tab-line');
-  st.appendChild(_el('span', 'pk-tab-status pk-st-' + (s.status || 'scheduled'), STATUS[s.status] || s.status || '—'));
+  const unassigned = (s.status || 'scheduled') === 'scheduled' && !s.scheduled_time;
+  st.appendChild(_el('span', 'pk-tab-status pk-st-' + (unassigned ? 'unassigned' : (s.status || 'scheduled')), unassigned ? '⚠ Not scheduled yet' : (STATUS[s.status] || s.status || '—')));
   card.appendChild(st);
   const cl = _el('div', 'pk-tab-line pk-tab-clear');
   if (s.doctor_clearance) {
     cl.appendChild(_el('span', 'pk-tab-cleared', '✓ Cleared' + (s.cleared_by?.full_name ? ' by ' + s.cleared_by.full_name : '')));
   } else {
     cl.appendChild(_el('span', 'pk-tab-notcleared', 'Clearance: not yet given'));
-    if (_ctx.canClear && !['completed', 'skipped', 'cancelled'].includes(s.status)) {
+    if (_ctx.canClear && !['completed', 'skipped', 'cancelled', 'missed'].includes(s.status)) {
       const b = _el('button', 'pk-tab-clear-btn', '🩺 Give clearance');
       b.type = 'button';
       b.title = 'Give the PK fitness clearance (doctor, NCISM §47(vii))';
@@ -132,7 +134,7 @@ async function _render() {
   if (!mine.length) {
     nodes.push(Object.assign(_el('div', 'q-empty'), { textContent: _range === 'week' ? 'No PK sessions for your patients in the next 7 days.' : 'No PK sessions for your patients today.' }));
   } else {
-    const pending = mine.filter(s => !s.doctor_clearance && !['completed', 'skipped', 'cancelled'].includes(s.status)).length;
+    const pending = mine.filter(s => !s.doctor_clearance && !['completed', 'skipped', 'cancelled', 'missed'].includes(s.status)).length;
     nodes.push(_el('div', 'pk-tab-summary', `${mine.length} session${mine.length === 1 ? '' : 's'}` + (pending ? ` · ${pending} awaiting clearance` : '')));
     mine.forEach(s => nodes.push(_card(s)));
   }

@@ -10,6 +10,7 @@ import { localDateStr, todayLocalStr, istDateStr, todayISTStr } from '../utils/d
 import { notify } from '../components/notify.js';
 import { givePkClearance } from '../modules/panchakarma/pkClearance.js';
 import { mountOpdProceduresToday } from '../modules/opd/opdProcedureOrders.js';   // Session 386d-1 (L12)
+import { renderCapacityView, renderScheduleSettings, renderCouches } from '../modules/scheduler/capacityView.js';   // Session 388s1
 import { canMarkDone } from '../modules/billing/opdProcedureBilling.js';               // Session 386d-1 (L12)
 
 /*
@@ -43,6 +44,22 @@ const role       = getCurrentRole();
 const myProfile  = getCurrentProfile();
 // Session 386d-1 (L12): today's OPD procedures + Mark done (the server decides who)
 setTimeout(() => mountOpdProceduresToday(document.getElementById('opd-proc-today'), { supabase, tenantId, profile: myProfile, canDone: canMarkDone }), 0);
+// Session 388s1: the PK in-charge's capacity view (also the MS / MD, view), schedule settings (Super Admin / PK in-charge) and couches
+// (the room admins) -- each loaded when opened; the server refuses anyone else whatever the page shows
+setTimeout(() => {
+  const viewer = _isPkRosterAdmin() || ['medical_superintendent', 'deputy_medical_superintendent', 'medical_director', 'principal'].includes(myProfile?.designation);
+  const setter = role === 'super_admin' || myProfile?.designation === 'pk_incharge';
+  const lazy = (id, fn) => {
+    const d = document.getElementById(id); if (!d) return;
+    d.style.display = '';
+    d.addEventListener('toggle', () => { if (d.open) fn(); });
+  };
+  if (viewer) lazy('sched-capacity-details', () => renderCapacityView({ supabase, container: document.getElementById('sched-capacity-body') }));
+  if (setter) lazy('sched-settings-details', () => renderScheduleSettings({ supabase, container: document.getElementById('sched-settings-body'), tenantId }));
+  if (_isPkRosterAdmin() || ROOM_ADMIN_DESIGS.includes(myProfile?.designation)) {
+    lazy('sched-couches-details', () => renderCouches({ supabase, container: document.getElementById('sched-couches-body'), tenantId }));
+  }
+}, 0);
 
 let _sessions    = [];
 let _admissions  = [];
@@ -50,6 +67,7 @@ let _therapists  = [];
 let _depts       = [];
 let _opdPatients = [];
 let _rooms       = [];
+let _dronis      = [];   // S1-F29: active Dronis (sched_places kind 'couch') -- a room with Dronis is booked Droni by Droni
 let _buildingBlocks = [];
 let _ugTier      = 0;   // Session 206: 0 = not an NCISM tenant / no ug_intake set
 let _prepStaff   = [];
@@ -107,7 +125,7 @@ function _thisWeekBounds() {
 const _SESSION_COLS = `
         id, therapy_phase, therapy_name, scheduled_date, scheduled_time,
         actual_start, actual_end, status, therapist_notes, doctor_clearance,
-        therapy_room_number, samsarjana_stage, room_id, ipd_admission_id,
+        therapy_room_number, samsarjana_stage, room_id, couch_id, ipd_admission_id,
         planned_duration_minutes, special_instructions, skip_reason,
         patients(id, name, phone, age, gender, uhid),
         profiles!therapist_id(id, full_name, gender),
@@ -152,7 +170,7 @@ async function loadAll() {
       .single(),
     supabase
       .from('pk_treatment_rooms')
-      .select('id,room_name,room_type,capacity,gender_restriction,status,block_id,floor_number,building_blocks(id,name)')
+      .select('id,room_name,room_type,capacity,gender_restriction,status,is_pediatric,block_id,floor_number,building_blocks(id,name)')
       .eq('tenant_id', tenantId)
       .order('room_name'),
     // Session 206 (cont.) — same building_blocks table bed-admin.html already uses for
@@ -276,6 +294,8 @@ async function loadAll() {
   const _pkDept = _depts.find(d => d.name === 'Panchakarma');
   _pkTherapists = _pkDept ? _therapists.filter(t => t.department_id === _pkDept.id) : [];
   _rooms      = roomRes.data || [];
+  { const { data: dr } = await supabase.from('sched_places').select('id, pk_room_id, name, status').eq('tenant_id', tenantId).eq('kind', 'couch').eq('status', 'active').order('name');
+    _dronis = dr || []; }
   _buildingBlocks = blocksRes.data || [];
   _ugTier     = isNCISMType(tenantRes.data?.type) ? ncismUgTier(tenantRes.data?.ug_intake) : 0;
   _myPkShiftsWeek = myShiftsRes.data || [];
@@ -1297,7 +1317,7 @@ function _renderPkShiftTimesCard(isAdmin) {
 
   if (_pkShiftPending) {
     const p = _pkShiftPending.payload || {};
-    html += `<div style="font-size:12.5px;color:var(--text-mid)">⏳ Change to <strong>Shift 1 ${_esc((p.shift1_start||'').slice(0,5))} / Shift 2 ${_esc((p.shift2_start||'').slice(0,5))}</strong> requested by ${_esc(_pkShiftPending.requester?.full_name || '—')} on ${_esc((_pkShiftPending.requested_at || '').slice(0,10))} — awaiting Medical Superintendent / Deputy MS approval.</div>`;
+    html += `<div style="font-size:12.5px;color:var(--text-mid)">⏳ Change to <strong>Shift 1 ${_esc((p.shift1_start||'').slice(0,5))} / Shift 2 ${_esc((p.shift2_start||'').slice(0,5))}</strong> requested by ${_esc(_pkShiftPending.requester?.full_name || '—')} on ${_esc((_pkShiftPending.requested_at ? istDateStr(new Date(_pkShiftPending.requested_at)).split('-').reverse().join('-') : ''))} — awaiting Medical Superintendent / Deputy MS approval.</div>`;
   } else if (isAdmin) {
     html += '<div style="display:grid;grid-template-columns:1fr 1fr auto;gap:10px;align-items:end">'
       + '<div><label style="font-size:11px;font-weight:600;color:var(--text-mid);display:block;margin-bottom:4px;text-transform:uppercase;letter-spacing:.4px">Shift 1 Start</label>'
@@ -1672,7 +1692,7 @@ function _renderPkCycleCard(isAdmin) {
 
   if (_pkCyclePending) {
     const reqCycle = _pkCyclePending.payload?.cycle;
-    html += `<div style="font-size:12.5px;color:var(--text-mid)">⏳ Change to <strong>${_esc((PK_CYCLE_META[reqCycle] || {}).label || reqCycle)}</strong> requested by ${_esc(_pkCyclePending.requester?.full_name || '—')} on ${_esc((_pkCyclePending.requested_at || '').slice(0,10))} — awaiting Medical Superintendent / Deputy MS approval.</div>`;
+    html += `<div style="font-size:12.5px;color:var(--text-mid)">⏳ Change to <strong>${_esc((PK_CYCLE_META[reqCycle] || {}).label || reqCycle)}</strong> requested by ${_esc(_pkCyclePending.requester?.full_name || '—')} on ${_esc((_pkCyclePending.requested_at ? istDateStr(new Date(_pkCyclePending.requested_at)).split('-').reverse().join('-') : ''))} — awaiting Medical Superintendent / Deputy MS approval.</div>`;
   } else if (isAdmin) {
     html += '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">'
       + '<select id="pkroster-cycle-select" style="height:32px;border:1.5px solid var(--border);border-radius:7px;padding:0 8px;font-size:12.5px;font-family:inherit">'
@@ -1959,17 +1979,36 @@ async function _checkRoomOverlap(roomId, date, time, durationMinutes, excludeSes
   return null;
 }
 
-function _populateRoomSelect(patientGender) {
+
+// S1-F29 (388s1 rehearsal C10): a room with active Dronis is offered Droni by Droni ("Room · Droni 1"), never as a whole room; the value
+// "d:<droni id>" is resolved at save to room_id + couch_id
+// S1-F34 (388s1 rehearsal C10, owner 22 Nov 2026: page-only): the Kaumara (children's) room is labelled; for an adult it is offered LAST
+// with the warning. The server rule (an adult only when no adult room is free) = TODO §694 (T1a).
+function _isAdult(pt) { const a = Number(pt?.age); return Number.isFinite(a) && pt?.age !== null && pt?.age !== '' && a >= 18; }
+function _appendRoomOrDroniOptions(sel, rooms, pt) {
+  const adult = _isAdult(pt);
+  const order = adult ? [...rooms.filter(r => !r.is_pediatric), ...rooms.filter(r => r.is_pediatric)] : rooms;
+  order.forEach(r => {
+    const mine = _dronis.filter(d => d.pk_room_id === r.id);
+    const kau = r.is_pediatric ? (adult ? " — ⚠ Children's room — use only if no adult room is free" : " — Kaumara (children's) room") : '';
+    const label = `${r.room_name}${r.room_type ? ' — ' + r.room_type : ''}${kau}`;
+    if (!mine.length) { const o = document.createElement('option'); o.value = r.id; o.textContent = label; sel.appendChild(o); return; }
+    mine.forEach(d => { const o = document.createElement('option'); o.value = 'd:' + d.id; o.textContent = `${label} · ${d.name}`; sel.appendChild(o); });
+  });
+}
+function _roomPick(value) {
+  if (!value) return { roomId: null, couchId: null };
+  if (value.startsWith('d:')) { const d = _dronis.find(x => x.id === value.slice(2)); return { roomId: d?.pk_room_id || null, couchId: d?.id || null }; }
+  return { roomId: value, couchId: null };
+}
+
+function _populateRoomSelect(patientGender, pt) {
   const sr = document.getElementById('sched-room');
   const note = document.getElementById('sched-room-note');
   sr.innerHTML = '<option value="">— Not assigned —</option>';
   const allActive = _rooms.filter(r => r.status === 'active');
   const active = allActive.filter(r => _roomMatchesGender(r, patientGender));
-  active.forEach(r => {
-    const o = document.createElement('option');
-    o.value = r.id; o.textContent = `${r.room_name}${r.room_type ? ' — ' + r.room_type : ''}`;
-    sr.appendChild(o);
-  });
+  _appendRoomOrDroniOptions(sr, active, pt);
   note.style.display = active.length ? 'none' : '';
   note.textContent = allActive.length
     ? `No ${_normGender(patientGender) === 'M' ? 'male' : 'female'}-designated treatment room available — assign this patient once one is set up.`
@@ -2219,7 +2258,7 @@ function renderTable(rows) {
           ${_canGiveClearance() && !s.doctor_clearance && s.status !== 'skipped' && s.status !== 'completed' ? `<button class="icon-btn" data-onclick="giveClearance" data-onclick-a0="${s.id}" title="Give PK fitness clearance (doctor, NCISM §47(vii))" style="color:var(--green-mid)">🩺</button>` : ''}
           ${canStart ? `<button class="icon-btn start" data-onclick="quickStart" data-onclick-a0="${s.id}" title="Mark In Progress">&#9654;</button>` : ''}
           ${canComplete ? `<button class="icon-btn complete" data-onclick="openCompleteDrawer" data-onclick-a0="${s.id}" data-onclick-a1="@false" title="Complete">&#10003;</button>` : ''}
-          ${canSkip ? `<button class="icon-btn skip" data-onclick="openCompleteDrawer" data-onclick-a0="${s.id}" data-onclick-a1="@true" title="Skip">&#10007;</button>` : ''}
+          ${canSkip ? `<button class="icon-btn skip" data-onclick="openCompleteDrawer" data-onclick-a0="${s.id}" data-onclick-a1="@true" title="Skip / reschedule" aria-label="Skip / reschedule">&#10007;</button>` : ''}
           <!-- Session 232 -- was always view-only regardless of status, with no way to ever
                actually add a note to a still-active session through this button; notesOnly
                (3rd arg) now only means "read-only" for an already-finalized session, and
@@ -2380,7 +2419,7 @@ async function _autoAssignSchedTherapist() {
   // Session 226 -- re-filters the room dropdown to this patient's gender-designated rooms
   // every time the patient selection changes (was populated once, patient-agnostic, at drawer
   // open -- letting a cross-gender room stay selectable the whole time).
-  _populateRoomSelect(ctx.gender);
+  _populateRoomSelect(ctx.gender, ctx);
   // Session 229 -- same re-filter for the multi-therapist extras panel; drops any selection
   // that's no longer gender-eligible if the patient changed.
   _schedExtraTherapistIds = _schedExtraTherapistIds.filter(id => {
@@ -2418,10 +2457,12 @@ async function _autoAssignSchedTherapist() {
     ? onDuty.find(t => t.id === continuityId && (!ctx.gender || !t.gender || t.gender === ctx.gender))
     : null;
 
+  // S1-F30 (388s1 rehearsal C10): the auto-pick is pre-selected, but the in-charge may choose any on-duty therapist of the patient's gender
+  // (the server refuses one off the roster, out of shift, on leave or of the other gender)
+  const _choices = (ctx.gender ? onDuty.filter(t => !t.gender || t.gender === ctx.gender) : onDuty)
+    .slice().sort((a, b) => a.full_name.localeCompare(b.full_name));
   if (continuityOnDuty) {
-    sel.innerHTML = `<option value="${continuityOnDuty.id}" selected>${_esc(continuityOnDuty.full_name)}</option>`;
-    sel.value = continuityOnDuty.id;
-    showAuto(`✓ ${continuityOnDuty.full_name} (continuing this patient's care)`, 'var(--green-mid)');
+    showPicker(_choices, continuityOnDuty.id, `✓ ${continuityOnDuty.full_name} pre-selected (continuing this patient's care) — another on-duty therapist may be chosen.`);
     return;
   }
 
@@ -2439,10 +2480,8 @@ async function _autoAssignSchedTherapist() {
     genderMatched.forEach(t => { loadCount[t.id] = 0; });
     (loadRows || []).forEach(r => { loadCount[r.therapist_id] = (loadCount[r.therapist_id] || 0) + 1; });
     const picked = [...genderMatched].sort((a, b) => (loadCount[a.id] - loadCount[b.id]) || a.full_name.localeCompare(b.full_name))[0];
-    sel.innerHTML = `<option value="${picked.id}" selected>${_esc(picked.full_name)}</option>`;
-    sel.value = picked.id;
     const continuityNote = continuityId ? ' — the previous therapist for this patient isn\'t on duty today' : '';
-    showAuto(`✓ ${picked.full_name} (on duty today, least-loaded${continuityNote})`, 'var(--green-mid)');
+    showPicker(_choices, picked.id, `✓ ${picked.full_name} pre-selected (on duty today, least-loaded${continuityNote}) — another on-duty therapist may be chosen.`);
     return;
   }
 
@@ -2554,7 +2593,7 @@ window.saveSession = async function() {
 
   // Session 226 -- NCISM Sch III/XXV gender-separated treatment rooms: same hard block for
   // a room whose gender_restriction doesn't match the patient.
-  const roomIdCheck = document.getElementById('sched-room').value || null;
+  const roomIdCheck = _roomPick(document.getElementById('sched-room').value).roomId;
   const roomDataCheck = roomIdCheck ? _rooms.find(r => r.id === roomIdCheck) : null;
   if (roomDataCheck && !_roomMatchesGender(roomDataCheck, ctx.gender)) {
     _alert('error', `${roomDataCheck.room_name} is a ${roomDataCheck.gender_restriction}-only treatment room — pick a room designated for this patient's gender.`);
@@ -2593,7 +2632,7 @@ window.saveSession = async function() {
 
   const patientId = ctx.patientId;
   const admId     = ctx.admId;
-  const roomId = document.getElementById('sched-room').value || null;
+  const { roomId, couchId } = _roomPick(document.getElementById('sched-room').value);
   const durationVal = document.getElementById('sched-duration').value;
   const doctorVal   = document.getElementById('sched-doctor').value;
   const instrVal    = document.getElementById('sched-instructions').value.trim();
@@ -2603,7 +2642,7 @@ window.saveSession = async function() {
   // of Session 235 -- was previously an exact-start-time-only unique index that missed a
   // genuine overlap at a different start time entirely). This pre-check now mirrors that same
   // real overlap logic, not just an exact-time match.
-  if (roomId && time) {
+  if (roomId && time && !couchId) {   // a Droni booking is checked by the server per Droni
     const clash = await _checkRoomOverlap(roomId, date, time, durationVal ? Number(durationVal) : null, null);
     if (clash) {
       const room = _rooms.find(r => r.id === roomId);
@@ -2629,6 +2668,7 @@ window.saveSession = async function() {
     scheduled_time:      time || null,
     doctor_clearance:    clearance,
     room_id:             roomId,
+    couch_id:            couchId,
     status:              'scheduled',
     planned_duration_minutes: durationVal ? Number(durationVal) : null,
     ordering_doctor_id:  doctorVal || null,
@@ -2737,9 +2777,9 @@ window.openAssignDrawer = async function(sessionId) {
     ${s.special_instructions ? `<div class="detail-row"><span>Instructions</span><strong>${_esc(s.special_instructions)}</strong></div>` : ''}
   `;
 
-  _populateAssignRoomSelect(pt.gender);
+  _populateAssignRoomSelect(pt.gender, pt);
   await _refreshAssignTherapistDuty(s.scheduled_date, pt.gender, s.profiles?.id);
-  document.getElementById('assign-room').value       = s.room_id || '';
+  _preselectRoom('assign-room', 'assign-room-note', s);   // S1-F33
   document.getElementById('assign-time').value       = s.scheduled_time ? s.scheduled_time.slice(0,5) : '';
   document.getElementById('assign-duration').value   = s.planned_duration_minutes || '';
   // Session 229 -- multi-therapist: pre-fill from whatever's already saved for this session.
@@ -2769,14 +2809,32 @@ window.onAssignExtraTherapistChange = function(idx, value) {
   _renderExtraTherapistRows('assign-extra-therapists', _assignExtraTherapistIds, 'onAssignExtraTherapistChange', 'removeAssignExtraTherapist', document.getElementById('assign-therapist').value, _currentAssignSessionGender());
 };
 
-function _populateAssignRoomSelect(patientGender) {
+function _populateAssignRoomSelect(patientGender, pt) {
   const sr = document.getElementById('assign-room');
   sr.innerHTML = '<option value="">— Not assigned —</option>';
-  _rooms.filter(r => r.status === 'active' && _roomMatchesGender(r, patientGender)).forEach(r => {
-    const o = document.createElement('option');
-    o.value = r.id; o.textContent = `${r.room_name}${r.room_type ? ' — ' + r.room_type : ''}`;
-    sr.appendChild(o);
-  });
+  _appendRoomOrDroniOptions(sr, _rooms.filter(r => r.status === 'active' && _roomMatchesGender(r, patientGender)), pt);
+}
+// S1-F33 (388s1 rehearsal C10): the session's current room / Droni is pre-selected. A session in a room that got Dronis after it was booked
+// has no Droni yet: that room's first Droni is pre-selected with a note (the server books a room with Dronis only by Droni). A current room
+// not in the list (inactive / other gender) is still shown as "(current)" so the drawer never shows it blank.
+function _preselectRoom(selId, noteId, s) {
+  const sel = document.getElementById(selId); const note = noteId ? document.getElementById(noteId) : null;
+  const cur = s.couch_id ? 'd:' + s.couch_id : (s.room_id || '');
+  const has = v => [...sel.options].some(o => o.value === v);
+  let msg = '';
+  if (cur && !has(cur)) {
+    const first = !s.couch_id ? _dronis.find(d => d.pk_room_id === s.room_id) : null;
+    if (first && has('d:' + first.id)) {
+      sel.value = 'd:' + first.id;
+      msg = `${s.pk_treatment_rooms?.room_name || 'This room'} now has Dronis — ${first.name} is pre-selected; change it if needed.`;
+    } else {
+      const o = document.createElement('option'); o.value = cur;
+      o.textContent = `${s.pk_treatment_rooms?.room_name || 'Current room'} (current)`; sel.appendChild(o); sel.value = cur;
+    }
+  } else {
+    sel.value = cur;
+  }
+  if (note) { note.textContent = msg; note.style.display = msg ? '' : 'none'; }
 }
 
 function _populateAssignTherapistSelect(patientGender, onDutyIds, scheduledDate) {
@@ -2832,7 +2890,7 @@ window.saveAssignment = async function() {
   const s = _sessions.find(x => x.id === _assignSessionId);
   if (!s) return;
   const therapistId = document.getElementById('assign-therapist').value;
-  const roomId       = document.getElementById('assign-room').value || null;
+  const { roomId, couchId } = _roomPick(document.getElementById('assign-room').value);
   const time         = document.getElementById('assign-time').value || null;
   // Session 237 -- Therapy Name/Phase/Department/Doctor/Special Instructions are deliberately
   // NOT editable here (briefly were, Sessions 233-234, corrected same session): these are
@@ -2905,7 +2963,7 @@ window.saveAssignment = async function() {
   const durationVal = document.getElementById('assign-duration').value;
 
   // Same real-overlap room-clash pre-check saveSession() has (Session 235).
-  if (roomId && time) {
+  if (roomId && time && !couchId) {   // a Droni booking is checked by the server per Droni
     const clash = await _checkRoomOverlap(roomId, date, time, durationVal ? Number(durationVal) : null, _assignSessionId);
     if (clash) {
       const room = _rooms.find(r => r.id === roomId);
@@ -2920,7 +2978,7 @@ window.saveAssignment = async function() {
   // Session 237 -- only the real logistics fields are ever written here now: Therapy Name/
   // Phase/Department/Doctor/Special Instructions are read-only, never touched by this drawer.
   const { error } = await supabase.from('pk_therapy_sessions').update({
-    therapist_id: therapistId, room_id: roomId, scheduled_time: time,
+    therapist_id: therapistId, room_id: roomId, couch_id: couchId, scheduled_time: time,
     planned_duration_minutes: durationVal ? Number(durationVal) : null,
   }).eq('id', _assignSessionId);
 
@@ -2992,6 +3050,56 @@ window.quickStart = async function(id) {
 // row (if any) this drawer is currently open against, without re-querying at save time.
 let _snehaDoseForDrawer = null;
 
+// S1-F31 (388s1 rehearsal C10): a drawer names EVERY assigned therapist -- the main one, then the additional ones
+function _allTherapistNames(s) {
+  return [s.profiles, ...(s.pk_therapy_session_therapists || []).map(r => r.profiles)].filter(Boolean).map(t => t.full_name).filter(Boolean);
+}
+// S1-F32: the reschedule's therapists / room (the PK in-charge only; pre-filled with the session's current ones)
+let _reschedSession = null; let _reschedExtra = []; let _reschedDuty = null;
+function _reschedRenderTherapists() {
+  const s = _reschedSession; if (!s) return;
+  const g = _normGender(s.patients?.gender);
+  const pool = _pkTherapists.filter(t => !g || !t.gender || t.gender === g);
+  const tag = t => (_reschedDuty && !_reschedDuty.has(t.id)) ? ' (not on the roster that day)' : '';
+  const main = document.getElementById('comp-resched-therapist');
+  const keep = main.value || s.profiles?.id || '';
+  main.replaceChildren();
+  const o0 = document.createElement('option'); o0.value = ''; o0.textContent = '— Select therapist —'; main.appendChild(o0);
+  pool.forEach(t => { const o = document.createElement('option'); o.value = t.id; o.textContent = t.full_name + tag(t); main.appendChild(o); });
+  main.value = keep;
+  _renderExtraTherapistRows('comp-resched-extra', _reschedExtra, 'onReschedExtraTherapistChange', 'removeReschedExtraTherapist', main.value, g);
+}
+async function _reschedRefreshDuty() {
+  const d = document.getElementById('comp-reschedule-date').value;
+  _reschedDuty = null;
+  if (d) {
+    const { data } = await supabase.from('pk_therapist_duty').select('profile_id').eq('tenant_id', tenantId).eq('duty_date', d);
+    _reschedDuty = new Set((data || []).map(r => r.profile_id));
+  }
+  _reschedRenderTherapists();
+}
+window.onReschedDateChange = function() { _reschedRefreshDuty(); };
+window.onReschedTherapistChange = function() { _reschedRenderTherapists(); };
+window.addReschedExtraTherapist = function() {
+  if (_reschedExtra.length >= 3) { _alert('error', 'Up to 3 additional therapists (4 total).'); return; }
+  _reschedExtra.push(''); _reschedRenderTherapists();
+};
+window.removeReschedExtraTherapist = function(idx) { _reschedExtra.splice(Number(idx), 1); _reschedRenderTherapists(); };
+window.onReschedExtraTherapistChange = function(idx, value) { _reschedExtra[Number(idx)] = value; _reschedRenderTherapists(); };
+function _reschedChoice() {
+  // what the PK in-charge chose for the new session; null = unchanged (the server keeps the current therapists / room / Droni)
+  const s = _reschedSession;
+  if (!s || document.getElementById('comp-resched-resources').style.display === 'none') return { therapists: null, place: null };
+  const main = document.getElementById('comp-resched-therapist').value;
+  const ids = [main, ..._reschedExtra].filter(Boolean);
+  const curIds = [s.profiles?.id, ...(s.pk_therapy_session_therapists || []).map(r => r.profiles?.id)].filter(Boolean);
+  const sameT = ids.length === curIds.length && ids.every((x, i) => x === curIds[i]);
+  const roomVal = document.getElementById('comp-resched-room').value;
+  const curRoom = s.couch_id ? 'd:' + s.couch_id : (s.room_id || '');
+  const p = _roomPick(roomVal);
+  return { therapists: sameT ? null : ids, place: roomVal === curRoom ? null : (p.couchId || p.roomId) };
+}
+
 window.openCompleteDrawer = async function(id, isSkip, notesOnly) {
   const s  = _sessions.find(x => x.id === id);
   if (!s) return;
@@ -3043,6 +3151,23 @@ window.openCompleteDrawer = async function(id, isSkip, notesOnly) {
   }
 
   document.getElementById('skip-reason-field').style.display = (isSkip && !notesOnly) ? '' : 'none';
+  // S1-F32: the PK in-charge chooses the new session's therapists / room (pre-filled with the current ones)
+  const resBox = document.getElementById('comp-resched-resources');
+  _reschedSession = null;
+  if (isSkip && !notesOnly && _isPkRosterAdmin()) {
+    _reschedSession = s; _reschedDuty = null;
+    _reschedExtra = (s.pk_therapy_session_therapists || []).map(r => r.profiles?.id).filter(Boolean);
+    document.getElementById('comp-resched-therapist').value = '';
+    _reschedRenderTherapists();
+    document.getElementById('comp-resched-therapist').value = s.profiles?.id || '';
+    const rs = document.getElementById('comp-resched-room');
+    rs.replaceChildren(); const r0 = document.createElement('option'); r0.value = ''; r0.textContent = '— Not assigned —'; rs.appendChild(r0);
+    _appendRoomOrDroniOptions(rs, _rooms.filter(r => r.status === 'active' && _roomMatchesGender(r, pt.gender)), pt);
+    _preselectRoom('comp-resched-room', null, s);
+    resBox.style.display = '';
+  } else {
+    resBox.style.display = 'none';
+  }
 
   const titleEl = document.getElementById('complete-title');
   const saveBtn = document.getElementById('btn-complete-save');
@@ -3083,7 +3208,7 @@ window.openCompleteDrawer = async function(id, isSkip, notesOnly) {
     <div class="detail-row"><span>Patient</span><strong>${_esc(pt.name||'—')}</strong></div>
     <div class="detail-row"><span>Therapy</span><strong>${_esc(s.therapy_name)}</strong></div>
     <div class="detail-row"><span>Phase</span><strong>${_phaseLabel(s.therapy_phase)}</strong></div>
-    <div class="detail-row"><span>Therapist</span><strong>${_esc(therapist.full_name||'—')}</strong></div>
+    <div class="detail-row"><span>${_allTherapistNames(s).length > 1 ? 'Therapists' : 'Therapist'}</span><strong>${_esc(_allTherapistNames(s).join(', ') || '—')}</strong></div>
     <div class="detail-row"><span>Scheduled</span><strong>${s.scheduled_time ? s.scheduled_time.slice(0,5) : '—'}</strong></div>
   `;
 
@@ -3153,10 +3278,15 @@ window.saveCompletion = async function() {
   let skipResult = null;
   let error;
   if (isSkip) {
-    ({ data: skipResult, error } = await supabase.rpc('skip_pk_session', {
+    // S1-F32: the chosen therapists / room go with the reschedule only (and only when changed); null = the server keeps the current ones
+    const ch = rescheduleDate ? _reschedChoice() : { therapists: null, place: null };
+    const args = {
       p_session: id, p_reason: skipReason || null, p_notes: notes || null,
       p_reschedule_date: rescheduleDate || null, p_reschedule_time: rescheduleDate && rescheduleTime ? rescheduleTime : null,
-    }));
+    };
+    if (ch.therapists) args.p_therapists = ch.therapists;
+    if (ch.place) args.p_place = ch.place;
+    ({ data: skipResult, error } = await supabase.rpc('skip_pk_session', args));
   } else {
     ({ error } = await supabase.from('pk_therapy_sessions').update(patch).eq('id', id));
   }

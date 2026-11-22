@@ -634,6 +634,9 @@ body.final-mode .tab-body{padding-bottom:130px}   /* the banner's height on top 
   background:var(--cream);outline:none;transition:border-color .2s,background .2s;
   -webkit-appearance:none;appearance:none
 }
+/* 388s1 rehearsal S1-F3: a radio / checkbox inside a .field box keeps its own look (the rule above made it a blank square) */
+.field input[type=radio],.field input[type=checkbox]{padding:0;border:none;background:none;
+  -webkit-appearance:auto;appearance:auto;accent-color:var(--green-deep);width:18px;height:18px;flex:none}
 .field select{height:44px;
   background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%238a9e90' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
   background-repeat:no-repeat;background-position:right 10px center;padding-right:28px;cursor:pointer
@@ -3896,6 +3899,9 @@ body.final-mode .tab-body{padding-bottom:130px}   /* the banner's height on top 
                  while planning, instead of only reading the day-number table. -->
             <div class="section" style="padding-bottom:0">
               <button type="button" data-onclick="_pkOpenCalendarView" style="height:36px;padding:0 14px;background:#fff;color:var(--green-deep);border:1.5px solid var(--green-deep);border-radius:7px;font-family:'DM Sans',sans-serif;font-size:12.5px;font-weight:600;cursor:pointer">📅 View Full Calendar</button>
+              <!-- Session 388s1 (owner decision 1): free therapists / rooms for this course, day by day; a click starts the course on that date -->
+              <button type="button" data-onclick="_pkCheckCapacity" style="height:36px;padding:0 14px;margin-left:6px;background:#fff;color:var(--green-deep);border:1.5px solid var(--gold);border-radius:7px;font-family:'DM Sans',sans-serif;font-size:12.5px;font-weight:600;cursor:pointer">🗓 Check free capacity</button>
+              <div id="pk-capacity-cal" style="margin-top:8px"></div>
             </div>
             <div id="pk-calendar-body"></div>
             <div class="section">
@@ -3969,6 +3975,18 @@ body.final-mode .tab-body{padding-bottom:130px}   /* the banner's height on top 
               <!-- Cost model (Dr. Venkatesh): Admission charges depend on the room selected;
                    Day Care is a fixed General Ward charge + treatment; OPD-based has no room
                    component at all. Only Admission needs a room-type choice from the doctor. -->
+              <!-- Session 388s1 (owner decision 6, S1): an Admission plan holds its slots until the end of the planned admission day -->
+              <div class="field" id="pk-adm-date-field" style="display:none">
+                <label for="pk-adm-date">Planned admission date</label>
+                <input type="date" id="pk-adm-date"/>
+                <div style="font-size:11.5px;color:var(--text-muted);margin-top:3px">The slots are held until the end of this day; the course is activated when the patient is admitted (a later admission moves the whole course, in order).</div>
+              </div>
+              <!-- Session 388s1 rehearsal S1-F16: the department the patient is admitted to (departments with beds; Panchakarma first) -->
+              <div class="field" id="pk-adm-dept-field" style="display:none">
+                <label for="pk-adm-dept">Admit to department</label>
+                <select id="pk-adm-dept"><option value="">— Select department —</option></select>
+                <div id="pk-adm-dept-hint" style="font-size:11.5px;color:var(--text-muted);margin-top:3px">Only departments with beds are listed.</div>
+              </div>
               <div class="field" id="pk-room-type-field" style="display:none">
                 <label>Room Type Preference</label>
                 <select id="pk-room-type" data-onchange="_pkRecomputeStep4">
@@ -3987,6 +4005,8 @@ body.final-mode .tab-body{padding-bottom:130px}   /* the banner's height on top 
               <button type="button" data-onclick="_pkGoToStep" data-onclick-a0="3" style="height:40px;padding:0 18px;background:#fff;color:var(--green-deep);border:1.5px solid var(--green-deep);border-radius:7px;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:600;cursor:pointer;margin-right:8px">← Back</button>
               <button type="button" data-onclick="savePkCarePlan" id="btn-save-pk-plan" style="height:44px;padding:0 20px;background:var(--green-deep);color:#fff;border:none;border-radius:8px;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:7px">🌸 Save Care Plan</button>
               <div id="pk-save-status" style="display:none;margin-top:10px;font-size:12.5px;font-weight:600;color:var(--green-deep)"></div>
+              <div id="pk-hold-status" aria-live="polite" style="margin-top:8px;font-size:12.5px"></div>
+              <div id="pk-schedule-card" style="margin-top:10px"></div>
             </div>
           </div><!-- /pk-step-4 -->
 

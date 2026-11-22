@@ -1353,7 +1353,23 @@ window.saveAdmission = async function() {
 
   btn.disabled = false; btn.textContent = 'Admit Patient';
   closeAdmitDrawer();
-  _alert('success', `${_selectedPatient.name} admitted successfully.`);
+  // Session 388s1 (G1): an Admission Panchakarma plan on this advice starts with the admission (never blocking it) -- say what happened
+  let pkLine = '';
+  if (_currentAdvice?.id) {
+    const { data: plan } = await supabase.from('pk_care_plans').select('id, status').eq('admission_advice_id', _currentAdvice.id)
+      .eq('setting', 'admission').order('created_at', { ascending: false }).limit(1).maybeSingle();
+    const { data: plan2 } = plan ? { data: plan } : await supabase.from('pk_care_plans').select('id, status').eq('ipd_admission_id', newAdmissionId).limit(1).maybeSingle();
+    const pl = plan || plan2;
+    if (pl?.status === 'active') {
+      const { data: st } = await supabase.rpc('pk_plan_schedule_status', { p_plan_id: pl.id });
+      const ss = st?.sessions || []; const notYet = ss.filter(x => x.state === 'unassigned').length;
+      pkLine = ` Panchakarma plan activated: ${ss.length - notYet} session(s) scheduled${notYet ? `, ${notYet} not scheduled yet (the PK in-charge has been told)` : ''}.`;
+    } else if (pl?.status === 'finalized') {
+      const { data: st } = await supabase.rpc('pk_plan_schedule_status', { p_plan_id: pl.id });
+      pkLine = ` Panchakarma plan waiting${st?.waiting ? ': ' + st.waiting : ''} — the ward doctor has been told.`;
+    }
+  }
+  _alert('success', `${_selectedPatient.name} admitted successfully.${pkLine}`);
   await loadAll();
 };
 
