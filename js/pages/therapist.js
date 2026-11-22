@@ -2402,7 +2402,8 @@ async function _autoAssignSchedTherapist() {
   const showPicker = (pool, selectedId, noteText) => {
     sel.style.display = ''; auto.style.display = 'none';
     sel.innerHTML = '<option value="">— Select therapist —</option>' +
-      pool.map(t => `<option value="${t.id}"${t.id === selectedId ? ' selected' : ''}>${_esc(t.full_name)}${t.gender ? ' (' + t.gender + ')' : ''}</option>`).join('');
+      // SA1a (§695): every value is escaped (the gender and the id were written in raw)
+      pool.map(t => `<option value="${_esc(t.id)}"${t.id === selectedId ? ' selected' : ''}>${_esc(t.full_name)}${t.gender ? ' (' + _esc(t.gender) + ')' : ''}</option>`).join('');
     note.textContent = noteText; note.style.color = 'var(--gold)';
   };
 

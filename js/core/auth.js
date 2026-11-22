@@ -121,6 +121,11 @@ async function _rollbackFailedSignup(orphanedTenantId = null) {
     if (res.ok) await supabase.auth.signOut();
   } catch (err) {
     console.warn('_rollbackFailedSignup failed (non-fatal):', err);
+  } finally {
+    // Session 389 SA1a-F1: whatever the clean-up call answered (on the rehearsal stack it was 503), this browser never stays signed in
+    // as a half-made account -- 'local' needs no server answer
+    try { await supabase.auth.signOut({ scope: 'local' }); } catch { /* ignore */ }
+    clearTabUser();
   }
 }
 
@@ -153,8 +158,10 @@ export async function registerTenant({
       // organisation, not just a real duplicate signup attempt.
       const already = authError.code === 'user_already_exists'
         || /already registered|already exists/i.test(authError.message || '');
+      // Session 389 SA1a-F2 (owner option (a), 22 Nov 2026): never say an email is already registered -- one neutral answer. The
+      // sign-in service still answers "already registered" to a direct call until "Confirm email" is ON (TODO §655, before 7 Dec).
       throw new Error(already
-        ? 'This email is already registered on AyurXpert (possibly under a different organisation). Please use a different email address.'
+        ? 'We could not create an account with this email. If you already have an AyurXpert account, sign in or use "Forgot password". Otherwise check the email, or ask your administrator for an invite link.'
         : safeErrorMessage(authError, 'Could not create account. Please try again.'));
     }
 
@@ -208,6 +215,14 @@ export async function registerStaff({
   role, tenantCode, hprId = null, stateRegId = null, departmentId = null, inviteToken = null
 }) {
   try {
+    // Session 389 SA1a-F1 (rehearsal, 22 Nov 2026): a sign-up made while this browser is signed in (e.g. in a tab of a staff member)
+    // replaced that person's sign-in with the new account, the tab guard (§250) then refused the profile call, and a half-made sign-in
+    // account was left behind. Refused BEFORE any account is made; a signed-out tab forgets whom it belonged to.
+    const { data: { session: existing } } = await supabase.auth.getSession();
+    if (existing) throw new Error('This browser is signed in to AyurXpert. Sign out first (or use another Chrome profile), then create the new account.');
+    if (isTabBlocked()) throw new Error('This page was opened as another user. Reload to continue.');
+    clearTabUser();
+
     const { data: subRows, error: tenantError } = await supabase
       .rpc('get_tenant_subscription_info', { p_code: tenantCode });
 
@@ -223,11 +238,18 @@ export async function registerStaff({
     if (info.subscription_status === 'expired')
       throw new Error('This organisation\'s subscription has expired. Please ask your admin to renew.');
     // Session 383 (D10): with an invite link the staff limit was already checked when the invite was made (an intern / PG scholar invite
-    // uses no staff place) -- this signed-out pre-check is only for a self sign-up; the count is staff only (the server)
-    if (!inviteToken && info.max_users && info.current_user_count >= info.max_users)
-      throw new Error(`Organisation has reached its staff limit (${info.max_users} users). Ask your admin to upgrade the plan.`);
+    // uses no staff place) -- this signed-out pre-check is only for a self sign-up.
+    // Session 389 SA1a (owner D3, 22 Nov 2026): the server no longer tells a signed-out visitor the limit or the headcount -- only
+    // can_self_join (self-signup ON, not suspended / expired, a staff place free). The server re-checks the limit at register_staff_profile.
+    // (D7: the page goes to the website BEFORE the migration -- with the old server, which has no can_self_join yet, the old check runs)
+    const canSelfJoin = ('can_self_join' in info) ? info.can_self_join === true
+                                                  : !(info.max_users && info.current_user_count >= info.max_users);
+    if (!inviteToken && !canSelfJoin)
+      throw new Error('This organisation has reached its staff limit. Please ask your administrator.');
 
-    const tenant = { id: info.tenant_id, name: info.tenant_name, type: info.tenant_type };
+    // the organisation's name for the confirmation message (get_tenant_by_code: the public name, the same call signup.html makes)
+    const { data: nameRows } = await supabase.rpc('get_tenant_by_code', { p_code: tenantCode });
+    const tenant = { name: nameRows?.[0]?.name || 'your organisation' };
 
     const { data: authData, error: authError } = await supabase.auth.signUp({
       email,
@@ -245,8 +267,10 @@ export async function registerStaff({
       // organisation, not just a real duplicate signup attempt.
       const already = authError.code === 'user_already_exists'
         || /already registered|already exists/i.test(authError.message || '');
+      // Session 389 SA1a-F2 (owner option (a), 22 Nov 2026): never say an email is already registered -- one neutral answer. The
+      // sign-in service still answers "already registered" to a direct call until "Confirm email" is ON (TODO §655, before 7 Dec).
       throw new Error(already
-        ? 'This email is already registered on AyurXpert (possibly under a different organisation). Please use a different email address.'
+        ? 'We could not create an account with this email. If you already have an AyurXpert account, sign in or use "Forgot password". Otherwise check the email, or ask your administrator for an invite link.'
         : safeErrorMessage(authError, 'Could not create account. Please try again.'));
     }
 

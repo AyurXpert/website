@@ -139,20 +139,9 @@ async function handleContinue() {
     showAlert('Please enter a valid email address.'); emailEl.focus(); return;
   }
 
-  _setLoading(btnContinue, true);
-  const { data, error } = await supabase.rpc('get_profile_by_email', { p_email: email });
-  _setLoading(btnContinue, false);
-
-  // Normalise: RPC can return null / {} / [] / [{...}] depending on Postgres return type
-  const profile = Array.isArray(data) ? data[0] : data;
-  const registered = !error && profile && profile.role;
-
-  if (!registered) {
-    showAlert('This email is not registered with AyurXpert. Please use the "Join as staff" link below to request access.');
-    emailEl.focus();
-    return;
-  }
-
+  // Session 389 SA1a (owner, 22 Nov 2026): step 1 never asks the server about the email, so the sign-in page never reveals whether an
+  // email is registered. Every email goes to the password step; a wrong email gets the same "Invalid email or password" as a wrong
+  // password (the 351 rule). get_profile_by_email is closed on the server.
   _verifiedEmail = email;
   // Sync hidden username field so browser fills the right saved password for this email
   document.getElementById('username-hint').value = email;
