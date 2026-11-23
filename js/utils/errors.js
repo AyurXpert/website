@@ -67,6 +67,15 @@ export function safeErrorMessage(error, fallback = 'Something went wrong. Please
   if (['P0001', 'P0002', '22023', '42501', '23P01'].includes(error?.code) && SCHED_MSGS.some(m => error?.message?.startsWith(m))) {
     return error.message;
   }
+
+  // Session 389 SA1b (§693, E4, B1; owner E8): every "not your own request" refusal of every approval flow, and the expired feedback
+  // link -- plain, schema-free, shown word for word (a fee refusal names the fee)
+  const SA1B_MSGS = ['You cannot decide your own request', 'You cannot decide your own leave', 'You cannot approve or reject a fee you created yourself',
+    'You created or submitted this version', 'You cannot decide your own return', 'You cannot decide your own document',
+    'You cannot approve your own requisition', 'The person who recorded a goods receipt cannot cancel it', 'This feedback link has expired'];
+  if (['P0001', '42501'].includes(error?.code) && SA1B_MSGS.some(m => error?.message?.startsWith(m))) {
+    return error.message;
+  }
   // S1-F22: the session table's own room-overlap rule (from before S1) reached by a direct write -- the same plain words
   if (error?.code === '23P01' && /pk_sessions_room_overlap_excl/.test(error?.message || '')) {
     return 'That time is already taken: the room is booked then.';

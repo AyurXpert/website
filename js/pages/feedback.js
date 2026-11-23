@@ -68,6 +68,8 @@ async function init() {
   const { data, error } = await supabase.rpc('get_visit_feedback_info', { p_visit_id: visitId });
   const info = data?.[0];
 
+  // Session 389 SA1b (owner D5): a link older than 30 days -- the server's own words, shown as they are
+  if (error && /^This feedback link has expired/.test(error.message || '')) { _showExpired(error.message); return; }
   if (error || !info || !info.tenant_id) { _showInvalid(); return; }
 
   if (info.already_submitted) { _showAlreadySubmitted(); return; }
@@ -133,6 +135,13 @@ window.submitFeedback = async function() {
 // ── Helpers ───────────────────────────────────────────────────────
 function _showInvalid() {
   document.getElementById('invalid-screen').style.display = 'block';
+}
+
+function _showExpired(msg) {
+  const el = document.getElementById('invalid-screen');
+  el.querySelector('.invalid-title').textContent = 'Link Expired';
+  el.querySelector('.invalid-body').textContent = msg;
+  el.style.display = 'block';
 }
 
 function _showAlreadySubmitted() {

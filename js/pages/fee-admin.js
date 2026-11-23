@@ -576,6 +576,16 @@ async function _decide(ids, decision, reason) {
   if (error) { toast(safeErrorMessage(error, decision === 'reject' ? 'Could not reject the fee.' : 'Could not approve the fee.'), 'error'); return null; }
   return data;
 }
+// Session 389 SA1b (§693 / owner E3, B3): the Super Admin's automatic approval right after a SAVE. While another approver exists it is
+// refused -- the fee IS saved (Pending): say so, then the server's own words; any other refusal goes to the error notice as in _decide
+async function _decideAfterSave(ids) {
+  const { data, error } = await supabase.rpc('decide_fees', { p_fee_ids: ids, p_decision: 'approve', p_reason: null });
+  if (error && /^You cannot approve or reject a fee you created yourself/.test(error.message || '')) {
+    toast('Saved — it stays Pending. ' + safeErrorMessage(error), 'warning'); return null;
+  }
+  if (error) { toast(safeErrorMessage(error, 'Could not approve the fee.'), 'error'); return null; }
+  return data;
+}
 // Session 386d-1 (owner, 17 Nov 2026, rehearsal R4 -- a fee was switched off on the wrong row): Approve / Activate / ⚡ Approve & Activate
 // and Deactivate first open an in-page panel under the fee's OWN row that names the fee and its price and asks for a reason (no confirm()).
 // The server records it: decide_fees (approval, with the reason) / deactivate_fee (who, when, why). The success message names the fee.
@@ -960,7 +970,7 @@ window.saveFee = async function() {
   const priceChanged = !!before && ['active', 'dept_approved'].includes(before.approval_status)
     && (Number(before.amount) !== Number(amount) || (before.pricing_mode || 'flat') !== payload.pricing_mode);
   if (isSuperAdmin && savedId && (before?.approval_status !== 'active' || priceChanged)) {
-    const r = await _decide([savedId], 'approve');
+    const r = await _decideAfterSave([savedId]);
     closeModal();
     if (r) toast('Fee saved — ' + _decisionToast(r), 'success');
     loadFees();
@@ -1304,7 +1314,7 @@ window.runQuickSetup = async function() {
 
   if (error) { toast(safeErrorMessage(error, 'Could not add services.'), 'error'); return; }
   if (isSA && added?.length) {   // the Super Admin's final approval (a sole Super Admin's own fees: flagged in the approval log)
-    const r = await _decide(added.map(a => a.id), 'approve');
+    const r = await _decideAfterSave(added.map(a => a.id));
     if (!r) { closeQuickSetup(); loadFees(); return; }
   }
 
