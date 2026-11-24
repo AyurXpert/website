@@ -129,7 +129,7 @@ export function _importForm(supabase, grp, say, reload) {
       button('⬇ Download template', () => download('procedure_import_template.csv', 'name,amount,ayush_code,sac\nExample procedure,500,,\n')), file, preview), out);
 }
 
-export function _renameForm(supabase, grp, say, reload) {
+export function _renameForm(supabase, grp, say, reload, rows = []) {
   const name = h('input', { type: 'text', maxlength: '60', value: grp.display_name, 'aria-label': 'Group name', title: 'The section\'s name as staff see it on the registers and here', style: 'min-height:44px;min-width:200px' });
   const wrap = h('div', { style: 'margin-top:10px;display:flex;gap:6px;flex-wrap:wrap;align-items:center' }, name,
     button('Rename', async () => {
@@ -149,6 +149,62 @@ export function _renameForm(supabase, grp, say, reload) {
         if (error) { say(safeErrorMessage(error, 'Could not change it.'), true); return; }
         say(grp.offered_in_opd ? 'No longer offered in OPD.' : 'Now offered in OPD.'); await reload();
       }));
+  }
+  // Session 390 T1a-1 (3.4): who may ORDER from this group in the doctor's treatment plan -- every department, or one department family
+  // (the Fee committee, a reason, audited on the server)
+  if (grp.is_active) {
+    const SCOPES = [['common', 'Every department'], ['shalya', 'Shalya only'], ['psr', 'Prasuti Stri Roga only'], ['shalakya', 'Shalakya only']];
+    const scopeSel = h('select', { 'aria-label': 'Who may order from this group', style: 'min-height:44px' },
+      SCOPES.map(([k, n]) => h('option', { value: k, ...(k === (grp.scope || 'common') ? { selected: 'selected' } : {}) }, n)));
+    const scopeWhy = h('input', { type: 'text', maxlength: '300', placeholder: 'Reason (to change who may order)', 'aria-label': 'Reason to change who may order from this group', style: 'min-height:44px;min-width:200px' });
+    wrap.append(h('span', { style: NOTE + ';flex-basis:100%' },
+      `Ordered by: ${(SCOPES.find(x => x[0] === (grp.scope || 'common')) || SCOPES[0])[1]} (the doctor's treatment plan offers this group's procedures only to these departments).`),
+      scopeSel, scopeWhy, button('Change who may order', async () => {
+        if (scopeWhy.value.trim().length < 5) { say('Give a reason (at least 5 characters).', true); return; }
+        const { error } = await supabase.rpc('set_procedure_group_scope', { p_group: grp.id, p_scope: scopeSel.value, p_reason: scopeWhy.value.trim() });
+        if (error) { say(safeErrorMessage(error, 'Could not change it.'), true); return; }
+        say('Saved: who may order from this group.'); await reload();
+      }));
+  }
+  // Session 390 T1a-1 (§694 / owner D7): this organisation's own team size for a procedure (else the platform's SOP value); only the
+  // maximum is enforced, fewer than the minimum asks for a reason when scheduling
+  const procRows = (rows || []).filter(r => r && r.id && r.category === 'procedure');
+  if (grp.is_active && procRows.length) {
+    // F7 (rehearsal R6, owner 23 Nov 2026): the list is wide enough for a long fee name; the boxes show the chosen fee's own team size, and
+    // a line beside them says what applies now ("Now: 1–1–1 (own) · Standard: 1–1–4") -- read from the server, never guessed
+    const fee = h('select', { 'aria-label': 'Procedure for the team size', style: 'min-height:44px;min-width:260px;max-width:100%' },
+      procRows.map(r => h('option', { value: r.id }, r.label)));
+    const num = (lbl) => h('input', { type: 'number', min: '1', max: '8', placeholder: lbl, 'aria-label': `Therapists — ${lbl}`, style: 'min-height:44px;width:84px' });
+    const mn = num('min'), us = num('usual'), mx = num('max');
+    const nowLine = h('span', { style: NOTE + ';flex-basis:100%', role: 'status', 'aria-live': 'polite' });
+    const showTeam = async () => {
+      const r = procRows.find(x => x.id === fee.value);
+      const own = r && r.man_power_usual != null;
+      mn.value = own ? r.man_power_min : ''; us.value = own ? r.man_power_usual : ''; mx.value = own ? r.man_power_max : '';
+      nowLine.textContent = '';
+      if (!r) return;
+      // the standard = the procedure's SOP row (adult), with the server's own fallbacks (_pk_team_limits: min / usual / max, else 1 / 1 / 4)
+      const { data: sop, error } = r.ayush_code
+        ? await supabase.from('sop_content_templates').select('man_power_min, man_power_staff, man_power_max, age_band').eq('ayush_code', r.ayush_code)
+        : { data: [], error: null };
+      if (fee.value !== r.id) return;
+      const t = (sop || []).sort((a, b) => ((b.age_band || 'adult') === 'adult') - ((a.age_band || 'adult') === 'adult'))[0] || {};
+      const std = { min: t.man_power_min ?? t.man_power_staff ?? 1, usual: t.man_power_staff ?? t.man_power_min ?? 1, max: t.man_power_max ?? 4 };
+      const stdText = error ? 'Standard: —' : `Standard: ${std.min}–${std.usual}–${std.max}`;
+      nowLine.textContent = own ? `Now: ${r.man_power_min}–${r.man_power_usual}–${r.man_power_max} (own) · ${stdText}` : `Now: the standard · ${stdText}`;
+    };
+    fee.addEventListener('change', showTeam);
+    const teamWhy = h('input', { type: 'text', maxlength: '300', placeholder: 'Reason (team size)', 'aria-label': 'Reason to change the team size', style: 'min-height:44px;min-width:200px' });
+    const save = async (clear) => {
+      if (teamWhy.value.trim().length < 5) { say('Give a reason (at least 5 characters).', true); return; }
+      const v = (x) => (clear || x.value === '' ? null : Number(x.value));
+      const { error } = await supabase.rpc('set_fee_team_size', { p_fee: fee.value, p_min: v(mn), p_usual: v(us), p_max: v(mx), p_reason: teamWhy.value.trim() });
+      if (error) { say(safeErrorMessage(error, 'Could not save the team size.'), true); return; }
+      say(clear ? 'Team size: back to the standard.' : 'Team size saved.'); await reload();
+    };
+    wrap.append(h('span', { style: NOTE + ';flex-basis:100%' }, 'Team size (therapists) for one procedure of this group — empty = the standard (the procedure SOP).'),
+      fee, mn, us, mx, teamWhy, button('Save team size', () => save(false)), button('Use the standard', () => save(true)), nowLine);
+    showTeam();
   }
   if (!grp.is_standard) {
     const reason = h('input', { type: 'text', maxlength: '300', placeholder: 'Reason (to deactivate)', 'aria-label': 'Reason to deactivate', style: 'min-height:44px;min-width:200px' });

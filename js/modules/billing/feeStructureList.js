@@ -75,7 +75,7 @@ export async function mountFeeStructureList(container, ctx) {
   const superAdmin = profile?.role === 'super_admin';
   const seq = ++_mountSeq;
   const [g, l, d, rq] = await Promise.all([
-    supabase.from('procedure_groups').select('id, code, display_name, is_standard, department_id, used_on, is_active, sort_order, offered_in_opd').eq('tenant_id', tenantId),   // 386d-1: offered_in_opd
+    supabase.from('procedure_groups').select('id, code, display_name, is_standard, department_id, used_on, is_active, sort_order, offered_in_opd, scope').eq('tenant_id', tenantId),   // 386d-1: offered_in_opd; 390 T1a-1: scope
     supabase.from('fee_procedure_groups').select('fee_id, group_id').eq('tenant_id', tenantId).range(0, 9999),
     supabase.from('departments').select('id, name').eq('tenant_id', tenantId).order('name'),
     committee ? supabase.rpc('procedure_add_requests') : Promise.resolve({ data: [] }),
@@ -276,7 +276,7 @@ export async function mountFeeStructureList(container, ctx) {
       style: `font-size:13px;font-weight:600;margin:6px 0;color:${_flash.bad ? 'var(--red, #b03a2e)' : 'var(--green-deep, #1a4a2e)'}` }, _flash.text) : null;
     if (here) SEC_MSG.set(sec.key, here);
     body.append(...(here ? [here] : []), tools, extra, h('div', { style: 'overflow-x:auto;margin-top:8px' }, tbl));
-    if (committee && sec.group && !sec.cats) body.appendChild(_renameForm(supabase, sec.group, sayHere, reload));
+    if (committee && sec.group && !sec.cats) body.appendChild(_renameForm(supabase, sec.group, sayHere, reload, rows.map(r => r.fee)));   // 390 T1a-1: + the section's fees
     return h('div', { style: BOX }, h('div', { style: 'display:flex;align-items:center;gap:8px' }, head), body);
   }
 

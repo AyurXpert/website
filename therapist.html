@@ -351,7 +351,7 @@ input[type="checkbox"]{width:16px;height:16px;accent-color:var(--green-deep);ver
         <label for="sched-therapy">Therapy <span class="req">*</span></label>
         <!-- Session 386b-1 (§545, owner Q16 / Q16b): picked from the organisation's Panchakarma fees, or the standard Panchakarma list (no fee
              yet: the session is scheduled normally and priced when completed) -- never free text; the server checks it and names the therapy -->
-        <select id="sched-therapy" aria-describedby="sched-therapy-note" style="min-height:40px"><option value="">Loading the Panchakarma list…</option></select>
+        <select id="sched-therapy" data-onchange="onSchedTherapyChange" aria-describedby="sched-therapy-note" style="min-height:40px"><option value="">Loading the Panchakarma list…</option></select>
         <div id="sched-therapy-note" style="font-size:11px;color:var(--text-muted);margin-top:3px">With a price: the organisation's own Panchakarma fees. "No price yet": the standard list — the session is scheduled normally; billing chooses its fee when it is completed.</div>
       </div>
 
@@ -386,7 +386,18 @@ input[type="checkbox"]{width:16px;height:16px;accent-color:var(--green-deep);ver
       <div class="field">
         <div id="sched-extra-therapists"></div>
         <span data-onclick="addSchedExtraTherapist" style="cursor:pointer;color:var(--green-mid);font-size:12px;font-weight:600;text-decoration:underline">+ Add another therapist</span>
-        <div class="field-note">Only if this procedure genuinely needs more than one therapist at once (up to 3 more).</div>
+        <div class="field-note" id="sched-team-note">Only if this procedure genuinely needs more than one therapist at once (up to 3 more).</div>
+        <!-- Session 390 T1a-1 (§694 / owner D7): fewer therapists than the procedure's minimum = a warning with a reason (never a block) -->
+        <div id="sched-team-warn" hidden style="margin-top:6px;padding:8px 10px;border-radius:7px;background:#fdf3e4;color:#8a5a00;font-size:12.5px">
+          <div id="sched-team-warn-text"></div>
+          <label for="sched-team-reason" style="display:block;font-size:11px;font-weight:600;margin-top:6px">Reason (5 to 200 characters)</label>
+          <input id="sched-team-reason" type="text" maxlength="200" style="width:100%;min-height:40px;border:1.5px solid var(--border);border-radius:7px;padding:0 10px;font-size:13px;font-family:inherit"/>
+        </div>
+      </div>
+      <!-- Session 390 T1a-1 (§582): the side of a Kriya Kalpa sitting (eye / ear) -->
+      <div class="field" id="sched-side-field" hidden>
+        <label for="sched-side">Side</label>
+        <select id="sched-side" style="min-height:40px"><option value="bilateral">Both sides</option><option value="right">Right</option><option value="left">Left</option></select>
       </div>
 
       <div class="field-row">
@@ -966,6 +977,10 @@ input[type="checkbox"]{width:16px;height:16px;accent-color:var(--green-deep);ver
               <option value="male">Male</option><option value="female">Female</option><option value="any">Not yet assigned</option>
             </select></div>
         </div>
+        <!-- Session 390 T1a-1 (owner D10): Jaloukavacharana is booked only in a room marked as the aseptic Anushastra unit -->
+        <label style="display:flex;align-items:center;gap:8px;margin-bottom:10px;font-size:13px;min-height:44px">
+          <input id="room-aseptic" type="checkbox" style="width:20px;height:20px"/> Aseptic Anushastra unit (Jaloukavacharana is booked only here)
+        </label>
         <div style="display:grid;grid-template-columns:1.5fr .8fr;gap:10px;margin-bottom:10px">
           <div><label style="font-size:11px;font-weight:600;color:var(--text-mid);display:block;margin-bottom:4px;text-transform:uppercase;letter-spacing:.4px">Building <span style="font-size:11px;color:var(--text-muted)">(optional — same blocks as Dept & Beds)</span></label>
             <select id="room-block" style="width:100%;height:36px;border:1.5px solid var(--border);border-radius:7px;padding:0 10px;font-size:13px;font-family:inherit">

@@ -89,7 +89,7 @@ window.selectPatient = async function(id) {
   document.getElementById('bar-name').textContent = p.name;
   document.getElementById('bar-meta').textContent = `${p.phone||'—'} · Age ${p.age||'—'} · ${(p.gender||'').charAt(0).toUpperCase()}`;
   document.getElementById('patient-bar').classList.add('show');
-  document.getElementById('new-sess-btn').setAttribute('aria-disabled', 'false');   // 386b-2b M2b (F14)
+  document.getElementById('new-sess-btn')?.setAttribute('aria-disabled', 'false');   // 386b-2b M2b (F14)
   await loadSessions();
 };
 
@@ -99,7 +99,7 @@ window.clearPatient = function() {
   document.getElementById('patient-bar').classList.remove('show');
   document.getElementById('stats-section').style.display = 'none';
   document.getElementById('sessions-list').innerHTML = '';
-  document.getElementById('new-sess-btn').setAttribute('aria-disabled', 'true');   // 386b-2b M2b (F14): still clickable -- the §599 message
+  document.getElementById('new-sess-btn')?.setAttribute('aria-disabled', 'true');   // 386b-2b M2b (F14): still clickable -- the §599 message
 };
 
 window.setDept = function(el, dept) {

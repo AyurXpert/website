@@ -3978,7 +3978,8 @@ body.final-mode .tab-body{padding-bottom:130px}   /* the banner's height on top 
               <!-- Session 388s1 (owner decision 6, S1): an Admission plan holds its slots until the end of the planned admission day -->
               <div class="field" id="pk-adm-date-field" style="display:none">
                 <label for="pk-adm-date">Planned admission date</label>
-                <input type="date" id="pk-adm-date"/>
+                <input type="date" id="pk-adm-date" data-onchange="_pkAdmDateChange"/>
+                <div id="pk-adm-date-note" class="field-note" role="status" aria-live="polite"></div>
                 <div style="font-size:11.5px;color:var(--text-muted);margin-top:3px">The slots are held until the end of this day; the course is activated when the patient is admitted (a later admission moves the whole course, in order).</div>
               </div>
               <!-- Session 388s1 rehearsal S1-F16: the department the patient is admitted to (departments with beds; Panchakarma first) -->
@@ -4007,6 +4008,7 @@ body.final-mode .tab-body{padding-bottom:130px}   /* the banner's height on top 
               <div id="pk-save-status" style="display:none;margin-top:10px;font-size:12.5px;font-weight:600;color:var(--green-deep)"></div>
               <div id="pk-hold-status" aria-live="polite" style="margin-top:8px;font-size:12.5px"></div>
               <div id="pk-schedule-card" style="margin-top:10px"></div>
+              <div id="pk-treatment-orders" style="margin-top:10px"></div>
             </div>
           </div><!-- /pk-step-4 -->
 

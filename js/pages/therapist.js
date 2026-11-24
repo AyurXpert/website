@@ -7,6 +7,7 @@ import { renderPromoBanner } from '../components/promoBanner.js';
 import { isNCISMType, ncismUgTier, PK_THERAPY_ROOM_COUNT } from '../config/ncism.js';
 import { NCISM_XX_ROWS } from '../config/ncismStaffCompliance.js';
 import { localDateStr, todayLocalStr, istDateStr, todayISTStr } from '../utils/dateUtils.js';
+import { therapistsForKind, isShalakyaTherapist } from '../modules/scheduler/therapistFilter.js';   // 390 T1a-1 (T1a-F5, D-15)
 import { notify } from '../components/notify.js';
 import { givePkClearance } from '../modules/panchakarma/pkClearance.js';
 import { mountOpdProceduresToday } from '../modules/opd/opdProcedureOrders.js';   // Session 386d-1 (L12)
@@ -170,7 +171,7 @@ async function loadAll() {
       .single(),
     supabase
       .from('pk_treatment_rooms')
-      .select('id,room_name,room_type,capacity,gender_restriction,status,is_pediatric,block_id,floor_number,building_blocks(id,name)')
+      .select('id,room_name,room_type,capacity,gender_restriction,status,is_pediatric,is_aseptic,block_id,floor_number,building_blocks(id,name)')
       .eq('tenant_id', tenantId)
       .order('room_name'),
     // Session 206 (cont.) — same building_blocks table bed-admin.html already uses for
@@ -477,6 +478,7 @@ window.editRoom = function(id) {
   if (!room) return;
   document.getElementById('rooms-details').open = true;
   document.getElementById('room-edit-id').value = room.id;
+  const aseptic = document.getElementById('room-aseptic'); if (aseptic) aseptic.checked = !!room.is_aseptic;   // 390 T1a-1
   document.getElementById('room-name').value = room.room_name;
   document.getElementById('room-type').value = room.room_type || 'General Therapy Room';
   document.getElementById('room-capacity').value = room.capacity || 1;
@@ -491,6 +493,7 @@ window.editRoom = function(id) {
 
 window.cancelEditRoom = function() {
   document.getElementById('room-edit-id').value = '';
+  const asepticBox = document.getElementById('room-aseptic'); if (asepticBox) asepticBox.checked = false;   // 390 T1a-1
   document.getElementById('room-name').value = '';
   document.getElementById('room-type').value = 'General Therapy Room';
   document.getElementById('room-capacity').value = '1';
@@ -523,18 +526,26 @@ window.saveRoom = async function() {
     gender_restriction: gender,
     block_id: blockId,
     floor_number: floor,
+    is_aseptic: !!document.getElementById('room-aseptic')?.checked,   // Session 390 T1a-1 (owner D10)
   };
 
-  const { error } = editId
-    ? await supabase.from('pk_treatment_rooms').update(payload).eq('id', editId)
-    : await supabase.from('pk_treatment_rooms').insert({ ...payload, tenant_id: tenantId });
+  // Session 390 T1a-1 (rehearsal R4, finding F6): the save is confirmed only by what the SERVER returns -- a change it skipped (0 rows) is an
+  // error, never a silent "saved" (standing rule "No false saved"); the confirmation is the page's own message, not a 2-second hint
+  const { data: savedRows, error } = editId
+    ? await supabase.from('pk_treatment_rooms').update(payload).eq('id', editId).select('id')
+    : await supabase.from('pk_treatment_rooms').insert({ ...payload, tenant_id: tenantId }).select('id');
 
   if (error) {
     _alert('error', safeErrorMessage(error, error.code === '23505' ? 'A room with this name already exists.' : 'Failed to save room.'));
     return;
   }
+  if (!savedRows?.length) {
+    _alert('error', 'The room was not saved — your account may not change treatment rooms. Nothing was changed.');
+    return;
+  }
 
   window.cancelEditRoom();
+  _alert('success', `✓ Room saved: ${name}${payload.is_aseptic ? ' (aseptic Anushastra unit)' : ''}.`);
   const saved = document.getElementById('room-saved');
   saved.style.display = '';
   setTimeout(() => { saved.style.display = 'none'; }, 2000);
@@ -2005,10 +2016,12 @@ function _roomPick(value) {
 function _populateRoomSelect(patientGender, pt) {
   const sr = document.getElementById('sched-room');
   const note = document.getElementById('sched-room-note');
+  const keepRoom = sr.value;   // 390 T1a-1 (rehearsal R3): a rebuilt list keeps the chosen room while it is still offered
   sr.innerHTML = '<option value="">— Not assigned —</option>';
   const allActive = _rooms.filter(r => r.status === 'active');
   const active = allActive.filter(r => _roomMatchesGender(r, patientGender));
   _appendRoomOrDroniOptions(sr, active, pt);
+  if (keepRoom && [...sr.options].some(o => o.value === keepRoom)) sr.value = keepRoom;
   note.style.display = active.length ? 'none' : '';
   note.textContent = allActive.length
     ? `No ${_normGender(patientGender) === 'M' ? 'male' : 'female'}-designated treatment room available — assign this patient once one is set up.`
@@ -2315,7 +2328,7 @@ window.openSchedDrawer = function(prefillAdmId) {
   document.getElementById('sched-source').value    = 'ipd';
   document.getElementById('sched-phase').value     = 'purvakarma';
   document.getElementById('sched-therapy').value   = '';
-  _loadTherapyChoices();   // Session 386b-1 (§545)
+  _loadTherapyChoices().then(_refreshSchedTeam);   // Session 386b-1 (§545); 390 T1a-1: the team size / side reset
   document.getElementById('sched-therapist').value = '';
   document.getElementById('sched-clearance').checked = false;
   document.getElementById('sched-clearance-field').style.display = _canGiveClearance() ? '' : 'none';
@@ -2350,8 +2363,49 @@ window.onSourceChange = function() {
   const src = document.getElementById('sched-source').value;
   document.getElementById('ipd-patient-field').style.display = src === 'ipd' ? '' : 'none';
   document.getElementById('opd-patient-field').style.display = src === 'opd' ? '' : 'none';
+  if (src === 'opd') _loadSchedOpdPatients();
   _autoAssignSchedTherapist();
 };
+
+// Session 390 T1a-1 (rehearsal R3, owner 23 Nov 2026): the OPD Patient list of "+ Schedule Session" was NEVER filled (the select and the
+// `_opdPatients` variable existed since 27 May 2026, nothing loaded them) -- no OPD patient could be hand-scheduled. It lists the patients
+// with a visit TODAY in ANY OPD of the organisation (not cancelled / deleted -- a patient seen in Kayachikitsa today can be scheduled by
+// the PK in-charge) and the patients with a waiting or active OPD / Day Care Panchakarma care plan. Names are set as text (never HTML).
+let _schedOpdToken = 0;
+async function _loadSchedOpdPatients() {
+  const token = ++_schedOpdToken;
+  const sel = document.getElementById('sched-opd-patient');
+  if (!sel) return;
+  const keep = sel.value;
+  const from = `${todayISTStr()}T00:00:00+05:30`;
+  const [{ data: visits, error: vErr }, { data: plans, error: pErr }] = await Promise.all([
+    supabase.from('visits').select('patient_id, status, created_at, opds(name), patients(id, name, uhid, age, gender)')
+      .eq('tenant_id', tenantId).gte('created_at', from).eq('is_deleted', false).neq('status', 'cancelled')
+      .order('created_at', { ascending: true }).limit(500),
+    supabase.from('pk_care_plans').select('patient_id, status, setting, patients(id, name, uhid, age, gender)')
+      .eq('tenant_id', tenantId).in('status', ['finalized', 'active']).in('setting', ['opd', 'day_care']).limit(500),
+  ]);
+  if (token !== _schedOpdToken) return;
+  if (vErr || pErr) console.error('[therapist] OPD patient list:', vErr || pErr);
+  const byId = new Map();
+  for (const v of (visits || [])) {
+    if (!v.patients?.id || byId.has(v.patients.id)) continue;
+    byId.set(v.patients.id, { p: v.patients, why: `today · ${v.opds?.name || 'OPD'}` });
+  }
+  for (const c of (plans || [])) {
+    if (!c.patients?.id || byId.has(c.patients.id)) continue;
+    byId.set(c.patients.id, { p: c.patients, why: c.setting === 'day_care' ? 'Panchakarma plan · Day Care' : 'Panchakarma plan · OPD' });
+  }
+  _opdPatients = [...byId.values()].sort((a, b) => (a.p.name || '').localeCompare(b.p.name || ''));
+  sel.replaceChildren(new Option(_opdPatients.length ? '— Select patient —'
+    : (vErr || pErr) ? '— The patient list could not be loaded —' : '— No OPD patient today, and no OPD / Day Care plan —', ''));
+  for (const { p, why } of _opdPatients) {
+    const g = _normGender(p.gender);
+    const meta = [p.uhid, p.age != null ? `${p.age}${g ? ' ' + g : ''}` : g].filter(Boolean).join(' · ');
+    sel.append(new Option(`${p.name}${meta ? ' · ' + meta : ''} (${why})`, p.id));
+  }
+  if (keep && byId.has(keep)) sel.value = keep;
+}
 
 // Session 214 -- shared patient-context resolver for the Schedule Session drawer. Used by both
 // saveSession() (previously re-derived this 3 separate times inline: the NABH gender check, the
@@ -2431,14 +2485,15 @@ async function _autoAssignSchedTherapist() {
 
   const { data: dutyRows } = await supabase
     .from('pk_therapist_duty')
-    .select('profile_id, profiles!profile_id(id,full_name,gender)')
+    .select('profile_id, profiles!profile_id(id,full_name,gender,department_id)')
     .eq('tenant_id', tenantId)
     .eq('duty_date', date);
   if (token !== _schedAutoAssignToken) return;
 
   const onDutyMap = new Map();
   (dutyRows || []).forEach(r => { if (r.profiles) onDutyMap.set(r.profiles.id, _normGenderOf(r.profiles)); });   // §262
-  const onDuty = [...onDutyMap.values()];
+  // T1a-F5 (rehearsal R3): a Shalakya therapist only for a Kriya Kalpa therapy -- the automatic choice and the list follow the therapy
+  const onDuty = therapistsForKind([...onDutyMap.values()], _depts, _therapyPick()?.kind);
 
   let priorQuery = supabase.from('pk_therapy_sessions')
     .select('therapist_id')
@@ -2454,8 +2509,10 @@ async function _autoAssignSchedTherapist() {
   // Session 226 -- continuity-of-care never overrides the gender hard-block; a prior therapist
   // of the wrong gender for this patient (only possible from data predating this fix) falls
   // through to the normal gender-matched pool below instead of being silently reused.
+  // owner D-15 (23 Nov 2026): the automatic choice is always a Panchakarma therapist -- a Shalakya therapist only when chosen by hand
+  const autoPool = onDuty.filter(t => !isShalakyaTherapist(t, _depts));
   const continuityOnDuty = continuityId
-    ? onDuty.find(t => t.id === continuityId && (!ctx.gender || !t.gender || t.gender === ctx.gender))
+    ? autoPool.find(t => t.id === continuityId && (!ctx.gender || !t.gender || t.gender === ctx.gender))
     : null;
 
   // S1-F30 (388s1 rehearsal C10): the auto-pick is pre-selected, but the in-charge may choose any on-duty therapist of the patient's gender
@@ -2467,7 +2524,7 @@ async function _autoAssignSchedTherapist() {
     return;
   }
 
-  const genderMatched = ctx.gender ? onDuty.filter(t => t.gender === ctx.gender) : onDuty;
+  const genderMatched = ctx.gender ? autoPool.filter(t => t.gender === ctx.gender) : autoPool;   // D-15: never a Shalakya therapist
   if (genderMatched.length) {
     const { data: loadRows } = await supabase
       .from('pk_therapy_sessions')
@@ -2514,16 +2571,19 @@ window.addSchedExtraTherapist = async function() {
   const ctx = await _resolveSchedPatientContext();
   _schedExtraTherapistIds.push('');
   _renderExtraTherapistRows('sched-extra-therapists', _schedExtraTherapistIds, 'onSchedExtraTherapistChange', 'removeSchedExtraTherapist', document.getElementById('sched-therapist').value, ctx.gender);
+  _refreshSchedTeamWarn();   // 390 T1a-1
 };
 window.removeSchedExtraTherapist = async function(idx) {
   _schedExtraTherapistIds.splice(Number(idx), 1);
   const ctx = await _resolveSchedPatientContext();
   _renderExtraTherapistRows('sched-extra-therapists', _schedExtraTherapistIds, 'onSchedExtraTherapistChange', 'removeSchedExtraTherapist', document.getElementById('sched-therapist').value, ctx.gender);
+  _refreshSchedTeamWarn();   // 390 T1a-1
 };
 window.onSchedExtraTherapistChange = async function(idx, value) {
   _schedExtraTherapistIds[Number(idx)] = value;
   const ctx = await _resolveSchedPatientContext();
   _renderExtraTherapistRows('sched-extra-therapists', _schedExtraTherapistIds, 'onSchedExtraTherapistChange', 'removeSchedExtraTherapist', document.getElementById('sched-therapist').value, ctx.gender);
+  _refreshSchedTeamWarn();   // 390 T1a-1
 };
 
 // Session 386b-1 (§545, owner Q16 / Q16b): the therapy of a hand-scheduled session comes from the organisation's Panchakarma fees or the
@@ -2539,7 +2599,8 @@ async function _loadTherapyChoices() {
   const withFee = _therapyChoices.filter(c => c.has_fee), noFee = _therapyChoices.filter(c => !c.has_fee);
   const grp = (label, list) => {
     const g = document.createElement('optgroup'); g.label = label;
-    list.forEach(c => g.appendChild(new Option(c.has_fee ? `${c.name} — ₹${Number(c.amount || 0).toLocaleString('en-IN')} (${c.ayush_code})` : `${c.name} (${c.ayush_code}) — no price yet`,
+    const kindTag = (c) => c.kind === 'kriya_kalpa' ? ' · Kriya Kalpa' : c.kind === 'jaloukavacharana' ? ' · Jaloukavacharana (aseptic room)' : '';   // 390 T1a-1
+    list.forEach(c => g.appendChild(new Option(c.has_fee ? `${c.name} — ₹${Number(c.amount || 0).toLocaleString('en-IN')} (${c.ayush_code})${kindTag(c)}` : `${c.name} (${c.ayush_code}) — no price yet${kindTag(c)}`,
                                                c.has_fee ? 'fee:' + c.fee_id : 'code:' + c.ayush_code)));
     return g;
   };
@@ -2550,8 +2611,33 @@ async function _loadTherapyChoices() {
 function _therapyPick() {
   const v = document.getElementById('sched-therapy').value || '';
   const c = (_therapyChoices || []).find(x => (x.has_fee ? 'fee:' + x.fee_id : 'code:' + x.ayush_code) === v);
-  return c ? { name: c.name, feeId: c.has_fee ? c.fee_id : null, code: c.ayush_code } : null;
+  return c ? { name: c.name, feeId: c.has_fee ? c.fee_id : null, code: c.ayush_code, kind: c.kind || 'panchakarma' } : null;
 }
+// Session 390 T1a-1 (§694 / owner D7, §582): the procedure's team size (min / usual / max) and the Kriya Kalpa side follow the therapy
+let _schedTeam = null;
+async function _refreshSchedTeam() {
+  const pick = _therapyPick();
+  const sideField = document.getElementById('sched-side-field');
+  if (sideField) sideField.hidden = !(pick && pick.kind === 'kriya_kalpa');
+  _schedTeam = null;
+  if (pick) {
+    const { data } = await supabase.rpc('pk_team_size', { p_fee: pick.feeId, p_code: pick.code });
+    _schedTeam = data || null;
+  }
+  const note = document.getElementById('sched-team-note');
+  if (note && _schedTeam) note.textContent = `This procedure: usually ${_schedTeam.usual} therapist(s), at least ${_schedTeam.min}, at most ${_schedTeam.max}.`;
+  _refreshSchedTeamWarn();
+}
+function _refreshSchedTeamWarn() {
+  const warn = document.getElementById('sched-team-warn');
+  if (!warn) return;
+  const team = (document.getElementById('sched-therapist').value ? 1 : 0) + new Set(_schedExtraTherapistIds.filter(Boolean)).size;
+  const below = !!_schedTeam && team > 0 && team < _schedTeam.min;
+  warn.hidden = !below;
+  if (below) document.getElementById('sched-team-warn-text').textContent =
+    `⚠ ${team} therapist(s) chosen — this procedure needs at least ${_schedTeam.min}. Add a therapist, or give the reason to go ahead.`;
+}
+window.onSchedTherapyChange = function() { _refreshSchedTeam(); _autoAssignSchedTherapist(); };   // T1a-F5: the therapists follow the therapy
 
 window.saveSession = async function() {
   const source    = document.getElementById('sched-source').value;
@@ -2620,15 +2706,19 @@ window.saveSession = async function() {
     }
   }
 
-  // NCISM §47(a)(xv) — Raktamokshana must be in Anushastra Karma unit, not regular therapy room
-  const therapyLower = therapy.toLowerCase();
-  if (therapyLower.includes('raktamokshana') || therapyLower.includes('leech')) {
-    const proceed = confirm(
-      '⚠ NCISM §47(a)(xv) — Aseptic Conditions Required\n\n' +
-      'Raktamokshana (leech therapy) must be conducted in the Anushastra Karma unit under aseptic conditions.\n\n' +
-      'Confirm this session is scheduled in the designated Anushastra Karma / aseptic procedure room?'
-    );
-    if (!proceed) return;
+  // NCISM §47(a)(xv) — Jaloukavacharana only in the aseptic Anushastra unit: Session 390 T1a-1 (owner D10) -- the SERVER refuses any other
+  // room (the room marked "Aseptic Anushastra unit" in Rooms); the page says it before saving
+  if (pick.kind === 'jaloukavacharana' && roomDataCheck && !roomDataCheck.is_aseptic) {
+    _alert('error', `${roomDataCheck.room_name} is not the aseptic Anushastra room — Jaloukavacharana is booked only in the room marked "Aseptic Anushastra unit".`);
+    return;
+  }
+  // Session 390 T1a-1 (§694 / owner D7): above the maximum is refused (also by the server); below the minimum needs a reason
+  const teamSize = 1 + extraTherapistIds.length;
+  if (_schedTeam && teamSize > _schedTeam.max) { _alert('error', `At most ${_schedTeam.max} therapist(s) for ${therapy}.`); return; }
+  const teamReason = (document.getElementById('sched-team-reason')?.value || '').trim();
+  if (_schedTeam && teamSize < _schedTeam.min && (teamReason.length < 5 || teamReason.length > 200 || /[<>]/.test(teamReason))) {
+    _alert('error', `This procedure needs at least ${_schedTeam.min} therapist(s) — add one, or give the reason (5 to 200 characters).`);
+    return;
   }
 
   const patientId = ctx.patientId;
@@ -2674,6 +2764,8 @@ window.saveSession = async function() {
     planned_duration_minutes: durationVal ? Number(durationVal) : null,
     ordering_doctor_id:  doctorVal || null,
     special_instructions: instrVal || null,
+    side:                pick.kind === 'kriya_kalpa' ? (document.getElementById('sched-side')?.value || 'bilateral') : null,   // 390 T1a-1
+    team_below_min_reason: _schedTeam && teamSize < _schedTeam.min ? teamReason : null,                                      // 390 T1a-1
   }).select('id').single();
 
   if (!error && inserted && extraTherapistIds.length) {

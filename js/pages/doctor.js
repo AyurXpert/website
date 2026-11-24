@@ -1,12 +1,12 @@
 import { requireAuth, getCurrentProfile, getCurrentTenantId, getCurrentTenant } from '../core/auth.js';
 import { initNavbar } from '../components/navbar.js';
 import { supabase } from '../core/db/supabaseClient.js';
-import { logAudit } from '../core/auditLogger.js';
 import { escapeHtml as _esc } from '../utils/validators.js';
 import { genderLabel } from '../utils/gender.js';   // Session 371B
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
 import { showPlanCalendar, holdPlan, renderScheduleCard } from '../modules/scheduler/planCalendar.js';   // Session 388s1
+import { renderTreatmentOrders } from '../modules/scheduler/treatmentOrders.js';   // Session 390 T1a-1
 import { isNCISMType } from '../config/ncism.js';
 import { addOpdBillFeeItems } from '../modules/billing/opdBillItems.js';
 import { getOpdBillingRegime } from '../modules/billing/opdGstBilling.js';
@@ -2228,6 +2228,7 @@ function _resetAdmissionAdvice() {
   _admLastEstimate = null;
   _admAdviceSaved  = false;
   _admAdviceId     = null;
+  const deptSel = document.getElementById('adm-dept'); if (deptSel) deptSel.disabled = false;   // T1a-F4
   _renderAdmProcList();
   const el = document.getElementById('adm-estimate-body');
   if (el) el.textContent = 'Fill in department, room type and duration above to see an estimate.';
@@ -2241,7 +2242,7 @@ async function _loadMyPendingAdvice() {
   if (!_activePatient?.id || _isTrainee) return;
   const patientId = _activePatient.id;
   const { data: rows, error } = await supabase.from('admission_advice')
-    .select('id, doctor_id, visit_id, department_id, clinical_indication, expected_duration_days, duration_note, room_type_preference, nursing_care_notes, diet_type, payer_type, created_at, profiles!doctor_id(full_name), admission_advice_items(fee_type, description, sessions_count, unit_price_snapshot, line_total)')
+    .select('id, doctor_id, visit_id, department_id, pk_care_plan_id, clinical_indication, expected_duration_days, duration_note, room_type_preference, nursing_care_notes, diet_type, payer_type, created_at, profiles!doctor_id(full_name), admission_advice_items(fee_type, description, sessions_count, unit_price_snapshot, line_total)')
     .eq('tenant_id', tenantId).eq('patient_id', patientId).eq('status', 'pending')
     .order('created_at', { ascending: false }).limit(1);
   if (error || _activePatient?.id !== patientId) return;
@@ -2269,7 +2270,14 @@ async function _loadMyPendingAdvice() {
   _renderAdmProcList();
   recomputeAdviceEstimate();
   _admSetMode();
-  _admStatus(`Your pending admission advice (sent ${new Date(a.created_at).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short' })}) is loaded below — edit and press "Update", or cancel it.`, 'info');
+  // T1a-F4: an advice sent by a Panchakarma Admission plan admits to the plan's department -- changed only in the plan (the server refuses
+  // any other department)
+  const deptSel = document.getElementById('adm-dept');
+  if (deptSel) deptSel.disabled = !!a.pk_care_plan_id;
+  const sent = new Date(a.created_at).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short' });
+  _admStatus(a.pk_care_plan_id
+    ? `This admission advice was sent with the Panchakarma care plan (${sent}) and is shown below. The department comes from the plan — change it in 🌸 Panchakarma → Step 4 and save the plan. Fill in anything still empty and press "Update".`
+    : `Your pending admission advice (sent ${sent}) is loaded below — edit and press "Update", or cancel it.`, 'info');
 }
 
 // Sends (or updates) the advice from the Admission tab. Returns true only when the SERVER saved it.
@@ -4819,6 +4827,21 @@ function _pkCourseItems() {
   }));
   return { items, first };
 }
+// T1a-F2 (owner, rehearsal R2, 23 Nov 2026): an Admission plan's course never starts before the planned admission date -- the whole course
+// moves to that date (all protocols together, the same shift as "Check free capacity"), with a note; the server refuses it otherwise
+function _pkAlignCourseToAdmission() {
+  const note = document.getElementById('pk-adm-date-note');
+  const adm = document.getElementById('pk-adm-date')?.value || '';
+  const { first } = _pkCourseItems();
+  if (!adm || !first || first >= adm) { if (note) note.textContent = ''; return false; }
+  const shift = Math.round((new Date(adm + 'T00:00:00') - new Date(first + 'T00:00:00')) / 86400000);
+  _pkProtocols.forEach(p => { const d = new Date(p.start_date + 'T00:00:00'); d.setDate(d.getDate() + shift); p.start_date = istDateStr(d); });
+  _renderPkCalendar();
+  const fmt = (x) => x.split('-').reverse().join('-');
+  if (note) note.textContent = `The course now starts on ${fmt(adm)}, the planned admission date (it started on ${fmt(first)}). Check the days in Step 2.`;
+  return true;
+}
+window._pkAdmDateChange = function() { _pkAlignCourseToAdmission(); window._pkRecomputeStep4(); };
 window._pkCheckCapacity = async function() {
   const box = document.getElementById('pk-capacity-cal');
   const { items, first } = _pkCourseItems();
@@ -4965,16 +4988,20 @@ let _pkExistingDraftId  = null; // the plan pk_check found, before the doctor de
 
 async function _pkCheckExistingDraft(patientId) {
   const { data } = await supabase.from('pk_care_plans')
-    .select('id, created_at, pk_care_plan_protocols(protocol_label)')
-    .eq('tenant_id', tenantId).eq('patient_id', patientId).eq('status', 'finalized')
+    .select('id, created_at, status, pk_care_plan_protocols(protocol_label)')
+    // Session 390 T1a-1 (D9): an intern's DRAFT is found too -- the consultant continues it and saves it to finalize
+    .eq('tenant_id', tenantId).eq('patient_id', patientId).in('status', ['draft', 'finalized'])
     .order('created_at', { ascending: false }).limit(1).maybeSingle();
+  renderTreatmentOrders({ supabase, container: document.getElementById('pk-treatment-orders'), visitId: _activeVisitId });   // 390 T1a-1
   const banner = document.getElementById('pk-existing-draft-banner');
   if (!banner) return;
   if (!data) { _pkExistingDraftId = null; banner.style.display = 'none'; return; }
   _pkExistingDraftId = data.id;
   const names = (data.pk_care_plan_protocols || []).map(p => p.protocol_label).join(', ') || 'no protocols yet';
   document.getElementById('pk-existing-draft-text').textContent =
-    `Created ${new Date(data.created_at).toLocaleDateString('en-IN')} — ${names}. Not yet activated by Reception.`;
+    data.status === 'draft'
+      ? `Draft by an intern / PG scholar, ${new Date(data.created_at).toLocaleDateString('en-IN')} — ${names}. Continue it and save it to finalize.`
+      : `Created ${new Date(data.created_at).toLocaleDateString('en-IN')} — ${names}. Not yet activated by Reception.`;
   banner.style.display = '';
 }
 
@@ -5006,6 +5033,13 @@ window._pkLoadExistingDraft = async function() {
   document.getElementById('pk-instr-patient').value   = planRow.instructions_patient || '';
   document.getElementById('pk-instr-therapist').value = planRow.instructions_therapist || '';
   document.getElementById('pk-instr-nurse').value      = planRow.instructions_nurse || '';
+  // T1a-F2 / F4: an Admission plan's own admission date + department
+  if (planRow.planned_admission_date) { const el = document.getElementById('pk-adm-date'); if (el) el.value = planRow.planned_admission_date; }
+  if (planRow.admit_department_id) {
+    const sel = document.getElementById('pk-adm-dept');
+    if (sel && sel.options.length <= 1) for (const d of (_admDepts || [])) sel.append(new Option(d.name, d.id));
+    if (sel) sel.value = planRow.admit_department_id;
+  }
   const settingEl = document.querySelector(`input[name="pk-setting"][value="${planRow.setting}"]`);
   if (settingEl) settingEl.checked = true;
   if (planRow.room_type_preference) { const rt = document.getElementById('pk-room-type'); if (rt) rt.value = planRow.room_type_preference; }
@@ -5163,6 +5197,7 @@ window.savePkCarePlan = async function() {
   if (setting === 'admission' && !document.getElementById('pk-adm-dept')?.value) {
     alert('Choose the department to admit the patient to (Step 4 → Admit to department), then save.'); return;
   }
+  if (setting === 'admission') _pkAlignCourseToAdmission();   // T1a-F2: never a course before the admission date
 
   const btn = document.getElementById('btn-save-pk-plan');
   btn.disabled = true; btn.textContent = 'Saving…';
@@ -5197,161 +5232,98 @@ window.savePkCarePlan = async function() {
     finalized_at: new Date().toISOString(),
   };
 
-  let plan, error, existingAdmissionAdviceId = null;
+  // Session 390 T1a-1 (S12 / G4 / S13 / D9): the plan, its protocols, days and medicines and the treatment orders are saved by the
+  // SERVER in one call (save_pk_care_plan) -- all or nothing, no duplicate days, the pediatric gates re-checked there; the browser
+  // never writes the plan tables. An intern / PG scholar's save is a draft (no order, no hold); the consultant saves it to finalize.
+  let existingAdmissionAdviceId = null;
   if (isEditing) {
     const { data: existing } = await supabase.from('pk_care_plans').select('admission_advice_id').eq('id', _pkEditingPlanId).single();
     existingAdmissionAdviceId = existing?.admission_advice_id || null;
-    ({ data: plan, error } = await supabase.from('pk_care_plans').update(planFields).eq('id', _pkEditingPlanId).select('id').single());
-  } else {
-    ({ data: plan, error } = await supabase.from('pk_care_plans').insert({
-      tenant_id: tenantId, patient_id: _activePatient.id, visit_id: _activeVisitId, doctor_id: userId,
-      ...planFields,
-    }).select('id').single());
   }
-
-  if (error) {
-    btn.disabled = false; btn.textContent = isEditing ? '🌸 Update Care Plan' : '🌸 Save Care Plan';
-    alert(safeErrorMessage(error, 'Could not save the Panchakarma care plan.')); return;
-  }
-
-  // S1-F4 (388s1 rehearsal C1): a refused protocol / day / medicine row is a failed save, never "✓ Saved" (No false saved)
-  const saveErrs = [];
-  for (let pi = 0; pi < _pkProtocols.length; pi++) {
-    const p = _pkProtocols[pi];
-    // Session 279 -- the Niruha block's own doctor-typed name (whether picked from
-    // the standard-formulation dropdown or freely typed for "Custom") lives at the
-    // protocol level so reception/therapist/nursing can show it without knowing
-    // which block it came from.
-    const niruhaBlock = p.blocks.find(b => b.bastiDayType === 'niruha');
-    // Session 292 -- a tenant's custom protocol (pk_custom_sop_templates.id) can't be
-    // written into template_id -- that column's FK only points at the global
-    // pk_sop_templates catalog. custom_template_id is the parallel column for that case;
-    // exactly one of the two is ever populated (DB-enforced via a CHECK constraint too).
-    const _pkTplForSave = _pkTemplates.find(t => t.id === p.template_id);
-    const protoFields = {
-      template_id: _pkTplForSave?.is_custom_protocol ? null : p.template_id,
-      custom_template_id: _pkTplForSave?.is_custom_protocol ? p.template_id : null,
-      protocol_label: p.protocol_label,
-      start_date: p.start_date, sequence_order: pi + 1,
-      // Session 255 -- Koshtha + Snehapana dosing, only meaningful when this protocol
-      // actually has a Snehapana block (null otherwise, matches the wizard's own gate).
-      koshtha: p.koshtha || null,
-      snehapana_start_dose_ml: p.snehapana_start_dose_ml || null,
-      snehapana_increment_ml: p.snehapana_increment_ml || 30,
-      // Session 266 -- which classical Basti pack (Karma/Kala/Yoga) the day-by-day
-      // Anuvasana/Niruha calendar below was generated from; null for every other protocol.
-      basti_pack_type: p.basti_pack_type || null,
-      basti_schedule_mode: p.basti_pack_type ? (p.basti_schedule_mode || 'standard') : null,
-      niruha_formula_name: niruhaBlock?.niruhaFormula?.formula_name || null,
-      custom_formulation_name: p.custom_formulation_name || null,
-      // Session 285 -- pediatric Basti dosing/consent, null/false for every adult
-      // patient and every non-Basti protocol (matches the wizard's own gate).
-      pediatric_age_band: p.pediatric_age_band || null,
-      pediatric_dose_ml: p.pediatric_dose_ml || null,
-      pediatric_guardian_consent_obtained: !!p.pediatric_guardian_consent_obtained,
-      pediatric_assent_obtained: !!p.pediatric_assent_obtained,
-      pediatric_shuddhi_tier: p.pediatric_shuddhi_tier || null,
-    };
-
-    let proto, protoErr;
-    if (p.db_id) {
-      // Already-saved protocol being re-edited -- update its own row, then replace its
-      // days/medicines wholesale (delete+reinsert is simplest and safe here since a
-      // status='finalized' plan has no pk_therapy_sessions/bill referencing them yet).
-      ({ data: proto, error: protoErr } = await supabase.from('pk_care_plan_protocols').update(protoFields).eq('id', p.db_id).select('id').single());
-      if (!protoErr) {
-        await supabase.from('pk_care_plan_days').delete().eq('protocol_instance_id', p.db_id);
-        await supabase.from('pk_care_plan_medicines').delete().eq('protocol_instance_id', p.db_id);
-      }
-    } else {
-      ({ data: proto, error: protoErr } = await supabase.from('pk_care_plan_protocols').insert({ care_plan_id: plan.id, status: 'pending', ...protoFields }).select('id').single());
-      if (!protoErr) p.db_id = proto.id;
-    }
-    if (protoErr) { console.warn('[doctor] pk_care_plan_protocols save:', protoErr.message); saveErrs.push(`${p.protocol_label}: ${safeErrorMessage(protoErr, 'not saved')}`); continue; }
-
-    const dayRows = _pkExpandDays(p).map(r => ({
-      protocol_instance_id: proto.id, day_number: r.day_number, phase: r.phase,
-      activity_label: r.activity_label, is_flexible: r.is_flexible, planned_date: r.planned_date,
-      ayush_code: r.ayush_code, status: 'pending', sequence_order: r.sequence_order,
-      // Session 257 -- a block in skip mode already contributes zero rows here (its
-      // length is 0), so only 'home' vs. 'hospital' ever needs saving.
-      location_mode: r.location_mode,
-      // Session 277 -- doctor's mandatory manual entry for a protocol with no
-      // sop_content_templates hint (null for a hinted protocol -- the reference-table
-      // lookup covers it, this column simply stays unused for those rows).
-      doctor_duration_minutes: p.doctor_duration_minutes || null,
-      doctor_man_power: p.doctor_man_power || null,
-      doctor_requires_room: p.doctor_requires_room ?? null,
-    }));
-    const { error: daysErr } = await supabase.from('pk_care_plan_days').insert(dayRows);
-    if (daysErr) { console.warn('[doctor] pk_care_plan_days insert:', daysErr.message); saveErrs.push(`${p.protocol_label} (days): ${safeErrorMessage(daysErr, 'not saved')}`); }
-
-    // Session 254 -- each medicine carries which activity it belongs to (Deepana-Pachana
-    // vs. Snehapana vs. the protocol's administration step, etc.), not just the protocol
-    // as a whole. Session 257 -- a skipped block's medicines (if any were entered before
-    // switching to skip) are deliberately dropped -- the activity isn't happening.
+  // the medicine rows of a protocol (the same rows the page wrote before; the server adds the protocol id). Session 254 / 257 / 271 / 279 /
+  // 281: per activity, a skipped block's medicines dropped, Niruha's compound formula as one row per component medicine.
+  const _pkMedicineRows = (p) => {
     const medRows = [];
     p.blocks.forEach(b => {
       if (b.mode === 'skip') return;
-      // Session 271 -- Niruha's compound formula saves as structured rows (one per
-      // medicine, tagged by component) instead of the generic flat medicines list
-      // -- b.medicines stays empty for this block. Session 279 -- each classical
-      // component can now hold multiple medicines (Kalka/Kwatha especially are
-      // classically multi-herb), plus any extra custom-labeled components beyond
-      // the classical 6.
       if (b.bastiDayType === 'niruha' && b.niruhaFormula) {
         const f = b.niruhaFormula;
         let seq = 1;
         ['madhu', 'lavana', 'sneha', 'kalka', 'kwatha', 'avapa'].forEach(comp => {
           (f.components[comp] || []).forEach(it => {
-            if (!it.name && it.qty == null) return; // nothing entered -- skip
-            medRows.push({
-              protocol_instance_id: proto.id, activity_label: b.activity_label, ayush_code: b.ayush_code || null,
-              medicine_name: it.name || null, dosage_instructions: null, sequence_order: seq++,
-              basti_component: comp, quantity_value: it.qty ?? null, quantity_unit: _PK_NIRUHA_COMPONENT_UNIT[comp],
-            });
+            if (!it.name && it.qty == null) return;
+            medRows.push({ activity_label: b.activity_label, ayush_code: b.ayush_code || null, medicine_name: it.name || null, dosage_instructions: null,
+              sequence_order: seq++, basti_component: comp, quantity_value: it.qty ?? null, quantity_unit: _PK_NIRUHA_COMPONENT_UNIT[comp] });
           });
         });
         (f.extra || []).forEach(x => {
           (x.items || []).forEach(it => {
             if (!it.name && it.qty == null) return;
-            medRows.push({
-              protocol_instance_id: proto.id, activity_label: b.activity_label, ayush_code: b.ayush_code || null,
-              medicine_name: it.name || null, dosage_instructions: null, sequence_order: seq++,
-              basti_component: null, custom_component_label: x.label || null, quantity_value: it.qty ?? null, quantity_unit: x.unit || 'ml',
-            });
+            medRows.push({ activity_label: b.activity_label, ayush_code: b.ayush_code || null, medicine_name: it.name || null, dosage_instructions: null,
+              sequence_order: seq++, basti_component: null, custom_component_label: x.label || null, quantity_value: it.qty ?? null, quantity_unit: x.unit || 'ml' });
           });
         });
         return;
       }
       (b.medicines || []).forEach((m, mi) => {
-        medRows.push({
-          protocol_instance_id: proto.id, activity_label: b.activity_label, ayush_code: b.ayush_code || null,
-          medicine_name: m.medicine_name, dosage_instructions: m.dosage_instructions, sequence_order: mi + 1,
-          // Session 281 -- present for the upgraded no-SOP-protocol ingredient rows,
-          // undefined (-> null) for a still-bare SOP-content-rich block's list.
-          quantity_value: m.quantity_value ?? null, quantity_unit: m.quantity_unit || null,
-        });
+        medRows.push({ activity_label: b.activity_label, ayush_code: b.ayush_code || null, medicine_name: m.medicine_name,
+          dosage_instructions: m.dosage_instructions, sequence_order: mi + 1, quantity_value: m.quantity_value ?? null, quantity_unit: m.quantity_unit || null });
       });
     });
-    if (medRows.length) {
-      const { error: medErr } = await supabase.from('pk_care_plan_medicines').insert(medRows);
-      if (medErr) { console.warn('[doctor] pk_care_plan_medicines insert:', medErr.message); saveErrs.push(`${p.protocol_label} (medicines): ${safeErrorMessage(medErr, 'not saved')}`); }
-    }
+    return medRows;
+  };
+  const payload = {
+    plan_id: isEditing ? _pkEditingPlanId : null,
+    patient_id: _activePatient.id, visit_id: _activeVisitId || null, ipd_admission_id: _pkForAdmissionId || null,
+    ...planFields,
+    // T1a-F2 / F4: an Admission plan's admission date + department (the advice must agree with the department -- server rule)
+    planned_admission_date: setting === 'admission' ? (document.getElementById('pk-adm-date')?.value || null) : null,
+    admit_department_id: setting === 'admission' ? (document.getElementById('pk-adm-dept')?.value || null) : null,
+    protocols: _pkProtocols.map(p => {
+      const niruhaBlock = p.blocks.find(b => b.bastiDayType === 'niruha');
+      const tpl = _pkTemplates.find(t => t.id === p.template_id);
+      return {
+        db_id: p.db_id || null,
+        template_id: tpl?.is_custom_protocol ? null : p.template_id,
+        custom_template_id: tpl?.is_custom_protocol ? p.template_id : null,
+        protocol_label: p.protocol_label, start_date: p.start_date,
+        koshtha: p.koshtha || null, snehapana_start_dose_ml: p.snehapana_start_dose_ml || null,
+        snehapana_increment_ml: p.snehapana_increment_ml || 30,
+        basti_pack_type: p.basti_pack_type || null, basti_schedule_mode: p.basti_pack_type ? (p.basti_schedule_mode || 'standard') : null,
+        niruha_formula_name: niruhaBlock?.niruhaFormula?.formula_name || null, custom_formulation_name: p.custom_formulation_name || null,
+        pediatric_age_band: p.pediatric_age_band || null, pediatric_dose_ml: p.pediatric_dose_ml || null,
+        pediatric_guardian_consent_obtained: !!p.pediatric_guardian_consent_obtained, pediatric_assent_obtained: !!p.pediatric_assent_obtained,
+        pediatric_shuddhi_tier: p.pediatric_shuddhi_tier || null,
+        side: p.side || null,
+        days: _pkExpandDays(p).map(r => ({
+          day_number: r.day_number, phase: r.phase, activity_label: r.activity_label, is_flexible: r.is_flexible, planned_date: r.planned_date,
+          ayush_code: r.ayush_code, sequence_order: r.sequence_order, location_mode: r.location_mode,
+          doctor_duration_minutes: p.doctor_duration_minutes || null, doctor_man_power: p.doctor_man_power || null,
+          doctor_requires_room: p.doctor_requires_room ?? null,
+        })),
+        medicines: _pkMedicineRows(p),
+      };
+    }),
+  };
+  const { data: saved, error } = await supabase.rpc('save_pk_care_plan', { p_payload: payload });
+  if (error || !saved?.plan_id) {
+    btn.disabled = false; btn.textContent = isEditing ? '🌸 Update Care Plan' : '🌸 Save Care Plan';
+    const st = document.getElementById('pk-save-status');
+    st.style.display = '';
+    st.textContent = `⚠ The care plan was NOT saved — ${safeErrorMessage(error, 'not saved')}. Nothing was sent to Reception and no slots were held.`;
+    return;
   }
-
-  if (saveErrs.length) {
-    _pkEditingPlanId = plan.id;   // the next press updates this plan (its days are replaced)
+  const plan = { id: saved.plan_id };
+  // the server's protocol ids (in order): the next save updates these protocols instead of adding new ones
+  (saved.protocols || []).forEach((sp, i) => { if (_pkProtocols[i]) _pkProtocols[i].db_id = sp.id; });
+  if (saved.status === 'draft') {
+    _pkEditingPlanId = plan.id; _pkPlanSaved = true;
     btn.disabled = false; btn.textContent = '🌸 Update Care Plan';
     const st = document.getElementById('pk-save-status');
     st.style.display = '';
-    st.textContent = `⚠ The care plan is NOT complete — not sent to Reception and no slots held. ${saveErrs.join(' · ')}. Fix this and press 🌸 Update Care Plan.`;
+    st.textContent = '✓ Draft saved — the consultant reviews it and saves it to finalize (the slots are held then).';
     return;
   }
-
-  await logAudit(isEditing ? 'pk_care_plan_updated' : 'pk_care_plan_created', 'pk_care_plans', plan.id, {
-    patient_name: _activePatient?.name, protocols: _pkProtocols.map(p => p.protocol_label), estimated_total: total,
-  }, _ctx);
 
   // Admission-setting plans reuse the proven admission_advice -> create_ipd_admission()
   // flow as-is, so reception.html's existing Admission Requests queue picks this up with
@@ -5398,6 +5370,7 @@ window.savePkCarePlan = async function() {
       _admAdviceId = adviceId;
       _admAdviceSaved = true;
       _admSetMode();
+      await _loadMyPendingAdvice();   // T1a-F4: the 🏥 Admission tab shows THIS advice, filled in (never an empty form)
       handoffMsg = existingAdmissionAdviceId ? `updated in Reception's Admission Requests queue` : `sent to Reception's Admission Requests queue`;
     }
   } else if (setting === 'ipd_admission' && _pkForAdmissionId) {
@@ -5423,6 +5396,7 @@ window.savePkCarePlan = async function() {
   }
   const cardBox = document.getElementById('pk-schedule-card');
   if (cardBox) await renderScheduleCard({ supabase, container: cardBox, planId: plan.id });
+  await renderTreatmentOrders({ supabase, container: document.getElementById('pk-treatment-orders'), visitId: _activeVisitId });   // 390 T1a-1
 
   _pkPlanSaved = true;
   // Session 268 -- keep pointing at this same plan id (whether it was just created or

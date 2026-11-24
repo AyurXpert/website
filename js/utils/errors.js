@@ -76,6 +76,29 @@ export function safeErrorMessage(error, fallback = 'Something went wrong. Please
   if (['P0001', '42501'].includes(error?.code) && SA1B_MSGS.some(m => error?.message?.startsWith(m))) {
     return error.message;
   }
+  // Session 390 T1a-1 (owner T1a-F3, 23 Nov 2026): every treatment-order / care-plan / room / team-size refusal, word for word
+  // (complete_consultation's Admission-item refusal is 23514 -- it fell through to the generic text in rehearsal R2)
+  const T1A_MSGS = ['The treatment plan has an Admission item', 'A Panchakarma care plan is saved only through', 'A care plan belongs to a consultation',
+    'A protocol with recorded treatment cannot be removed', 'A team size is set only on a procedure fee', 'A treatment order is never deleted',
+    'A ward-round plan belongs to the admission', 'At most ', 'Choose the care setting', 'Choose who may order from this group',
+    'Each protocol needs its name', 'Fee not found', 'Give a reason (5 to 300 characters', 'Give the minimum, usual and maximum number of therapists',
+    'Give the visit or the patient', 'Jaloukavacharana is done only in the aseptic', 'Kriya Kalpa is now planned in the doctor',
+    'Only a doctor plans Panchakarma treatment', 'Only the Fee committee', 'Patient not found in your organisation', 'Procedure group not found',
+    'That admission is not this patient', 'That visit is not this patient', 'The care plan is not in the expected form',
+    'The care setting of an active plan never changes', "The children's (Kaumara) room is kept for children", 'The estimate ',
+    'The instructions are at most 2000 characters', 'The team size of a fee is changed only through', 'This care plan is ',
+    'This plan is already finalized by the consultant', 'Visit not found in your organisation', 'Who may order from a group is changed only',
+    'That fee is not an active, approved fee', 'This is a pediatric', 'The latest Growth Record shows', 'Assess the Shuddhi dose tier',
+    'Give the planned admission date and the department', 'The planned admission date is before today', 'That department is not in your organisation',
+    'The course starts before the planned admission date', 'This admission advice belongs to the Panchakarma care plan',
+    'Choose the treatment room -- a session with a time', 'A Panchakarma care plan is never deleted from the browser'];
+  const T1A_PARTS = [' is the aseptic Anushastra unit -- kept for', ': at most ', ': choose the protocol from the list.', ': give the start date.',
+    ': that custom protocol is not an approved protocol', ': that protocol is not part of this plan.', ': the days are not in the expected form.',
+    ': the side is both eyes / ears, right or left.', ': too many medicine rows.', ': treatment has already been recorded for this protocol', ': unknown protocol.'];
+  if (['P0001', 'P0002', '42501', '22023', '23514', '23P01'].includes(error?.code)
+      && (T1A_MSGS.some(m => error?.message?.startsWith(m)) || T1A_PARTS.some(m => error?.message?.includes(m)))) {
+    return error.message;
+  }
   // S1-F22: the session table's own room-overlap rule (from before S1) reached by a direct write -- the same plain words
   if (error?.code === '23P01' && /pk_sessions_room_overlap_excl/.test(error?.message || '')) {
     return 'That time is already taken: the room is booked then.';
