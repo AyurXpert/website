@@ -76,6 +76,7 @@ function _buildGroups(role, type, secondaryRole, hasMonitoringAccess, isDeptScop
         { href:'screening.html',     label:'Screening OPD', roles:CLINICAL,                      types:HOSP, module:'opd', designations:['intern'] },
         { href:'opd-admin.html',     label:'OPD Setup',     roles:ADMIN_ROLES,                   types:null, module:'opd'        },
         { href:'dept-hub.html',      label:'Departments',   roles:CLINICAL.concat(ADMIN_ROLES),  types:HOSP, module:'opd'        },
+        { href:'dept-procedures.html', label:'Dept. Procedures', roles:CLINICAL.concat(['therapist']), types:HOSP, module:'opd' },   // Session 391 T1a-2 (owner, 24 Nov 2026): also under OPD (Shalakya / Prasuti OPD sittings); kept under IPD too
         // Session 205 (cont.) -- this is a PG/faculty academic register (NCISM Sec.18k/21l), not
         // a clinical duty: nurse had full write access via CLINICAL (log Bedside Clinics under her
         // own name as "faculty", enter PG faculty ratings) with zero real function there. Dr.
@@ -119,6 +120,7 @@ function _buildGroups(role, type, secondaryRole, hasMonitoringAccess, isDeptScop
         { href:'major-ot.html',      label:'Major OT',        roles:CLINICAL.concat(ADMIN_ROLES),            types:HOSP, module:'ipd'        },
         { href:'minor-ot.html',      label:'Minor OT',        roles:CLINICAL.concat(ADMIN_ROLES),            types:HOSP, module:'ipd'        },
         { href:'ksharasutra.html',   label:'Kshara Sutra',    roles:CLINICAL.concat(ADMIN_ROLES),            types:HOSP, module:'ipd'        },
+        { href:'dept-procedures.html', label:'Dept. Procedures', roles:CLINICAL.concat(['therapist']),        types:HOSP, module:'ipd'        },   // Session 391 T1a-2: Shalakya + Prasuti records
         { href:'anc.html',           label:'ANC Register',    roles:CLINICAL,                                types:HOSP, module:'ipd'        },   // Session 371B (Q8): not in the receptionist's menu (server access unchanged)
         { href:'kriyakalpa.html',    label:'Kriya Kalpa',     roles:CLINICAL.concat(['therapist']),          types:HOSP, module:'ipd'        },
         { href:'physiotherapy.html', label:'Physiotherapy',   roles:CLINICAL.concat(['therapist']),          types:HOSP, module:'ipd'        },   // 386b-2b M2b (F18): was in no menu

@@ -59,11 +59,13 @@ async function _groupsFor(supabase, tenantId, register) {
  * mountProcedurePicker({ supabase, tenantId, register, select, hide })
  *   select: the page's existing fee <select> -- it becomes the procedure pick-list
  *   hide:   the page's old free-text procedure field rows (hidden)
- * Returns { ready, value(), reset() }.
+ * Returns { ready, value(), reset(), lockTo(feeId, label), unlock() }.
+ *   lockTo (Session 391 T1a-2, F4): an ordered sitting's procedure -- the order's fee, filled in and greyed out (the server sets it anyway)
  */
 export function mountProcedurePicker({ supabase, tenantId, register, select, hide = [] }) {
   if (!select) return null;
   for (const h of hide) if (h) h.style.display = 'none';
+  select.disabled = false; select.removeAttribute('title');   // F4: a form opened again by hand is never left locked
   let wrap = select.parentElement.querySelector(':scope > .ax-proc-picker');
   if (!wrap) {
     wrap = _el('div', { class: 'ax-proc-picker', style: 'margin-top:6px' });
@@ -106,13 +108,16 @@ export function mountProcedurePicker({ supabase, tenantId, register, select, hid
     askMsg.textContent = `Sent: "${n}" — the Fee committee is asked to add it. Record it once it appears in the list.`;
     askName.value = ''; askWhy.value = ''; askPrice.value = '';
   });
-  wrap.append(askBtn, askBox, detail);
+  const lockNote = _el('div', { style: 'display:none;font-size:12px;color:var(--text-mid, #555);margin-top:4px' },
+    "The procedure comes from the doctor's order — it cannot be changed here.");
+  wrap.append(lockNote, askBtn, askBox, detail);
   let _labels = new Map();
   let _askOn = false;
+  let _locked = null;   // F4: { feeId, label } while an ordered sitting is being recorded
   const _askSwitch = async () => {   // the server's answer; an error = OFF (the button stays hidden; the server refuses the request anyway)
     const sw = await supabase.rpc('_procedure_not_in_list_on', { p_tenant: tenantId });   // internal name: "Ask to add a procedure" ON / OFF
     _askOn = sw?.data === true;
-    askBtn.style.display = _askOn ? '' : 'none';
+    askBtn.style.display = _askOn && !_locked ? '' : 'none';
     if (!_askOn) askBox.style.display = 'none';
   };
   _refreshAsk = () => { _askSwitch().catch(() => {}); };
@@ -147,7 +152,27 @@ export function mountProcedurePicker({ supabase, tenantId, register, select, hid
       return { feeId: v, name: _labels.get(v) || '', detail: d || null };
     },
     reset() {
-      select.value = ''; detail.value = '';
+      if (!_locked) select.value = '';
+      detail.value = '';
+    },
+    lockTo(feeId, label) {
+      if (!feeId) return;
+      _locked = { feeId, label: label || '' };
+      ready.then(() => {
+        if (!_locked || _locked.feeId !== feeId) return;
+        if (![...select.options].some(o => o.value === feeId)) select.appendChild(_el('option', { value: feeId }, _locked.label));
+        _labels.set(feeId, _labels.get(feeId) || _locked.label);
+        select.value = feeId;
+        select.disabled = true;
+        select.title = "The procedure comes from the doctor's order";
+        lockNote.style.display = '';
+        askBtn.style.display = 'none'; askBox.style.display = 'none';
+      });
+    },
+    unlock() {
+      _locked = null;
+      select.disabled = false; select.removeAttribute('title'); lockNote.style.display = 'none';
+      askBtn.style.display = _askOn ? '' : 'none';
     },
   };
 }

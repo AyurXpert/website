@@ -17,6 +17,7 @@ import { ROLE_HOME } from '../config/constants.js';
 import { localDateStr, todayLocalStr, istDayStartUTC, istDayEndUTC, todayISTStr } from '../utils/dateUtils.js';
 import { notify } from '../components/notify.js';
 import { isRuleDHod } from '../utils/hodAccess.js';
+import { mountDeptProcedureSlots } from '../modules/scheduler/deptProcedureSlots.js';   // Session 391 T1a-2
 
 // Session 137 widened this from doctor-only to any active staff member with a
 // department scope. Session 350 (TODO §231): the page now follows rule D exactly,
@@ -334,3 +335,4 @@ window.removeShift = async function(rowId){
 };
 
 if (deptId) await loadAll();
+if (deptId) mountDeptProcedureSlots({ supabase, container: document.getElementById('proc-slots-wrap'), deptId, toast: _toast });   // Session 391 T1a-2

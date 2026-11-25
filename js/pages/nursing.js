@@ -33,6 +33,7 @@ import { printDocument, docHeader } from '../utils/printDocument.js';
 import { abdmOn } from '../modules/abdm/comingSoon.js';   // Session 379a
 import { mountOpdProceduresToday } from '../modules/opd/opdProcedureOrders.js';   // Session 386d-1 (L12)
 import { canMarkDone } from '../modules/billing/opdProcedureBilling.js';               // Session 386d-1 (L12)
+import { renderPatientSittings } from '../modules/scheduler/patientSittings.js';      // Session 391 T1a-2
 
 // Session 255: trainee_doctor (posted PG/intern) added -- Dr. Venkatesh confirmed
 // posted interns/PGs need real IPD case-sheet access, not just Snehapana sign-recording
@@ -567,6 +568,7 @@ window.selectPatient = function(id) {
   // then created a KAY-06 note. Clearing every tab's entry fields here (not just the active one)
   // means switching tabs later can never resurrect a stale value either.
   _clearEntryForms();
+  renderPatientSittings({ supabase, container: document.getElementById('rp-proc-sittings'), patientId: _activeAdm.patient_id || _activeAdm.patients?.id });   // Session 391 T1a-2
   loadWardPatients(); // refresh active state
   loadTabData(_activeTab);
 };

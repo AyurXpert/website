@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<script src="js/core/authGate.js"></script>
+<title>Department Procedures — AyurXpert</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://*.supabase.co; connect-src 'self' https://*.supabase.co wss://*.supabase.co; font-src 'self'; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'"/>
+<meta http-equiv="X-Content-Type-Options" content="nosniff"/>
+<link rel="icon" href="assets/icon.svg"/>
+<link rel="stylesheet" href="css/fonts/cg-400-600-700_dm-300-400-500-600.css"/>
+<style>
+:root{
+  --green-deep:#1a4a2e;--green-mid:#2d7a4f;--green-light:#e8f5ee;
+  --gold:#c9902a;--gold-light:#fdf6e3;
+  --red:#c0392b;--red-light:#fdecea;
+  --cream:#faf8f3;--white:#fff;
+  --border:#d8e4dd;--radius:8px;
+  --text-dark:#1a2e22;--text-mid:#3d5a47;--text-muted:#7a9485;
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-dark)}
+.page-wrap{max-width:1180px;margin:0 auto;padding:20px 16px 60px}
+.page-title{font-family:'Cormorant Garamond',serif;font-size:28px;font-weight:700;color:var(--green-deep)}
+.page-subtitle{font-size:13px;color:var(--text-muted);margin-top:2px}
+.tabs{display:flex;gap:8px;margin:16px 0 12px;flex-wrap:wrap}
+.tab{min-height:44px;padding:8px 16px;border:1px solid var(--green-deep);background:#fff;color:var(--green-deep);border-radius:var(--radius);font-size:13.5px;cursor:pointer;font-family:inherit}
+.tab[aria-selected="true"]{background:var(--green-deep);color:#fff}
+.card{background:#fff;border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;margin-bottom:12px}
+.card h2{font-family:'Cormorant Garamond',serif;font-size:20px;margin:0 0 8px;color:var(--green-deep)}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px}
+label.f{display:flex;flex-direction:column;gap:4px;font-size:12.5px;color:var(--text-mid)}
+label.f input,label.f textarea{font-family:inherit;font-size:13.5px;padding:8px;border:1px solid var(--border);border-radius:6px;min-height:40px}
+label.f textarea{min-height:70px;resize:vertical}
+.btn{min-height:44px;padding:8px 16px;border-radius:6px;border:1px solid var(--green-deep);background:var(--green-deep);color:#fff;font-size:13.5px;cursor:pointer;font-family:inherit}
+.btn.secondary{background:#fff;color:var(--green-deep)}
+.muted{font-size:12.5px;color:var(--text-muted)}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{text-align:left;padding:7px 6px;border-top:1px solid var(--border);vertical-align:top}
+th{font-size:12px;color:var(--text-muted);font-weight:600}
+.struck{text-decoration:line-through;color:var(--text-muted)}
+.tag{display:inline-block;padding:2px 8px;border-radius:10px;font-size:11.5px;font-weight:600}
+.tag.red{background:var(--red-light);color:#8b1a1a}
+</style>
+<link rel="stylesheet" href="css/notify.css"/>
+</head>
+<body>
+<div id="navbar-placeholder"></div>
+
+<div class="page-wrap">
+  <div class="page-title">Department Procedures</div>
+  <div class="page-subtitle">Shalakya and Prasuti / Stri Roga procedures — recorded from the doctors' treatment orders</div>
+
+  <div class="tabs" role="tablist" aria-label="Department">
+    <button class="tab" role="tab" id="tab-shalakya" aria-selected="true" type="button">👁 Shalakya</button>
+    <button class="tab" role="tab" id="tab-psr" aria-selected="false" type="button">🌸 Prasuti / Stri Roga</button>
+  </div>
+
+  <div id="todays-sittings"></div>
+
+  <div class="card" id="record-card" hidden>
+    <h2 id="record-title">Record the procedure</h2>
+    <div class="muted" id="record-sub"></div>
+    <div class="grid" style="margin-top:10px">
+      <label class="f">Site <input id="r-site" type="text" maxlength="200" placeholder="e.g. right eye, lower lid"/></label>
+      <label class="f">Follow-up date <input id="r-followup" type="date"/></label>
+    </div>
+    <div class="grid" style="margin-top:10px">
+      <label class="f">Findings before the procedure <textarea id="r-pre" maxlength="2000"></textarea></label>
+      <label class="f">What was done (procedure notes) * <textarea id="r-notes" maxlength="4000"></textarea></label>
+      <label class="f">Findings <textarea id="r-findings" maxlength="2000"></textarea></label>
+      <label class="f">Complications <textarea id="r-complications" maxlength="2000"></textarea></label>
+      <label class="f">Instructions to the patient <textarea id="r-post" maxlength="2000"></textarea></label>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
+      <button class="btn" id="r-save" type="button">✓ Save the record</button>
+      <button class="btn secondary" id="r-cancel" type="button">Close</button>
+    </div>
+  </div>
+
+  <details class="card" id="slots-details">
+    <summary style="cursor:pointer;font-weight:600;color:var(--green-deep);min-height:44px;display:flex;align-items:center">⚙ Procedure slots and places (department head, Medical Superintendent, Super Admin)</summary>
+    <label class="f" style="max-width:360px;margin-top:8px">Department <select id="slots-dept" style="min-height:44px"></select></label>
+    <div id="slots-wrap" style="margin-top:10px"></div>
+  </details>
+
+  <details class="card" id="wo-details">
+    <summary style="cursor:pointer;font-weight:600;color:var(--green-deep);min-height:44px;display:flex;align-items:center">🗒 Entries without an order — all departments (Medical Superintendent, Super Admin)</summary>
+    <div class="muted" style="margin-top:6px">Every sitting opened without a doctor's order (Anushastra, Kshara Sutra, Minor OT, Shalakya, Prasuti), with the reason given. The last 7 days unless you choose a period (up to 3 months).</div>
+    <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;margin-top:8px">
+      <label class="f">From <input id="wo-from" type="date" style="min-height:44px"/></label>
+      <label class="f">To <input id="wo-to" type="date" style="min-height:44px"/></label>
+      <button class="btn secondary" id="wo-show" type="button">Show the list</button>
+    </div>
+    <div id="wo-list" style="margin-top:8px"></div>
+  </details>
+
+  <div class="card">
+    <h2>Recorded procedures</h2>
+    <div class="muted">The last 30 days. A correction is a new entry; the earlier one stays, struck through.</div>
+    <div id="records" style="margin-top:8px"></div>
+  </div>
+</div>
+
+<script type="module" src="js/pages/dept-procedures.js"></script>
+</body>
+</html>

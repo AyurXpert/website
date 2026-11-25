@@ -33,6 +33,7 @@ import { stageChip, awaitingRows, buildCounterPanel, canWaiveDeposit, SCHEMES } 
 import { genderCode, genderLabel } from '../utils/gender.js';
 import { abdmOn, soonBox, closeAbdmPanel } from '../modules/abdm/comingSoon.js';   // Session 379a
 import { abhaText, loadLinkProblems, renderLinkProblems } from '../modules/abdm/linkStatus.js';   // Session 375 (§410 / §411)
+import { renderPatientSittings } from '../modules/scheduler/patientSittings.js';   // Session 391 T1a-2
 import { wireAadhaarBox, aadhaarDigits, aadhaarLengthError, maskAadhaar } from '../utils/aadhaar.js';
 import { NO_MOBILE_REASONS, NO_MOBILE_EMERGENCY, normaliseMobile, searchKind, validateRegistration, showFieldErrors, clearFieldError, addressParts } from '../modules/reception/patientForm.js';
 import { mountNcismStrip } from '../modules/reception/ncismStrip.js';
@@ -1366,6 +1367,7 @@ async function _selectPatient(patient, chosenCombo) {
   // ABDM link with Retry (§410)
   document.getElementById('pt-abha').textContent = abhaText(patient);
   _showLinkProblems(patient);
+  renderPatientSittings({ supabase, container: document.getElementById('pt-proc-sittings'), patientId: patient?.id });   // Session 391 T1a-2 (read-only)
   await _loadAbhaAddressPicker(patient);
 
   document.getElementById('reg-fee').value = '0';

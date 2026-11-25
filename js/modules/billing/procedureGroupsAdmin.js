@@ -206,6 +206,39 @@ export function _renameForm(supabase, grp, say, reload, rows = []) {
       fee, mn, us, mx, teamWhy, button('Save team size', () => save(false)), button('Use the standard', () => save(true)), nowLine);
     showTeam();
   }
+  // Session 391 T1a-2 (owner D2-9 / D2-11 / D2-2): a department procedure's consent before the sitting, the female performer / chaperone
+  // rule and the usual course -- per fee, by the Fee committee, with a reason, audited (set_fee_procedure_flags; the server decides)
+  if (grp.is_active && procRows.length && ['anushastra', 'minor_ot', 'shalakya_procedures', 'prasuti_stri_roga'].includes(grp.code)) {
+    const DEFAULT_ON = ['anushastra', 'minor_ot'].includes(grp.code);
+    const pfee = h('select', { 'aria-label': 'Procedure for its settings', style: 'min-height:44px;min-width:260px;max-width:100%' },
+      procRows.map(r => h('option', { value: r.id }, r.label)));
+    const consent = h('select', { 'aria-label': 'Consent before the sitting', style: 'min-height:44px' },
+      h('option', { value: '' }, `Consent: the group default (${DEFAULT_ON ? 'needed' : 'not needed'})`), h('option', { value: 'true' }, 'Consent: needed'),
+      h('option', { value: 'false' }, 'Consent: not needed'));
+    const intimate = h('input', { type: 'checkbox', 'aria-label': 'Intimate procedure: a female performer or a female chaperone', style: 'width:22px;height:22px' });
+    const sit = h('input', { type: 'number', min: '1', max: '60', placeholder: 'sittings', 'aria-label': 'Usual number of sittings', style: 'min-height:44px;width:96px' });
+    const gap = h('input', { type: 'number', min: '1', max: '60', placeholder: 'days apart', 'aria-label': 'Usual days between sittings', style: 'min-height:44px;width:110px' });
+    const pWhy = h('input', { type: 'text', maxlength: '300', placeholder: 'Reason (procedure settings)', 'aria-label': 'Reason to change the procedure settings', style: 'min-height:44px;min-width:200px' });
+    const fill = () => {
+      const r = procRows.find(x => x.id === pfee.value) || {};
+      consent.value = r.consent_required == null ? '' : String(r.consent_required);
+      intimate.checked = !!r.intimate_procedure;
+      sit.value = r.default_sittings ?? ''; gap.value = r.default_interval_days ?? '';
+    };
+    pfee.addEventListener('change', fill);
+    wrap.append(h('span', { style: NOTE + ';flex-basis:100%' },
+      'Procedure settings for one procedure of this group: the consent the doctor records before the sitting, the female performer / female chaperone rule for intimate procedures, and the usual course offered to the doctor.'),
+      pfee, consent, h('label', { style: 'display:flex;gap:6px;align-items:center;font-size:12.5px;min-height:44px' }, intimate, 'Intimate (female performer or chaperone)'),
+      sit, gap, pWhy, button('Save procedure settings', async () => {
+        if (pWhy.value.trim().length < 5) { say('Give a reason (at least 5 characters).', true); return; }
+        const n = (x) => (x.value === '' ? null : Number(x.value));
+        const { error } = await supabase.rpc('set_fee_procedure_flags', { p_fee: pfee.value, p_consent_required: consent.value === '' ? null : consent.value === 'true',
+          p_intimate: intimate.checked, p_default_sittings: n(sit), p_default_interval_days: n(gap), p_reason: pWhy.value.trim() });
+        if (error) { say(safeErrorMessage(error, 'Could not save the procedure settings.'), true); return; }
+        say('Procedure settings saved.'); await reload();
+      }));
+    fill();
+  }
   if (!grp.is_standard) {
     const reason = h('input', { type: 'text', maxlength: '300', placeholder: 'Reason (to deactivate)', 'aria-label': 'Reason to deactivate', style: 'min-height:44px;min-width:200px' });
     wrap.append(reason, button(grp.is_active ? 'Deactivate section' : 'Reactivate section', async () => {

@@ -138,9 +138,13 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
       <div class="page-title">Kshara Sutra Scheduler <span class="ncism-badge">NCISM §18o</span></div>
       <div class="page-subtitle">Shalya Tantra — Weekly thread change tracking & appointment scheduler</div>
     </div>
-    <button class="btn btn-primary" data-onclick="openRegisterModal">+ Register New Case</button>
+    <!-- Session 391 T1a-2 (D6): a case is registered from its order's sitting 1 (Today's sittings), never free-hand -->
+    <span style="font-size:12.5px;color:var(--text-muted);max-width:320px">New entries come from <strong>📋 Today's sittings</strong> (the doctors' orders) — ▶ Start, then record. Without an order: the department head, in the same box.</span>
   </div>
 
+
+  <!-- Session 391 T1a-2: the ordered sittings of the day (js/modules/scheduler/todaysSittings.js) -->
+  <div id="todays-sittings"></div>
 
   <!-- Stats -->
   <div class="stats-row">
@@ -218,6 +222,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
       <div class="mfield">
         <label for="reg-fee">Application fee (optional)</label>
         <select id="reg-fee"><option value="">No fee chosen — billing will be asked to price it</option></select>
+        <div id="reg-fee-note" hidden style="font-size:12px;color:var(--text-mid);margin-top:4px">The procedure comes from the doctor's order — it cannot be changed here.</div>
       </div>
       <div class="mfield">
         <label for="reg-thread-fee">Thread-change fee (used for every change, optional)</label>

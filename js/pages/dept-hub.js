@@ -62,6 +62,7 @@ const DEPTS = [
       { icon:'👂', name:'ENT Examination',            desc:'Ear / nose / throat, Rinne / Weber tests',   type:'consult', ncism:'§18t' },
       { icon:'💧', name:'Netra Kriya Kalpa',          desc:'Tarpana, Putapaka, Anjana session tracker',  type:'soon',    ncism:'§18s' },
       { icon:'🌬', name:'ENT Kriya Kalpa',            desc:'Nasya, Karnapurana session tracker',         type:'soon',    ncism:'§18u' },
+      { icon:'🩹', name:'Shalakya Procedures',        desc:"Ordered eye / ENT procedures — today's sittings & records", href:'dept-procedures.html', ncism:'—', roles:['super_admin','dept_admin','doctor','nurse','therapist'] },   // Session 391 T1a-2
     ]
   },
   {
@@ -77,6 +78,7 @@ const DEPTS = [
     code:'PST', name:'Prasuti & Stri Roga', icon:'🤱', desc:'Obstetrics & Gynaecology',
     modules:[
       { icon:'🔬', name:'Obs/Gyn Examination',  desc:'Menstrual Hx, GPAL, FHS, fundal, PS/PV', type:'consult', ncism:'§18w' },
+      { icon:'🩹', name:'Prasuti Procedures',   desc:"Ordered local procedures — today's sittings & records", href:'dept-procedures.html', ncism:'—', roles:['super_admin','dept_admin','doctor','nurse','therapist'] },   // Session 391 T1a-2
       { icon:'📊', name:'ANC Register',         desc:'Antenatal register across multiple visits', href:'anc.html', ncism:'§18x', roles:['super_admin','dept_admin','doctor','nurse','receptionist'] },
       { icon:'🤱', name:'Labour Room',          desc:'Delivery register, partograph, APGAR, newborn care', href:'labour-room.html', ncism:'§8.9', roles:['super_admin','dept_admin','doctor','nurse','receptionist'] },
       { icon:'📋', name:'Prasuti Proforma',      desc:'Obstetrics specialty proforma',            type:'consult', ncism:'§18v' },

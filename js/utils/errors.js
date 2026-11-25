@@ -99,6 +99,43 @@ export function safeErrorMessage(error, fallback = 'Something went wrong. Please
       && (T1A_MSGS.some(m => error?.message?.startsWith(m)) || T1A_PARTS.some(m => error?.message?.includes(m)))) {
     return error.message;
   }
+  // Session 391 T1a-2: every department-procedure order / sitting / slot / record refusal, word for word (sql/session391t1a2_*)
+  const T1A2_MSGS = ['A Panchakarma order is changed in its care plan.', 'A place is active, under maintenance or inactive.',
+    "A procedure is recorded from its scheduled sitting (Today's sittings → Start).", 'A sitting of this order is in progress',
+    'Add 1 to 20 procedures.', 'An assistant must be an active nurse, OT technician', 'The assistant must be an active nurse, OT technician', 'Your account cannot list the procedure team.', 'At most 4 assistants.', 'Choose a date.',
+    'Choose a department procedure from the list', 'Choose a period of up to 3 months.', 'Choose a start date and 1 to 60 days.',
+    'Choose the days of the week (Monday to Sunday)', 'Choose where the sittings are done:', 'Department not found in your organisation.',
+    'Details: at most 200 characters', 'Give the place a name (up to 40 characters', 'Give the reason there is no order (10 to 300 characters',
+    'Move it to today or later.', 'No free slot on ', 'No free slot: ', 'Nothing to change.', 'One slot is 10 to 240 minutes.',
+    'Only an active doctor of the department orders its procedures.', 'Only an active doctor of the department starts its procedure sittings.',
+    'Only the Medical Superintendent or the Super Admin reads this list.', 'Only the doctor who recorded it or the head of the department corrects',
+    'Only the doctor who started this sitting records it.', 'Only the head of this department, the Medical Superintendent or the Super Admin sets',
+    'Only the ordering doctor or the head of the department ', 'Order not found in your organisation.',
+    'Procedure slots are set only for the Shalya, Shalakya and Prasuti / Stri Roga departments.', 'Record not found in your organisation.',
+    'Record the Kshara sutra application (sitting 1) first.', "Record the patient's consent for ", 'Reschedule it to today or later.',
+    'Sitting not found in your organisation.', 'Slots start today or later -- never back-dated.', "That place is not one of this department's",
+    'The chaperone must be a female, active staff member', 'The consent, intimate-procedure and usual-course settings of a fee',
+    'The follow-up date is today or later.', 'The patient needs a visit today or an admission to record a procedure.',
+    'The record is not in the expected form.', 'The sitting of a recorded procedure cannot be changed.', 'The procedure and the patient of an ordered sitting come from the doctor',
+    '"Emergency — consent to follow" is only for a procedure', 'Give the reason the consent will follow', 'Write who gave the consent (up to 120',
+    'Choose who gave the consent: the patient (Self) or a relative.', "A relative's consent needs a witness",
+    'Explain the risks, the alternatives and answer the questions first', 'The slots end after they start',
+    'The usual course is 1 to 60 sittings', 'This order is ', 'This procedure needs a female performer or a female chaperone',
+    'This record was already corrected', 'This sitting is ', 'This visit has no patient.', 'This visit is cancelled.',
+    "This visit's OPD has no department", 'Unknown register.', 'Without an order only the head of the department or the Medical Superintendent',
+    'Write what was done (procedure notes).', 'You are an intern / PG scholar: add the procedures to the consultation draft',
+    'You are already booked for another sitting at that time', 'A place keeps its kind -- set it inactive and add a new one.', 'The patient is booked for another sitting at this time'];
+  const T1A2_PARTS = [' already booked for another sitting at that time', ' is already ordered for this patient -- cancel that order first',
+    " is already planned as a treatment order for this patient -- record it from the department's sitting",
+    " is ordered only from its own department's OPD.", ' is an OPD charge -- add it in the 🩹 OPD procedures box',
+    ' was already added under 🩹 Quick procedures today on this visit', ': 1 to 60 sittings, 1 to 60 days apart.',
+    ': choose OPD, day care or admission.', ': choose the side (both, right or left).', ': the first sitting is today or later, within 6 months.',
+    ': the side is both, right or left.', ' entry is never deleted -- skip, cancel or correct it with a reason.',
+    ' is a department procedure -- order it under 🗓 Department procedures', ' is a department procedure group -- its procedures are booked as sittings'];
+  if (['P0001', 'P0002', '42501', '22023', '23514', '23P01'].includes(error?.code)
+      && (T1A2_MSGS.some(m => error?.message?.startsWith(m)) || T1A2_PARTS.some(m => error?.message?.includes(m)))) {
+    return error.message;
+  }
   // S1-F22: the session table's own room-overlap rule (from before S1) reached by a direct write -- the same plain words
   if (error?.code === '23P01' && /pk_sessions_room_overlap_excl/.test(error?.message || '')) {
     return 'That time is already taken: the room is booked then.';

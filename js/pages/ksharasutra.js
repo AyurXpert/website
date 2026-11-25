@@ -7,6 +7,7 @@ import { safeErrorMessage } from '../utils/errors.js';
 import { localDateStr, todayLocalStr } from '../utils/dateUtils.js';
 import { notify } from '../components/notify.js';
 import { loadFees, fillFeeSelect, feeIdOf } from '../modules/billing/feeSelect.js';   // Session 386b-2a
+import { mountTodaysSittings } from '../modules/scheduler/todaysSittings.js';   // Session 391 T1a-2
 
 await requireAuth(['super_admin','dept_admin','doctor','nurse']);
 initNavbar();
@@ -24,13 +25,14 @@ let _cases      = [];
 let _activeFilter = 'active';
 let _activeSessionId = null;
 let _foundPatient    = null;
+let _sitting = null;   // Session 391 T1a-2: the started sitting being recorded (1 = the application / course, 2.. = a thread change)
 
 // ── Load ──────────────────────────────────────────────────────────────────────
 async function loadCases() {
   const { data, error } = await supabase
     .from('ks_sessions')
     .select(`
-      id, condition, thread_type, start_date, status, notes, planned_sittings, created_at,
+      id, condition, thread_type, start_date, status, notes, planned_sittings, created_at, procedure_sitting_id,
       patients(id, name, phone),
       profiles!doctor_id(full_name),
       ks_thread_changes(id, sitting_no, change_date, thread_length_cm, findings, next_date)
@@ -43,6 +45,26 @@ async function loadCases() {
     ...c,
     changes: (c.ks_thread_changes || []).sort((a,b) => a.sitting_no - b.sitting_no)
   }));
+  // Session 391 T1a-2 F6 (owner rehearsal, 24 Nov 2026): a case registered from a doctor's order follows the ORDER's sittings -- the
+  // application is sitting 1, the next date is the next booked sitting, the course completes when all are done (the server marks it)
+  const first = _cases.map(c => c.procedure_sitting_id).filter(Boolean);
+  if (first.length) {
+    const { data: s1 } = await supabase.from('procedure_sittings').select('id, treatment_order_id').in('id', first);
+    const orderOf = new Map((s1 || []).map(x => [x.id, x.treatment_order_id]));
+    const orders = [...new Set([...orderOf.values()])];
+    const { data: all } = orders.length
+      ? await supabase.from('procedure_sittings').select('treatment_order_id, sitting_no, status, scheduled_date, scheduled_time').in('treatment_order_id', orders)
+      : { data: [] };
+    for (const c of _cases) {
+      const oid = orderOf.get(c.procedure_sitting_id);
+      if (!oid) continue;
+      const mine = (all || []).filter(x => x.treatment_order_id === oid);
+      const live = mine.filter(x => ['held', 'scheduled', 'in_progress', 'completed', 'missed'].includes(x.status));
+      const next = mine.filter(x => ['held', 'scheduled'].includes(x.status) && x.scheduled_date)
+        .sort((a, b) => `${a.scheduled_date} ${a.scheduled_time || ''}`.localeCompare(`${b.scheduled_date} ${b.scheduled_time || ''}`))[0];
+      c.fromOrder = { done: mine.filter(x => x.status === 'completed').length, planned: live.length, next: next ? next.scheduled_date : null };
+    }
+  }
   renderStats();
   renderCards();
 }
@@ -96,8 +118,8 @@ window.renderCards = function() {
 
 function _buildCard(c, today) {
   const nd       = _nextDate(c);
-  const sittings = c.changes.length;
-  const planned  = c.planned_sittings || 0;
+  const sittings = c.fromOrder ? c.fromOrder.done : c.changes.length;   // F6: the order's sittings (the application = sitting 1)
+  const planned  = c.fromOrder ? c.fromOrder.planned : (c.planned_sittings || 0);
   const pct      = planned ? Math.min(100, Math.round((sittings / planned) * 100)) : 0;
   const lastChange = c.changes.length ? c.changes[c.changes.length - 1] : null;
 
@@ -131,7 +153,7 @@ function _buildCard(c, today) {
     </div>` : `<div style="font-size:12px;color:var(--text-muted);margin:8px 0">${sittings} sittings recorded</div>`}
     <span class="next-date-chip ${chipCls}">${chipText}</span>
     <div class="ks-card-actions">
-      ${c.status === 'active' ? `<button class="btn btn-primary btn-sm" data-onclick="openLogModal" data-onclick-a0="${c.id}">+ Log Change</button>` : ''}
+      ${c.status === 'active' ? `<span style="font-size:12px;color:var(--text-muted)">Thread changes: from Today's sittings</span>` : ''}
       <button class="btn btn-secondary btn-sm" data-onclick="openHistModal" data-onclick-a0="${c.id}">History</button>
       ${c.status === 'active' ? `<button class="btn-ghost btn-sm" data-onclick="markCompleted" data-onclick-a0="${c.id}">✓ Complete</button>` : ''}
     </div>
@@ -141,6 +163,7 @@ function _buildCard(c, today) {
 // ── Register modal ────────────────────────────────────────────────────────────
 window.openRegisterModal = function() {
   _foundPatient = null;
+  _sitting = null;   // Session 391 T1a-2: a modal opened by hand is not a sitting (onStart sets it after)
   document.getElementById('reg-search').value   = '';
   document.getElementById('reg-condition').value = '';
   document.getElementById('reg-thread-type').value = 'apamarga';
@@ -150,9 +173,21 @@ window.openRegisterModal = function() {
   document.getElementById('reg-pt-result').classList.remove('show');
   // Session 386b-2a (§540, Q18): the application fee and the thread-change fee (used for every change), chosen once here --
   // own active procedure fees; both are fixed once the case is registered
+  const rf = document.getElementById('reg-fee');
+  rf.disabled = false; rf.removeAttribute('title');   // F4: a modal opened by hand is never left locked
+  const rfLabel = document.querySelector('label[for="reg-fee"]'), rfNote = document.getElementById('reg-fee-note');
+  if (rfLabel) rfLabel.textContent = 'Application fee (optional)';
+  if (rfNote) rfNote.hidden = true;
   loadFees(supabase, tenantId, ['procedure'], { register: 'kshara_sutra' }).then(({ fees, error }) => {
-    fillFeeSelect(document.getElementById('reg-fee'), error ? [] : fees, { keep: false });
+    fillFeeSelect(rf, error ? [] : fees, { keep: false });
     fillFeeSelect(document.getElementById('reg-thread-fee'), error ? [] : fees, { keep: false });
+    // F4 (owner rehearsal, 24 Nov 2026): sitting 1 of an order -- the application fee is the order's, filled in and locked
+    if (_sitting && _sitting.sitting_no === 1 && _sitting.fee_id) {
+      if (![...rf.options].some(o => o.value === _sitting.fee_id)) rf.appendChild(new Option(_sitting.procedure || '', _sitting.fee_id));
+      rf.value = _sitting.fee_id; rf.disabled = true; rf.title = "The procedure comes from the doctor's order";
+      if (rfLabel) rfLabel.textContent = "Application fee (from the doctor's order)";   // visible on a tablet too (no hover there)
+      if (rfNote) rfNote.hidden = false;
+    }
   });
   document.getElementById('reg-overlay').style.display = 'flex';
 };
@@ -183,6 +218,8 @@ window.searchPatient = function() {
 
 window.saveKsCase = async function() {
   if (!_foundPatient) { alert('Please search and select a patient first.'); return; }
+  // Session 391 T1a-2 (D6): a case is registered from sitting 1 of the doctor's Kshara sutra order (Today's sittings → ▶ Start)
+  if (!_sitting || _sitting.sitting_no !== 1) { _alert('error', "Start the patient's first sitting (Today's sittings → ▶ Start). Without an order only the department head records it, with a reason."); return; }
   const condition = document.getElementById('reg-condition').value;
   if (!condition)   { alert('Please select the condition.'); return; }
 
@@ -197,9 +234,11 @@ window.saveKsCase = async function() {
     notes:            document.getElementById('reg-notes').value.trim(),
     fee_structure_id:        feeIdOf('reg-fee'),          // Session 386b-2a: charged at the application
     thread_fee_structure_id: feeIdOf('reg-thread-fee'),   // charged at every thread change
-    status:           'active'
+    status:           'active',
+    procedure_sitting_id: _sitting.sitting_id   // Session 391 T1a-2: the server sets patient, fee, date and sittings from it
   });
   if (error) { alert(safeErrorMessage(error, 'Could not save case.')); return; }
+  _sitting = null; _ksSittings?.reload();
   closeRegModal();
   _alert('success', 'Kshara Sutra case registered successfully.');
   loadCases();
@@ -208,6 +247,7 @@ window.saveKsCase = async function() {
 // ── Log thread change modal ───────────────────────────────────────────────────
 window.openLogModal = function(sessionId) {
   _activeSessionId = sessionId;
+  _sitting = null;   // Session 391 T1a-2 (onStart sets it after)
   const c = _cases.find(x => x.id === sessionId);
   if (!c) return;
   const nextSitting = (c.changes.length || 0) + 1;
@@ -227,6 +267,7 @@ window.closeLogModal = () => { document.getElementById('log-overlay').style.disp
 window.saveThreadChange = async function() {
   const findings = document.getElementById('log-findings').value.trim();
   if (!findings) { alert('Please enter findings / observations.'); return; }
+  if (!_sitting || _sitting.sitting_no < 2) { _alert('error', "Start the patient's sitting first (Today's sittings → ▶ Start)."); return; }
 
   const { error } = await supabase.from('ks_thread_changes').insert({
     tenant_id:        tenantId,
@@ -236,9 +277,11 @@ window.saveThreadChange = async function() {
     thread_length_cm: parseFloat(document.getElementById('log-thread-len').value) || null,
     next_date:        document.getElementById('log-next-date').value || null,
     findings,
-    done_by:          userId
+    done_by:          userId,
+    procedure_sitting_id: _sitting.sitting_id   // Session 391 T1a-2: the server sets the course, sitting no., dates
   });
   if (error) { alert(safeErrorMessage(error, 'Could not save thread change.')); return; }
+  _sitting = null; _ksSittings?.reload();
   closeLogModal();
   _alert('success', 'Thread change logged successfully.');
   loadCases();
@@ -282,12 +325,35 @@ window.markCompleted = async function(sessionId) {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function _today() { return todayLocalStr(); }
-function _nextDate(c) { const last = c.changes[c.changes.length - 1]; return last?.next_date || null; }
+function _nextDate(c) { if (c.fromOrder) return c.fromOrder.next; const last = c.changes[c.changes.length - 1]; return last?.next_date || null; }   // F6
 function _fmtDate(d) { if (!d) return '—'; return new Date(d + 'T00:00:00').toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}); }
 function _daysAgo(d) { return Math.floor((new Date(_today()) - new Date(d)) / 86400000); }
 function _threadLabel(t) { return {apamarga:'Apamarga Kshara',snuhi:'Snuhi Kshara',combination:'Combination',other:'Other'}[t] || _esc(t || '—'); }
 function _condLabel(c) { return {fistula_in_ano:'Fistula-in-Ano',haemorrhoids:'Haemorrhoids',fissure:'Fissure',pilonidal_sinus:'Pilonidal Sinus',sentinel_tag:'Sentinel Tag',other:'Other'}[c] || _esc(c || '—'); }
 
 function _alert(type, msg) { notify(msg, type); }   // Session 323: shared top-layer notify()
+
+// Session 391 T1a-2: the ordered sittings of the day; ▶ Start opens the case (sitting 1) or the thread change (2..) for that patient
+const _ksSittings = mountTodaysSittings({ supabase, container: document.getElementById('todays-sittings'), register: 'kshara_sutra', tenantId,
+  toast: (m, t) => _alert(t || 'info', m),
+  onStart: info => {
+    if (info.sitting_no === 1) {
+      window.openRegisterModal();
+      _sitting = info;   // after openRegisterModal (it clears the patient and the sitting)
+      _foundPatient = { id: info.patient_id, name: info.patient_name };
+      document.getElementById('reg-search').value = info.patient_name;
+      document.getElementById('reg-pt-name').textContent = info.patient_name;
+      document.getElementById('reg-pt-sub').textContent = `${info.uhid || ''} · sitting 1 of ${info.sittings_planned || 1}: ${info.procedure}`;
+      document.getElementById('reg-pt-result').classList.add('show');
+      document.getElementById('reg-planned').value = info.sittings_planned || '';
+    } else {
+      const c = _cases.find(x => x.patients?.id === info.patient_id && x.status === 'active');
+      if (!c) { _alert('error', 'This patient has no active Kshara sutra case on this page — record sitting 1 first.'); return; }
+      window.openLogModal(c.id);
+      _sitting = info;
+      document.getElementById('log-sitting-no').value = info.sitting_no;
+      document.getElementById('log-modal-sub').textContent = `Sitting #${info.sitting_no} of ${info.sittings_planned || info.sitting_no}`;
+    }
+  } });
 
 loadCases();

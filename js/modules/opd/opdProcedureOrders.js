@@ -59,7 +59,9 @@ export async function renderOpdProcedures(container, { supabase, visitId, isTrai
   container.replaceChildren()
   if (!visitId) return
   const box = el('div', { style: BOX, 'aria-labelledby': 'opdproc-h' },
-    el('div', { id: 'opdproc-h', style: 'font-size:12.5px;font-weight:700;color:var(--green-deep)' }, '🩹 OPD procedures'))
+    el('div', { id: 'opdproc-h', style: 'font-size:12.5px;font-weight:700;color:var(--green-deep)' }, '🩹 Quick procedures today (done in OPD, pay at reception)'),
+    // Session 391 T1a-2 (owner, 24 Nov 2026): the two boxes named for what they do
+    el('div', { style: 'font-size:12px;color:var(--text-muted);margin-top:2px' }, 'A small procedure done now, during this visit (e.g. a dressing), billed at reception. A procedure the department does in booked sittings goes in 🗓 Department procedures below.'))
   container.appendChild(box)
   const msg = el('div', { role: 'status', style: NOTE })
   const rerender = () => renderOpdProcedures(container, { supabase, visitId, isTrainee })

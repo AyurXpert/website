@@ -6,7 +6,10 @@ import { safeErrorMessage } from '../utils/errors.js';
 import { localDateStr, istMonthStr, istDayStartUTC } from '../utils/dateUtils.js';
 import { notify } from '../components/notify.js';
 import { mountProcedurePicker } from '../modules/billing/procedurePicker.js';   // Session 386b-2b M2 (§596): the fee list IS the procedure list
+import { mountTodaysSittings } from '../modules/scheduler/todaysSittings.js';   // Session 391 T1a-2
 let _picker = null;   // Session 386b-2b M2: set at boot (declared here: no use before its declaration)
+let _sitting = null;  // Session 391 T1a-2: the started sitting this form records (the server sets patient, fee, date and doctor from it)
+let _sittings = null; // ... and the Today's sittings list
 
 await requireAuth(['super_admin','dept_admin','doctor','nurse','therapist','receptionist']);
 initNavbar();
@@ -111,6 +114,7 @@ window.selectPatient = function(id, name, phone) {
 
 window.clearPatient = function() {
   _patientId = null; _patientName = '';
+  if (typeof _endSitting === 'function') _endSitting();   // Session 391 T1a-2
   document.getElementById('pt-search').value = '';
   document.getElementById('pt-results').style.display = 'none';
   document.getElementById('patient-bar').classList.remove('show');
@@ -128,8 +132,9 @@ window.updateRaktaSubtype = function(v) {
 // ─── Save session ─────────────────────────────────────────
 window.saveSession = async function() {
   if (!_patientId) { showAlert('Select a patient first','error'); return; }
-  const pv = _picker ? _picker.value() : { error: 'The procedure list is not loaded — reload the page.' };   // Session 386b-2b M2
-  if (pv.error) { showAlert(pv.error, 'error'); return; }
+  // Session 391 T1a-2 (D6): a session is recorded from its started sitting -- the fee comes from the doctor's order
+  if (!_sitting) { showAlert("Start the patient's sitting first (Today's sittings → ▶ Start). Without an order only the department head records it, with a reason.", 'error'); return; }
+  const pv = { feeId: _sitting.fee_id, name: _sitting.procedure, detail: (_picker && _picker.value().detail) || null };
   const btn = document.getElementById('save-btn');
   btn.disabled = true;
 
@@ -158,6 +163,7 @@ window.saveSession = async function() {
     consent_notes: document.getElementById('f-consent-notes').value.trim() || null,
     remarks:      document.getElementById('f-remarks').value.trim() || null,
     created_by:   profile.id,
+    procedure_sitting_id: _sitting.sitting_id,   // Session 391 T1a-2
   };
 
   // Procedure-specific fields
@@ -203,6 +209,8 @@ window.saveSession = async function() {
   }
   if (!saved?.id) { showAlert('Not saved: the server did not confirm the record. Reload the page and check.', 'error'); return; }   // no false "saved" (353A)
   showAlert('Session saved successfully ✓', 'success');   // Session 386b-2b M2c: always a procedure from the list
+  _endSitting();
+  _sittings?.reload();
   resetForm();
   loadPastSessions();
   loadStats();
@@ -360,12 +368,15 @@ async function loadStaff() {
     supabase.from('departments').select('id').eq('tenant_id',tenantId).in('ncism_code',['SHAL','SHALYA_TANTRA'])]);
   const shalya = new Set((depts||[]).map(d => d.id));
   const doctors   = (data||[]).filter(p=>(p.role==='doctor' || p.secondary_role==='doctor') && shalya.has(p.department_id));
-  const therapists= (data||[]).filter(p=>p.role==='therapist');
   const dSel = document.getElementById('f-doctor');
   dSel.replaceChildren(new Option('— Select Doctor —', ''), ...doctors.map(d => new Option(`Dr. ${d.full_name || ''}`, d.id)));   // DOM nodes (text, not HTML)
   if (doctors.some(d => d.id === profile?.id)) dSel.value = profile.id;
+  // Session 391 T1a-2 F5 (owner, 24 Nov 2026): "Assistant (optional)" -- the server's list (nurses, OT / Anushastra technicians, OT attendants,
+  // the Shalya doctors / PG scholars / interns); never a therapist or pharmacist. The server checks the same rule on every save.
+  const { data: asst, error: aErr } = await supabase.rpc('procedure_assistant_choices', { p_register: 'anushastra' });
   const tSel = document.getElementById('f-therapist');
-  tSel.innerHTML = '<option value="">— Select (optional) —</option>' + therapists.map(t=>`<option value="${t.id}">${_esc(t.full_name)}</option>`).join('');
+  tSel.replaceChildren(new Option(aErr ? '— The list could not be loaded —' : '— None —', ''),
+    ...(asst || []).map(a => new Option(`${a.full_name || ''} (${a.kind})`, a.profile_id)));   // DOM nodes (text, not HTML)
 }
 
 // ─── Helpers ─────────────────────────────────────────────
@@ -391,3 +402,15 @@ function _toast(msg,isErr=false) { notify(msg, typeof isErr === 'string' ? isErr
 // Session 386b-2b M2 (§596): the procedure pick-list (the Anushastra group's fees; M2c: always from the list)
 _picker = mountProcedurePicker({ supabase, tenantId, register: 'anushastra', select: document.getElementById('f-fee') });
 await Promise.all([loadStaff(), loadStats(), _picker?.ready]);
+// Session 391 T1a-2: the ordered sittings; ▶ Start / ✎ Record opens this form for that sitting
+function _endSitting() { _sitting = null; _picker?.unlock(); const b = document.getElementById('sitting-banner'); b.hidden = true; b.textContent = ''; }
+_sittings = mountTodaysSittings({ supabase, container: document.getElementById('todays-sittings'), register: 'anushastra', toast: showAlert, tenantId,
+  onStart: info => {
+    _sitting = info;
+    _picker?.lockTo(info.fee_id, info.procedure);   // F4 (owner rehearsal, 24 Nov 2026): the order's procedure, filled in and locked
+    window.selectPatient(info.patient_id, info.patient_name, '');
+    const b = document.getElementById('sitting-banner');
+    b.textContent = `Recording sitting ${info.sitting_no} of ${info.sittings_planned || 1}: ${info.procedure} — ${info.patient_name}`
+      + (info.without_order ? ' (without an order)' : '');
+    b.hidden = false;
+  } });

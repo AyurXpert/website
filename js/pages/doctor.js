@@ -35,6 +35,7 @@ import { findingsLines, vitalsPrefill, queueOrder, payState, triageLabel } from 
 import { abhaText, loadLinkProblems, renderLinkProblems } from '../modules/abdm/linkStatus.js';   // Session 375 (§410 / §411)
 import { abdmOn, soonBox, closeAbdmPanel } from '../modules/abdm/comingSoon.js';   // Session 379a
 import { renderOpdProcedures } from '../modules/opd/opdProcedureOrders.js';   // Session 386d-1 (§602)
+import { mountDeptProcedurePlanner } from '../modules/scheduler/deptProcedures.js';   // Session 391 T1a-2
 import { teleconsultOn } from '../utils/teleSwitch.js';   // Session 386e (owner Q7)
 
 // Auth + navbar first — page must always be visible and navigable even if proforma module is absent
@@ -122,6 +123,8 @@ const _traineeVerify  = !!_opdWf.trainee_verification;
 // Session 358 (§290 / §274): the casualty staff by designation (display copy of the server's _casualty_registrar_ok)
 const _isCasualtyStaff = !_isTrainee && ['resident_medical_officer', 'cmo', 'emergency_medical_officer'].includes(profile.designation);
 let _activeDraftId    = null;  // consultation_notes.id of the draft being reviewed, if any
+let _deptPlanner = null;       // Session 391 T1a-2: the department-procedure planner of the open visit
+let _draftDeptItems = null;    // ... and a trainee draft's planned items, given to it when it mounts (D9)
 let _activeDraftedBy  = null;  // that draft's original trainee author (profile.id) -- credited on finalize
 
 // ═══════════════════════════════════════════════════════════
@@ -1055,6 +1058,8 @@ window.openReviewDraft = async function(consultationNoteId) {
   document.getElementById('rx-rows').innerHTML = '';
   _applyDraftToForm(draft);
   const dp = draft.draft_payload || {};
+  _draftDeptItems = Array.isArray(dp.dept_procedures) ? dp.dept_procedures : null;   // Session 391 T1a-2 (D9): the consultant orders them
+  if (_deptPlanner && _draftDeptItems) _deptPlanner.setItems(_draftDeptItems);
   if (['prescription', 'no_prescription', 'awaiting_reports', 'awaiting_today'].includes(dp.outcome)) {
     const r = document.querySelector(`input[name="opd-outcome"][value="${dp.outcome}"]`);
     if (r) { r.checked = true; window.onOpdOutcomeChange(dp.outcome); }
@@ -1986,6 +1991,17 @@ window.startConsultation = async function(visitId) {
   loadLabResults();
   // Session 386d-1 (§602): the OPD procedure orders of this visit (the server takes only today's OPD visit)
   renderOpdProcedures(document.getElementById('opd-proc-orders'), { supabase, visitId, isTrainee: _isTrainee });
+  // Session 391 T1a-2: the department procedures of this visit's OPD (Shalya / Shalakya / Prasuti) as treatment orders
+  _deptPlanner = await mountDeptProcedurePlanner({ supabase, container: document.getElementById('dept-proc-planner'), visitId,
+    isTrainee: _isTrainee, toast: _toast,
+    onOrdered: () => {
+      renderTreatmentOrders({ supabase, container: document.getElementById('pk-treatment-orders'), visitId });
+      renderTreatmentOrders({ supabase, container: document.getElementById('dept-proc-orders'), visitId });
+    } });
+  if (_draftDeptItems) _deptPlanner.setItems(_draftDeptItems);
+  // the orders of this visit (state, sittings, ✕ Cancel order) under the planner too -- only where the department offers procedures
+  { const dpo = document.getElementById('dept-proc-orders');
+    if (dpo) { dpo.replaceChildren(); if (!document.getElementById('dept-proc-planner')?.hidden) renderTreatmentOrders({ supabase, container: dpo, visitId }); } }
 
   // Session 358 (TODO §265-D): back with the reports -- the latest saved note fills the form (the final note is a NEW row; the
   // medicines are NOT copied -- an interim prescription already went to the pharmacy)
@@ -2500,7 +2516,11 @@ let _pkPlanSaved     = false;
 let _pkForAdmissionId  = null;
 let _pkForAdmissionCtx = null;
 
+let _pkKindByAyush = {};   // Session 391 T1a-2 (D2-14): AYUSH code -> kind, from the server (pk_therapy_choices): a Kriya Kalpa protocol asks its side
+const _pkIsKriyaKalpa = p => (p?.blocks || []).some(b => b.ayush_code && _pkKindByAyush[b.ayush_code] === 'kriya_kalpa');
 async function _loadPkTemplates() {
+  { const { data: kinds } = await supabase.rpc('pk_therapy_choices'); _pkKindByAyush = {};
+    (kinds || []).forEach(k => { if (k.ayush_code) _pkKindByAyush[k.ayush_code] = k.kind; }); }
   const { data: templates } = await supabase.from('pk_sop_templates').select('*').order('phase_group').order('display_name');
   _pkTemplates = templates || [];
   const { data: days } = await supabase.from('pk_sop_template_days').select('*').order('sequence_order');
@@ -4544,6 +4564,16 @@ function _renderPkMedicines() {
     <div class="section" style="border:1.5px solid var(--border);border-radius:8px;padding:14px 16px;margin-bottom:12px">
       <div style="font-weight:700;font-size:14px;color:var(--green-deep);margin-bottom:8px">${_esc(p.protocol_label)}</div>
       ${niruhaEntry ? _pkRenderNiruhaFormulaCard(p, pi, niruhaEntry.b, niruhaEntry.bi) : ''}
+      ${_pkIsKriyaKalpa(p) ? `
+      <div class="field" style="margin-bottom:10px">
+        <label style="font-size:11px">Side <span style="color:var(--red)">*</span> <span style="font-weight:400;color:var(--text-muted)">(Kriya Kalpa — both eyes / ears, right or left; the therapist sees it on the session)</span></label>
+        <select data-onchange="_pkSetSide" data-onchange-a0="${pi}" data-onchange-a1="@this">
+          <option value=""${p.side ? '' : ' selected'}>Choose the side…</option>
+          <option value="bilateral"${p.side === 'bilateral' ? ' selected' : ''}>Both</option>
+          <option value="right"${p.side === 'right' ? ' selected' : ''}>Right</option>
+          <option value="left"${p.side === 'left' ? ' selected' : ''}>Left</option>
+        </select>
+      </div>` : ''}
       ${needsFormulationName ? `
       <div class="field" style="margin-bottom:10px">
         <label style="font-size:11px">Formulation Name <span style="font-weight:400;color:var(--text-muted)">(for the record — the specific variant used, e.g. "Eranda Patra Pinda Sweda" under "Patra Pinda Sweda")</span></label>
@@ -4593,6 +4623,11 @@ function _renderPkMedicines() {
     </div>`;
   }).join('') || '<div style="text-align:center;color:var(--text-muted);padding:20px">No protocols selected — go back to Step 1.</div>';
 }
+
+window._pkSetSide = function(pi, selectEl) {   // Session 391 T1a-2 (D2-14)
+  const p = _pkProtocols[Number(pi)];
+  if (p) p.side = ['bilateral', 'right', 'left'].includes(selectEl.value) ? selectEl.value : null;
+};
 
 window._pkSetFormulationName = function(pi, inputEl) {
   const p = _pkProtocols[Number(pi)];
@@ -5080,6 +5115,7 @@ function _pkReconstructProtocol(pr, allDays, allMeds) {
     // Session 285 -- pediatric Basti dosing/consent, carried over unchanged when
     // re-opening an already-saved draft for editing.
     pediatric_age_band: pr.pediatric_age_band || null,
+    side: pr.side || null,   // Session 391 T1a-2 (D2-14): the saved side comes back on edit
     pediatric_dose_ml: pr.pediatric_dose_ml || null,
     pediatric_guardian_consent_obtained: !!pr.pediatric_guardian_consent_obtained,
     pediatric_assent_obtained: !!pr.pediatric_assent_obtained,
@@ -5192,6 +5228,8 @@ window.savePkCarePlan = async function() {
   const setting = _pkForAdmissionId ? 'ipd_admission' : (settingEl ? settingEl.value : 'day_care');
   // S1-F17: no hospital day before today (the server refuses it too); an IPD plan (activated now) is checked the same way
   const pastDay = _pkProtocols.flatMap(p => _pkExpandDays(p)).find(r => _pkStartBeforeToday(r.planned_date));
+  { const noSide = _pkProtocols.find(p => _pkIsKriyaKalpa(p) && !p.side);   // Session 391 T1a-2 (D2-14); the server refuses it too
+    if (noSide) { alert(`${noSide.protocol_label}: choose the side (both, right or left) in Step 3 (Medicines & Instructions), then save.`); return; } }
   if (pastDay) { alert(`${pastDay.planned_date.split('-').reverse().join('-')} is in the past — move the course start to today or later (Step 2), then save.`); return; }
   // S1-F16: an Admission plan needs its department BEFORE anything is saved (else a saved plan that never reaches reception)
   if (setting === 'admission' && !document.getElementById('pk-adm-dept')?.value) {
@@ -6246,6 +6284,8 @@ async function completeConsultation() {
       },
     };
     if (disposition === 'referral' && !payload.referral.type) return _stop('Choose the referral type.', 'disp');
+    // Session 391 T1a-2: a planned department procedure is never dropped silently -- order it or remove it first
+    if (_deptPlanner?.pending()) return _stop('Order the planned department procedures first (🗓 Department procedures → Order these procedures), or remove them.', 'assess');
     if (payload.referral?.type === 'internal' && !payload.referral.target_opd_id) return _stop('Choose the OPD the patient is referred to.', 'disp');
     const { data: done, error: ccErr } = await supabase.rpc('complete_consultation', { p_visit_id: _activeVisitId, p_payload: payload });
     if (ccErr) {
@@ -6340,6 +6380,7 @@ async function submitForReview() {
     // consultant to verify and edit (never re-type). One draft per visit (the server refuses a second one).
     const { error } = await supabase.rpc('submit_consultation_for_review', { p_visit_id: _activeVisitId, p_payload: {
       notes, visit, rx: _getRxData(),
+      dept_procedures: _deptPlanner?.items() || [],   // Session 391 T1a-2 (D9): ordered by the consultant
       outcome: disposition === 'opd' ? _opdOutcome() : disposition,
       outcome_note: document.getElementById('opd-outcome-note').value.trim() || null,
       education: { disease: _cb('edu-disease'), meds: _cb('edu-meds'), adr: _cb('edu-adr'), pathya: _cb('edu-pathya'), dina: _cb('edu-dina'),
@@ -8391,6 +8432,8 @@ function _tokenOrInitials(v) {
 function _clearForm() {
   resetVisitTimeline();
   document.getElementById('opd-proc-orders')?.replaceChildren();   // Session 386d-1
+  document.getElementById('dept-proc-planner')?.replaceChildren();   // Session 391 T1a-2
+  _deptPlanner = null; _draftDeptItems = null;
   // Session 358: the OPD outcome back to "with a prescription", the note / panels / final banner cleared
   const outRx = document.querySelector('input[name="opd-outcome"][value="prescription"]');
   if (outRx) { outRx.checked = true; window.onOpdOutcomeChange('prescription'); }

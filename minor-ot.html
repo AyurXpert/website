@@ -138,9 +138,13 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
       <div class="page-title">Minor OT Procedures <span class="ncism-badge">NCISM §18p</span></div>
       <div class="page-subtitle">Shalya Chikitsa — Minor surgical procedure records</div>
     </div>
-    <button class="btn btn-primary" data-onclick="openNewModal">+ New Procedure Record</button>
+    <!-- Session 391 T1a-2 (D6): a record comes from its order's sitting (Today's sittings), never free-hand -->
+    <span style="font-size:12.5px;color:var(--text-muted);max-width:320px">New entries come from <strong>📋 Today's sittings</strong> (the doctors' orders) — ▶ Start, then record. Without an order: the department head, in the same box.</span>
   </div>
 
+
+  <!-- Session 391 T1a-2: the ordered sittings of the day (js/modules/scheduler/todaysSittings.js) -->
+  <div id="todays-sittings"></div>
 
   <div class="stats-row">
     <div class="stat-card"><div class="stat-value" id="st-today">—</div><div class="stat-label">Today</div></div>

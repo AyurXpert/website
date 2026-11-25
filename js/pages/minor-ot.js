@@ -9,6 +9,7 @@ import { notify } from '../components/notify.js';
 import { printDocument } from '../utils/printDocument.js';
 import { identityLines, identityOrLive } from '../utils/signerIdentity.js';
 import { mountProcedurePicker } from '../modules/billing/procedurePicker.js';   // Session 386b-2b M2 (§596): the fee list IS the procedure list
+import { mountTodaysSittings } from '../modules/scheduler/todaysSittings.js';   // Session 391 T1a-2
 
 await requireAuth(['super_admin','dept_admin','doctor','nurse']);
 initNavbar();
@@ -26,6 +27,7 @@ let _viewDate  = todayLocalStr();
 let _allData   = [];
 let _viewRec   = null;
 let _foundPatient = null;
+let _sitting = null;   // Session 391 T1a-2: the started sitting this record is for (server sets patient, fee, today, the surgeon)
 
 // ── Date nav ──────────────────────────────────────────────────────────────────
 function renderDateNav() {
@@ -122,7 +124,7 @@ window.openNewModal = function() {
     hide: [document.getElementById('n-proc-name-row')] });
   document.getElementById('new-overlay').style.display = 'flex';
 };
-window.closeNewModal = () => { document.getElementById('new-overlay').style.display = 'none'; };
+window.closeNewModal = () => { document.getElementById('new-overlay').style.display = 'none'; _sitting = null; };   // 391 T1a-2: closing drops the sitting link
 
 let _ptTimer = null;
 window.searchPatient = function() {
@@ -147,8 +149,9 @@ window.searchPatient = function() {
 let _picker = null;   // Session 386b-2b M2
 window.saveProcedure = async function() {
   if (!_foundPatient)   { alert('Please search and select a patient.'); return; }
-  const pv = _picker ? _picker.value() : { error: 'The procedure list is not loaded — reload the page.' };
-  if (pv.error)         { alert(pv.error); return; }
+  // Session 391 T1a-2 (D6): recorded from today's started sitting of the doctor's order -- the procedure comes from the order
+  if (!_sitting) { _alert('error', "Start the patient's sitting first (Today's sittings → ▶ Start). Without an order only the department head records it, with a reason."); return; }
+  const pv = { feeId: _sitting.fee_id || null, name: _sitting.procedure, detail: (_picker && _picker.value().detail) || null };
   const pname = pv.name;
 
   const { data: saved, error } = await supabase.from('minor_ot_procedures').insert({
@@ -170,10 +173,12 @@ window.saveProcedure = async function() {
     follow_up_date:       document.getElementById('n-followup').value || null,
     fee_structure_id:     pv.feeId,          // Session 386b-2a / 386b-2b M2: the procedure from the fee list
     procedure_detail:     pv.detail,
-    status:               'completed'
+    status:               'completed',
+    procedure_sitting_id: _sitting.sitting_id   // Session 391 T1a-2
   }).select('id').single();
   if (error) { alert(safeErrorMessage(error, 'Could not save procedure record.')); return; }
   if (!saved?.id) { _alert('error', 'Not saved: the server did not confirm the record. Reload the page and check.'); return; }   // no false "saved" (353A)
+  _sitting = null; _otSittings?.reload();
   closeNewModal();
   _alert('success', 'Procedure record saved.');
   loadData();
@@ -249,6 +254,21 @@ function _typeLabel(t) {
 }
 function _fmtDate(d){ if(!d) return '—'; return new Date(d+'T00:00:00').toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}); }
 function _alert(type,msg) { notify(msg, type); }   // Session 323: shared top-layer notify()
+
+// Session 391 T1a-2: the ordered sittings of the day; ▶ Start / ✎ Record opens the record form for that sitting
+const _otSittings = mountTodaysSittings({ supabase, container: document.getElementById('todays-sittings'), register: 'minor_ot', tenantId,
+  toast: (m, t) => _alert(t || 'info', m),
+  onStart: info => {
+    window.openNewModal();
+    _sitting = info;
+    _picker?.lockTo(info.fee_id, info.procedure);   // F4 (owner rehearsal, 24 Nov 2026): the order's procedure, filled in and locked
+    _foundPatient = { id: info.patient_id, name: info.patient_name };
+    document.getElementById('n-search').value = info.patient_name;
+    document.getElementById('n-pt-name').textContent = info.patient_name;
+    document.getElementById('n-pt-sub').textContent = `${info.uhid || ''} · ${info.procedure}${info.without_order ? ' (without an order)' : ''}`;
+    document.getElementById('n-pt-result').classList.add('show');
+    document.getElementById('n-date').value = todayLocalStr();
+  } });
 
 renderDateNav();
 loadData();
