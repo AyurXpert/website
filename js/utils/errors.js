@@ -725,6 +725,16 @@ export function safeErrorMessage(error, fallback = 'Something went wrong. Please
   if (['P0001','42501','22023','P0002','23505','23514'].includes(error?.code) && ADMISSION_MSGS.some(m => error?.message?.startsWith(m))) {
     return error.message;
   }
+  // Session 393 B-bed (TODO §703, owner D9): the server's bed refusals, word for word (they name the bed, never the other patient)
+  const BBED_MSGS = [/^Select a bed\.$/, /^Bed .+ is already occupied\. Choose a vacant bed\.$/,
+    /^Bed .+ is not available \([A-Za-z ]+\)\. Choose a vacant bed\.$/,
+    /^Bed .+ is in a (female|male) ward\. A (male|female) patient cannot be admitted to it — choose a bed in a (male|female) ward or a ward for any patient\.$/,
+    /^Bed .+ now has another patient\. This admission cannot be re-opened into it\.$/,
+    /^A patient is admitted in bed .+\. Its status and bed type change only after the patient leaves \(discharge or exit\)\.$/,
+    /^A bed is marked occupied only by an admission\.$/];
+  if (['22023','P0002'].includes(error?.code) && BBED_MSGS.some(r => r.test(error?.message || ''))) {
+    return error.message;
+  }
   // Session 357 (TODO §265-C / §275): the admission counter, the deposit rule and the waiver
   const COUNTER_MSGS = ['Choose a room type preference', 'Only the admission counter can set the payer', 'This admission advice is already',
     'Choose the payer', 'Cashless or reimbursement must be chosen', 'Enter the insurance company', 'Enter the policy number', 'The co-pay must be',

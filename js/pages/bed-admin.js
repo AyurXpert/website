@@ -2266,6 +2266,11 @@ window.openBedDrawer = function(id, preDeptId) {
   document.getElementById('bed-dept').value   = bed?.department_id || preDeptId || '';
   document.getElementById('bed-type').value   = bed?.bed_type || 'male_general';
   document.getElementById('bed-status').value = bed?.status || 'vacant';
+  // Session 393 B-bed (D5): a bed a patient is admitted in keeps its status and bed type (the server refuses a change); shown locked
+  const occ = bed?.status === 'occupied';
+  document.getElementById('bed-status').disabled = occ;
+  document.getElementById('bed-type').disabled   = occ;
+  document.getElementById('bed-occupied-note').hidden = !occ;
   document.getElementById('bed-pg').checked   = bed?.is_pg_allocated || false;
   // Reset chip grid for new beds; hide for edits
   document.getElementById('bed-select-field').style.display  = 'none';
@@ -2407,8 +2412,9 @@ window.saveBed = async function() {
     bed_number:      document.getElementById('bed-num').readOnly ? undefined : num,
     floor_number:    floor !== '' ? parseInt(floor) : null,
     ward_name:       ward || null,
-    bed_type:        type,
-    status,
+    // Session 393 B-bed (D5): an occupied bed's status and type are not sent (locked; only the admission / discharge changes them)
+    bed_type:        document.getElementById('bed-type').disabled ? undefined : type,
+    status:          document.getElementById('bed-status').disabled ? undefined : status,
     is_pg_allocated: isPg,
   };
 
@@ -2445,7 +2451,7 @@ window.deleteBed = async function() {
   if (!id) return;
   const bed = _beds.find(b => b.id === id);
   if (bed?.status === 'occupied') {
-    _alert('error', 'Cannot delete an occupied bed. Set status to Vacant first.');
+    _alert('error', 'A patient is admitted in this bed — it can be removed only after the patient leaves.');   // Session 393 B-bed
     return;
   }
   if (!confirm(`Delete bed "${bed?.bed_number}"? This cannot be undone.`)) return;

@@ -1043,6 +1043,15 @@ function _showBedMismatch(bedId) {
     `⚠ The doctor advised ${m.advised} — this is a ${m.bed} bed. Give the reason for the different bed (required; it is recorded and sent to the doctor).`;
 }
 
+// Session 393 B-bed (D12): the server refused the chosen bed because it was taken or became unavailable meanwhile (another counter,
+// a stale list) -- re-read the beds and rebuild the picker so that bed disappears; every other field of the form stays as typed.
+async function _refreshBedsAfterRefusal(err) {
+  if (!/^Bed .+ is (already occupied|not available)/.test(err?.message || '')) return;
+  const { data } = await supabase.from('beds').select('id,bed_number,ward_name,bed_type,department_id,is_pg_allocated,status')
+    .eq('tenant_id', getCurrentTenantId()).order('bed_number');
+  if (data) { _allBeds = data; loadVacantBeds(); }
+}
+
 window.loadVacantBeds = function() {
   const deptId  = document.getElementById('adm-dept').value;
   const picker  = document.getElementById('bed-picker');
@@ -1154,7 +1163,7 @@ window.loadVacantBeds = function() {
       ${b.ward_name ? '<span style="font-size:9px;font-weight:400;display:block">'+_esc(b.ward_name)+'</span>' : ''}
       ${_esc(b.bed_number)}
       <span style="font-size:8.5px;font-weight:500;display:block;opacity:.8">${_esc(typeLabel)}</span>
-      ${mismatch ? `<span class="bed-mismatch" style="font-size:8.5px;font-weight:700;display:block;color:var(--orange)">⚠ Advised: ${_esc(roomTypeLabel(advisedPref))}</span>` : ''}
+      ${mismatch ? `<span class="bed-mismatch" style="font-size:8.5px;font-weight:700;display:block;color:var(--orange)">⚠ Doctor advised: ${_esc(roomTypeLabel(advisedPref))}</span>` : ''}
       ${crossZone ? `<span style="font-size:8.5px;font-weight:700;display:block;color:var(--purple)">🔷 ${_esc(ownerName)}'s bed — other zone</span>`
         : isOverflow ? `<span style="font-size:8.5px;font-weight:700;display:block;color:var(--orange)">🔶 ${_esc(ownerName)}'s bed</span>` : ''}
     </div>`;
@@ -1348,7 +1357,9 @@ window.saveAdmission = async function() {
 
   if (admErr) {
     btn.disabled = false; btn.textContent = 'Admit Patient';
-    _alert('error', safeErrorMessage(admErr, 'Admission failed.')); return;
+    _alert('error', safeErrorMessage(admErr, 'Admission failed.'));
+    await _refreshBedsAfterRefusal(admErr);   // Session 393 B-bed (D12)
+    return;
   }
 
   btn.disabled = false; btn.textContent = 'Admit Patient';
@@ -1405,7 +1416,11 @@ async function _saveEmergencyAdmission() {
     p_emergency_case_id:     _emergencyCaseId,   // Session 358 (§274, Q11): the casualty register entry (the server makes one otherwise)
   });
   btn.disabled = false; btn.textContent = 'Admit (emergency)';
-  if (error || !newId) { _alert('error', safeErrorMessage(error, 'Emergency admission failed.')); return; }
+  if (error || !newId) {
+    _alert('error', safeErrorMessage(error, 'Emergency admission failed.'));
+    await _refreshBedsAfterRefusal(error);   // Session 393 B-bed (D12)
+    return;
+  }
   closeAdmitDrawer();
   _alert('success', `${_selectedPatient.name} admitted (emergency). The consultant has been alerted to confirm within 24 hours.`);
   await loadAll();

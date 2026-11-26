@@ -586,10 +586,12 @@ input[type="checkbox"]{width:16px;height:16px;margin-right:6px;accent-color:var(
           <label>Status</label>
           <select id="bed-status">
             <option value="vacant">Vacant</option>
-            <option value="occupied">Occupied</option>
+            <!-- Session 393 B-bed (D5): never chosen by hand -- shown only for a bed a patient is admitted in (the server sets it) -->
+            <option value="occupied" disabled hidden>Occupied — a patient is admitted</option>
             <option value="maintenance">Maintenance</option>
             <option value="reserved">Reserved</option>
           </select>
+          <div id="bed-occupied-note" class="field-note" hidden>A patient is admitted in this bed. Its status and bed type change only after the patient leaves (discharge or exit).</div>
         </div>
       </div>
 
