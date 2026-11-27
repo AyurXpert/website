@@ -6,7 +6,6 @@ import { initNavbar } from '../components/navbar.js';
 import { escapeHtml as _esc } from '../utils/validators.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
-import { logAudit } from '../core/auditLogger.js';
 import { localDateStr, todayLocalStr, istMonthStr } from '../utils/dateUtils.js';
 import { uhidOf } from '../utils/uhid.js';
 import { notify } from '../components/notify.js';
@@ -452,11 +451,12 @@ function _ipdBadge(a) {
 async function loadIPD() {
   const { data, error } = await supabase
     .from('ipd_admissions')
-    .select('id,admission_date,admitted_at,discharged_at,charges_locked_at,status,disposition,diagnosis_primary,discharge_diagnosis_ayurveda,patients(name,age,gender),departments(name),profiles!admitting_doctor_id(full_name),ipd_exit_records(exit_at)')
+    .select('id,admission_date,admitted_at,discharged_at,charges_locked_at,status,disposition,diagnosis_primary,discharge_diagnosis_ayurveda,discharge_bill_id,patients(name,age,gender),departments(name),profiles!admitting_doctor_id(full_name),ipd_exit_records(exit_at)')
     .eq('tenant_id', tenantId)
     .order('admission_date', { ascending: false });
   if (error) { document.getElementById('ipd-tbody').innerHTML = '<tr><td colspan="10" class="empty">IPD module not available</td></tr>'; return; }
   _ipdData = data || [];
+  await _loadForcedMarks(_ipdData.map(a => a.id));
   filterIPD();
 }
 
@@ -494,37 +494,140 @@ window.filterIPD = function() {
       <td style="font-size:12px;max-width:180px;word-break:break-word">${_esc(a.diagnosis_primary||'—')}</td>
       <td style="font-size:12px">${exitDate ? _fmtD(exitDate) : '—'}</td>
       <td style="text-align:center;font-weight:500">${los}</td>
-      <td>${_ipdBadge(a)}</td>
-      <td>${a.status === 'paid_cleared'
-        ? `<button class="btn-sm btn-green" data-onclick="releaseIpdRecord" data-onclick-a0="${a.id}">Release</button>`
+      <td>${_ipdBadge(a)}${_forcedTag(a.id)}</td>
+      <td>${a.status === 'paid_cleared' || (_isExit(a) && a.status === 'bill_generated')
+        ? `<button class="btn-sm btn-green" data-onclick="releaseIpdRecord" data-onclick-a0="${a.id}" style="min-height:44px">Release</button>`
         : '—'}</td>
     </tr>`;
   }).join('') || '<tr><td colspan="10" class="empty">No IPD admissions found</td></tr>';
 };
 
-// Session 114 -- MRD's final gate: only releases once payment has cleared
-// (status='paid_cleared', set by the sync_ipd_admission_on_bill_settled DB
-// trigger) AND the discharge summary is actually filled in. Reuses the
-// existing discharge-summary fields already on ipd_admissions (populated by
-// ipd.js's saveAndPrintDischarge) rather than a new data model.
-window.releaseIpdRecord = async function(admId) {
+// Session 394 (§705, D1-D4, D12): the release is made only by the server (release_ipd_record): MRD or the active Super Admin; from
+// "Paid — Awaiting Release" with a diagnosis in the summary; a LAMA / transfer / death whose bill is not paid only with a reason
+// ("balance due", the billing staff are told). The page only opens the panel; every rule is the server's. No browser confirm dialog.
+function _isExit(a) { return ['lama', 'transferred', 'deceased'].includes(a?.disposition); }
+let _relAdmId = null;
+window.releaseIpdRecord = function(admId) {
   const adm = _ipdData.find(a => a.id === admId);
   if (!adm) return;
-  if (!adm.discharge_diagnosis_ayurveda && !adm.diagnosis_primary) {
-    _toast('Discharge summary is incomplete — cannot release.', 'error');
+  _relAdmId = admId;
+  const due = adm.status === 'bill_generated';
+  document.getElementById('rel-text').textContent =
+    `${adm.patients?.name || 'This patient'}: the discharge summary and the case file become available to the patient. This cannot be undone here.`;
+  document.getElementById('rel-due-box').style.display = due ? '' : 'none';
+  document.getElementById('rel-due-text').textContent = due
+    ? `This ${({ lama: 'LAMA', transferred: 'transfer', deceased: 'death' })[adm.disposition] || 'exit'}'s bill is not paid. `
+      + 'The record can be released with the balance still due: the bill stays open as money owed and the billing staff are told.'
+    : '';
+  document.getElementById('rel-reason').value = '';
+  document.getElementById('rel-err').style.display = 'none';
+  // Rehearsal F1 (owner, 27 Nov 2026, D4): the MRD sees the bill before releasing -- its number, total and paid / balance due.
+  // Release stays disabled until the bill is read; the server still decides.
+  _relBillOk = false;
+  const billBox = document.getElementById('rel-bill');
+  billBox.textContent = 'Reading the bill…';
+  billBox.style.color = 'var(--text-muted)';
+  document.getElementById('rel-confirm').disabled = true;
+  document.getElementById('rel-confirm').textContent = due ? 'Release with balance due' : 'Release record';
+  document.getElementById('rel-modal').style.display = 'flex';
+  _loadReleaseBill(adm);
+};
+let _relBillOk = false;
+function _relMoney(n) {
+  return '₹' + Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+// The same figures as the server's _ipd_account (session 345g): patient due = final - insurance approved - deposits held - credit notes;
+// balance = patient due - payments (net of bill refunds). Read-only; voided receipts left out.
+async function _loadReleaseBill(adm) {
+  const admId = adm.id;
+  const billBox = document.getElementById('rel-bill');
+  const fail = msg => {
+    if (_relAdmId !== admId) return;
+    billBox.textContent = msg;
+    billBox.style.color = '#c0392b';
+    document.getElementById('rel-confirm').disabled = true;
+  };
+  if (!adm.discharge_bill_id) { fail('No bill found for this admission. A record is released only after its bill is generated.'); return; }
+  const [b, p] = await Promise.all([
+    supabase.from('bills').select('id,status,document_number,final_amount,insurance_approved_amount').eq('id', adm.discharge_bill_id).eq('tenant_id', tenantId).maybeSingle(),
+    supabase.from('patient_payments').select('kind,amount,bill_id').eq('ipd_admission_id', admId).eq('tenant_id', tenantId).is('voided_at', null),
+  ]);
+  if (b.error || p.error || !b.data) { fail('Could not read the bill. Close this panel and try again.'); return; }
+  const c = await supabase.from('credit_notes').select('total_amount').eq('original_bill_id', b.data.id).eq('tenant_id', tenantId);
+  if (c.error) { fail('Could not read the bill. Close this panel and try again.'); return; }
+  if (_relAdmId !== admId) return;
+  const rows = p.data || [];
+  const sum = f => rows.filter(f).reduce((s, r) => s + Number(r.amount || 0), 0);
+  const held = sum(r => r.kind === 'advance' || r.kind === 'deposit') - sum(r => r.kind === 'refund' && !r.bill_id);
+  const paid = sum(r => r.kind === 'payment') - sum(r => r.kind === 'refund' && r.bill_id);
+  const credited = (c.data || []).reduce((s, r) => s + Number(r.total_amount || 0), 0);
+  const balance = Math.round((Number(b.data.final_amount || 0) - Number(b.data.insurance_approved_amount || 0) - held - credited - paid) * 100) / 100;
+  const head = `Bill ${b.data.document_number || '(legacy bill, no number)'} · total ${_relMoney(b.data.final_amount)}`;
+  if (balance > 0) {
+    billBox.textContent = `${head} · NOT paid — balance due ${_relMoney(balance)}`;
+    billBox.style.color = '#8a5000';
+  } else {
+    billBox.textContent = `${head} · Paid — nothing due`;
+    billBox.style.color = 'var(--green-deep)';
+  }
+  _relBillOk = true;
+  if (adm.status === 'bill_generated') window.relReasonInput();
+  else document.getElementById('rel-confirm').disabled = false;
+}
+// Rehearsal F2 (owner, 27 Nov 2026): the button is greyed (mrd.html .btn:disabled) and the hint stays until the reason is 5-300 characters
+window.relReasonInput = function() {
+  const v = document.getElementById('rel-reason').value.trim();
+  const ok = !(v.length < 5 || v.length > 300);
+  document.getElementById('rel-reason-hint').style.display = ok ? 'none' : '';
+  document.getElementById('rel-confirm').disabled = !_relBillOk || !ok;
+};
+window.closeReleasePanel = function() {
+  document.getElementById('rel-modal').style.display = 'none';
+  _relAdmId = null;
+};
+window.confirmReleaseRecord = async function() {
+  const admId = _relAdmId;
+  if (!admId) return;
+  const btn = document.getElementById('rel-confirm');
+  const reasonBox = document.getElementById('rel-due-box').style.display !== 'none';
+  const reason = reasonBox ? document.getElementById('rel-reason').value.trim() : null;
+  if (reasonBox && (reason.length < 5 || reason.length > 300)) {
+    const box = document.getElementById('rel-err');
+    box.textContent = 'Give a reason (5 to 300 characters).';
+    box.style.display = '';
     return;
   }
-  if (!confirm('Release this record? The discharge summary and case file become available to the patient.')) return;
-
-  const { error } = await supabase.from('ipd_admissions').update({
-    status: 'discharged', discharged_at: new Date().toISOString(),
-  }).eq('id', admId);
-  if (error) { _toast(safeErrorMessage(error, 'Could not release record.'), 'error'); return; }
-
-  await logAudit('ipd_record_released', 'ipd_admissions', admId, { by: profile?.full_name }, _ctx);
-  _toast('Record released.', 'success');
+  btn.disabled = true;
+  const { error } = await supabase.rpc('release_ipd_record', { p_admission_id: admId, p_reason: reason });
+  if (error) {
+    const box = document.getElementById('rel-err');
+    box.textContent = safeErrorMessage(error, 'Could not release the record.');
+    box.style.display = '';
+    btn.disabled = false;
+    return;
+  }
+  window.closeReleasePanel();
+  _toast(reasonBox ? 'Record released with the balance due. The billing staff have been told.' : 'Record released.', 'success');
   await loadIPD();
 };
+
+// Session 394 (§705, D10): "Status forced" next to the status of an admission whose status the Super Admin forced (the server's
+// ipd_status_override_marks; who and why are shown on IPD, to the roles that may see them)
+let _forced = new Map();
+async function _loadForcedMarks(ids) {
+  _forced = new Map();
+  for (let i = 0; i < ids.length; i += 500) {
+    const { data, error } = await supabase.rpc('ipd_status_override_marks', { p_admission_ids: ids.slice(i, i + 500) });
+    if (error) return;   // the tag is information only: the list still shows without it
+    (data || []).forEach(r => _forced.set(r.ipd_admission_id, r));
+  }
+}
+function _forcedTag(id) {
+  const m = _forced.get(id);
+  if (!m) return '';
+  const t = `Status forced${m.forced_count > 1 ? ' ×' + m.forced_count : ''}`;
+  return ` <span class="badge b-forced" title="${_esc('Last forced ' + new Date(m.last_forced_at).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }) + ' to ' + (IPD_STAGE_LABELS[m.last_to] || m.last_to))}">⚠ ${_esc(t)}</span>`;
+}
 
 window.exportIPDCSV = function() {
   _csvDownload(_ipdData.map(a => ({

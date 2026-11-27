@@ -735,6 +735,18 @@ export function safeErrorMessage(error, fallback = 'Something went wrong. Please
   if (['22023','P0002'].includes(error?.code) && BBED_MSGS.some(r => r.test(error?.message || ''))) {
     return error.message;
   }
+  // Session 394 (TODO §705, owner D1-D13): the MRD release, Force Status over money, the override list, the charge after the lock
+  const S394_MSGS = ['A record is released only with Release in Medical Records', 'Only Medical Records or the Super Admin can release',
+    'This record is already released.', 'The record is released only after the bill is paid', 'This exit has no bill yet.',
+    "This exit's bill is not paid", 'The reason must be 5 to 300 characters', 'The discharge summary has no diagnosis yet.',
+    'A reason (at least 5 characters) is required to force', 'The reason must be at most 300 characters',
+    'This admission has charges not yet billed', "This admission's bill is not paid", 'This admission holds Rs ',
+    "A bill is made only with Generate Bill. Force Status cannot set", 'This admission has a bill. Cancel the bill first',
+    'Only the Medical Superintendent or the Super Admin can see the status override list', 'Choose a date range of at most one year',
+    'At most 500 admissions at a time.', 'The charges of this admission are locked or the stay has ended.'];
+  if (['P0001','42501','22023','P0002'].includes(error?.code) && S394_MSGS.some(m => error?.message?.startsWith(m))) {
+    return error.message;
+  }
   // Session 357 (TODO §265-C / §275): the admission counter, the deposit rule and the waiver
   const COUNTER_MSGS = ['Choose a room type preference', 'Only the admission counter can set the payer', 'This admission advice is already',
     'Choose the payer', 'Cashless or reimbursement must be chosen', 'Enter the insurance company', 'Enter the policy number', 'The co-pay must be',

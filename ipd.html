@@ -132,6 +132,8 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
 }
 .status-admitted{background:var(--success-bg);color:var(--success-text);border:1px solid var(--success-border)}
 .status-inprogress{background:#fff3e0;color:#8a5000;border:1px solid #ffcc80}
+/* Session 394 (§705, D10): a forced status -- the text says it, the colour only helps */
+.status-forced{background:#fff;color:#8b1a6b;border:1px solid #8b1a6b;margin-left:4px}
 .status-discharged{background:#f0f0f0;color:#555}
 .status-lama{background:var(--gold-light);color:#7a5a00;border:1px solid #e0c060}
 .status-transferred{background:#e3f0ff;color:#1a4080;border:1px solid #a8c8f0}
@@ -876,6 +878,29 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
   </div>
 </div>
 
+<!-- Session 394 (§705, D9): forced status changes -- the Medical Superintendent and the Super Admin (the server decides) -->
+<div class="drawer-overlay" id="overrides-overlay">
+  <div class="drawer" style="width:720px">
+    <div class="drawer-header">
+      <span class="drawer-title">🔧 Status overrides</span>
+      <button class="drawer-close" data-onclick="closeOverridesDrawer" aria-label="Close">&#x2715;</button>
+    </div>
+    <div class="drawer-body">
+      <div style="font-size:12.5px;color:var(--text-mid);margin-bottom:12px">Every status the Super Admin forced: who, when, from → to, why, and the money open at that moment. You get a bell every Monday morning when there were overrides the week before.</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin-bottom:12px">
+        <div class="field" style="margin:0"><label for="ovr-from">From</label><input type="date" id="ovr-from"/></div>
+        <div class="field" style="margin:0"><label for="ovr-to">To</label><input type="date" id="ovr-to"/></div>
+        <button class="btn btn-secondary" data-onclick="loadOverrides" style="min-height:44px">Show</button>
+        <button class="btn btn-secondary" data-onclick="exportOverridesCSV" style="min-height:44px">Export CSV</button>
+      </div>
+      <div id="ovr-body"></div>
+    </div>
+    <div class="drawer-footer">
+      <button class="btn btn-secondary" data-onclick="closeOverridesDrawer">Close</button>
+    </div>
+  </div>
+</div>
+
 <!-- ══════════════════════════════════════════════════════
      NOTES DRAWER (view-only)
      ══════════════════════════════════════════════════════ -->
@@ -899,7 +924,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
             <option value="admitted">Admitted</option>
             <option value="clinically_discharged">Clinically Discharged</option>
             <option value="charges_locked">Charges Locked</option>
-            <option value="bill_generated">Bill Generated</option>
+            <option value="bill_generated" disabled>Bill Generated (only by Generate Bill)</option>
             <option value="paid_cleared">Paid Cleared</option>
             <option value="discharged">Discharged</option>
           </select>
@@ -908,7 +933,16 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
           <label>Reason <span class="req">*</span></label>
           <textarea id="bypass-reason" placeholder="Why is this override needed? (required, logged to the audit trail)" style="height:60px" data-oninput="_toggleBypassBtn"></textarea>
         </div>
-        <button class="btn btn-secondary" id="btn-bypass-confirm" data-onclick="confirmForceStatus" disabled style="width:100%;color:#c0392b;border-color:#c0392b">Force Status Change</button>
+        <button class="btn btn-secondary" id="btn-bypass-confirm" data-onclick="confirmForceStatus" disabled style="width:100%;min-height:44px;color:#c0392b;border-color:#c0392b">Force Status Change</button>
+        <!-- Session 394 (§705, D6 / D12): the step before the change -- the money still open, then Confirm; no browser confirm() -->
+        <div id="bypass-confirm-box" style="display:none;margin-top:12px;border:1.5px solid #c0392b;border-radius:8px;padding:12px;background:#fff8f7">
+          <div id="bypass-confirm-text" style="font-size:12.5px;color:var(--text-dark);margin-bottom:10px"></div>
+          <div id="bypass-money" style="font-size:12.5px;color:var(--text-mid);margin-bottom:10px"></div>
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-secondary" data-onclick="cancelForceStatus" style="flex:1;min-height:44px">Back</button>
+            <button class="btn btn-secondary" id="btn-bypass-final" data-onclick="finalForceStatus" style="flex:1;min-height:44px;color:#fff;background:#c0392b;border-color:#c0392b">Confirm — force the status</button>
+          </div>
+        </div>
       </div>
     </div>
     <div class="drawer-footer">
@@ -1101,6 +1135,8 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
       <span id="admit-from-advice-note" style="display:none;font-size:12px;color:var(--text-mid);max-width:340px">Admissions start from a doctor's advice: Reception → 🛏️ Admission Requests → Collect Advance &amp; Admit.</span>
       <button class="btn btn-primary" id="btn-emergency-admit" data-onclick="openEmergencyAdmit" style="display:none;background:#a01a1a">🚑 Emergency admission</button>
       <button class="btn btn-primary" id="btn-admit-patient" data-onclick="openDirectAdmit" style="display:none">+ Admit without advice (Super Admin)</button>
+      <!-- Session 394 (§705, D9): the Medical Superintendent's / Super Admin's list of forced status changes -->
+      <button class="btn btn-secondary" id="btn-status-overrides" data-onclick="openOverridesDrawer" style="display:none">🔧 Status overrides</button>
     </div>
   </div>
 

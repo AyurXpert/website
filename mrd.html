@@ -46,6 +46,7 @@ h1{font-family:'Cormorant Garamond',serif;font-size:26px;color:var(--green-deep)
 .btn{height:44px;padding:8px 18px;border-radius:6px;font-size:13px;font-weight:500;cursor:pointer;border:none;font-family:inherit;transition:opacity .15s}
 .btn:hover{opacity:.88}
 .btn-primary{background:var(--green-deep);color:#fff}
+.btn:disabled{opacity:.45;cursor:not-allowed}
 .btn-outline{background:transparent;border:1.5px solid var(--green-mid);color:var(--green-mid)}
 .btn-sm{height:44px;padding:5px 12px;font-size:12px}
 
@@ -119,6 +120,8 @@ tr:hover td{background:#f8fdf9}
 .b-lama{background:#fce4ec;color:#ad1457;border-color:#f48fb1}
 .b-transferred{background:#e0f2f1;color:#00695c;border-color:#80cbc4}
 .b-deceased{background:#eceff1;color:#455a64;border-color:#b0bec5}
+/* Session 394 (§705, D10): an admission whose status was forced by the Super Admin -- text label, never colour alone */
+.b-forced{background:#fff;color:#8b1a6b;border-color:#8b1a6b;margin-left:4px}
 
 /* Empty */
 .empty{text-align:center;padding:36px 20px;color:var(--text-muted);font-size:13px}
@@ -322,6 +325,26 @@ tr:hover td{background:#f8fdf9}
           <tbody id="audit-tbody"><tr><td colspan="10"><div class="empty">No audit records for this month</div></td></tr></tbody>
         </table>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- Session 394 (§705, D1-D4, D12): Release in an in-page panel (no browser confirm); the server decides -->
+<div id="rel-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:500;align-items:center;justify-content:center;padding:16px" role="dialog" aria-modal="true" aria-labelledby="rel-title">
+  <div style="background:#fff;border-radius:12px;padding:24px;width:520px;max-width:100%;max-height:90vh;overflow-y:auto;box-shadow:0 8px 40px rgba(0,0,0,.2)">
+    <div id="rel-title" style="font-family:'Cormorant Garamond',serif;font-size:20px;color:var(--green-deep);margin-bottom:12px">Release this record?</div>
+    <div id="rel-text" style="font-size:13px;color:var(--text-dark);margin-bottom:12px"></div>
+    <div id="rel-bill" role="status" style="font-size:14px;font-weight:600;margin-bottom:12px"></div>
+    <div id="rel-due-box" style="display:none;margin-bottom:12px">
+      <div id="rel-due-text" style="font-size:13px;color:#8a5000;background:#fff3e0;border:1px solid #ffcc80;border-radius:8px;padding:10px;margin-bottom:10px"></div>
+      <label for="rel-reason" style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.4px;color:var(--text-mid);margin-bottom:4px">Reason for releasing with the balance due (5 to 300 characters)</label>
+      <textarea id="rel-reason" rows="2" maxlength="300" data-oninput="relReasonInput" aria-describedby="rel-reason-hint" style="width:100%;border:1.5px solid var(--border);border-radius:7px;padding:8px 10px;font-size:13px;font-family:inherit;resize:vertical"></textarea>
+      <div id="rel-reason-hint" style="font-size:12px;color:#8a5000;margin-top:4px">Give a reason (5 to 300 characters).</div>
+    </div>
+    <div id="rel-err" role="alert" style="display:none;font-size:13px;color:#c0392b;margin-bottom:10px"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end">
+      <button class="btn btn-outline" data-onclick="closeReleasePanel" style="min-height:44px">Cancel</button>
+      <button class="btn btn-primary" id="rel-confirm" data-onclick="confirmReleaseRecord" style="min-height:44px">Release record</button>
     </div>
   </div>
 </div>

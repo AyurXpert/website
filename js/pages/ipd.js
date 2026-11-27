@@ -247,6 +247,7 @@ window.loadAll = async function loadAll() {
   _allBeds    = bedRes.data || [];
   _doctors    = docRes.data || [];
   _opdDoctors = opdDocRes.data || [];
+  await _loadForcedMarks(_admissions.map(a => a.id));   // Session 394 (§705, D10)
 
   // Session 294 -- refreshed on every loadAll(), not just at page init, so a
   // just-admitted PK Care Plan patient shows the 🌸 icon without a full page reload.
@@ -612,7 +613,7 @@ function renderTable(rows) {
         <span class="days-chip">${days}d</span>
         ${needsCarePlan ? `<div style="font-size:9px;color:#c0392b;font-weight:700;margin-top:3px">⚠ No Care Plan</div>` : ''}
       </td>
-      <td>${_statusBadgeHtml(a)}</td>
+      <td>${_statusBadgeHtml(a)}${_forcedTagHtml(a.id)}</td>
       <td>
         <div class="row-actions">
           ${!isFinance ? `<button class="icon-btn" data-onclick="openNotesDrawer" data-onclick-a0="${a.id}" title="View details">&#128203;</button>` : ''}
@@ -2953,6 +2954,29 @@ window.openNotesDrawer = function(admId) {
     </div>` : ''}
   `;
 
+  // Session 394 (§705, D10): the "Status forced" card -- who and why only for the roles the server gives them to
+  const fm = _forcedMarks.get(admId);
+  if (fm) {
+    const card = document.createElement('div');
+    card.className = 'adm-detail-card';
+    card.style.cssText = 'margin-top:14px;border-color:#8b1a6b';
+    const head = document.createElement('div');
+    head.style.cssText = 'font-size:11px;font-weight:700;color:#8b1a6b;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px';
+    head.textContent = `⚠ Status forced${fm.forced_count > 1 ? ' (' + fm.forced_count + ' times)' : ''}`;
+    card.appendChild(head);
+    const rows = [['Last', new Date(fm.last_forced_at).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })],
+                  ['From → to', `${_statusLabel(fm.last_from)} → ${_statusLabel(fm.last_to)}`]];
+    if (fm.last_forced_by) rows.push(['By', fm.last_forced_by]);
+    if (fm.last_reason) rows.push(['Reason', fm.last_reason]);
+    rows.forEach(([k, v]) => {
+      const r = document.createElement('div'); r.className = 'adm-detail-row';
+      const a1 = document.createElement('span'); a1.textContent = k;
+      const b1 = document.createElement('strong'); b1.textContent = v;
+      r.append(a1, b1); card.appendChild(r);
+    });
+    document.getElementById('notes-body').appendChild(card);
+  }
+
   // Session 114 -- super_admin-only bypass/override, not dept_admin (per
   // confirmed plan decision). Mandatory reason, button stays disabled until
   // one is entered (matching duty-select.html's disabled-until-valid pattern).
@@ -2962,6 +2986,7 @@ window.openNotesDrawer = function(admId) {
     document.getElementById('bypass-target-status').value = adm.status;
     document.getElementById('bypass-reason').value = '';
     document.getElementById('btn-bypass-confirm').disabled = true;
+    document.getElementById('bypass-confirm-box').style.display = 'none';   // Session 394
     bypassSection.style.display = '';
   } else {
     bypassSection.style.display = 'none';
@@ -2975,27 +3000,118 @@ window._toggleBypassBtn = function() {
   document.getElementById('btn-bypass-confirm').disabled = !document.getElementById('bypass-reason').value.trim();
 };
 
-// Session 316 -- was a raw client .update() with the reason only ever shown in the confirm()
-// dialog and logAudit() (never DB-verified) and no forward-only enforcement at all. Now calls
-// force_ipd_admission_status() -- the one RPC allowed to move ipd_admissions.status backward
-// or arbitrarily, super_admin-only, reason required and stored server-side, not just logged.
+// Session 316 -- force_ipd_admission_status() is the one RPC allowed to move ipd_admissions.status backward or arbitrarily: Super Admin
+// only, reason required and stored server-side. Session 394 (§705, D6 / D6b / D7 / D12): it never skips money -- the server refuses
+// over unbilled charges, an unpaid bill or a deposit with no bill, never sets Bill Generated, never goes backward over a bill. The page
+// shows the money still open first (in-page step, no browser confirm()); every rule is the server's.
 window.confirmForceStatus = async function() {
   const admId  = document.getElementById('bypass-adm-id').value;
   const target = document.getElementById('bypass-target-status').value;
   const reason = document.getElementById('bypass-reason').value.trim();
-  if (!reason) return;
+  if (!reason || !target) return;
   const adm = _admissions.find(a => a.id === admId);
   if (!adm) return;
-  if (!confirm(`Force this admission's status to "${_statusLabel(target)}"? This bypasses the normal discharge/billing gates and is logged to the audit trail.`)) return;
-
+  document.getElementById('bypass-confirm-text').textContent =
+    `Force ${adm.patients?.name || 'this admission'} from "${_statusLabel(adm.status)}" to "${_statusLabel(target)}"? `
+    + 'This is logged (who, when, from → to, reason), shown as "Status forced" on the admission and listed for the Medical Superintendent.';
+  const money = document.getElementById('bypass-money');
+  money.textContent = 'Checking the money on this admission…';
+  document.getElementById('bypass-confirm-box').style.display = '';
+  const { data: acc, error } = await supabase.rpc('get_ipd_account', { p_adm: admId });
+  if (error || !acc) { money.textContent = 'The account could not be read. The server still refuses a change that would skip money.'; return; }
+  const parts = [];
+  if (acc.bill_id) {
+    parts.push(acc.bill_status === 'paid'
+      ? `Bill ${acc.document_number || ''} paid`.replace(/\s+/g, ' ')
+      : `Bill ${acc.document_number || ''} NOT paid — ${_fmtMoney(Math.max(0, Number(acc.balance || 0)))} due`.replace(/\s+/g, ' '));
+  } else {
+    parts.push('No bill yet');
+    if (Number(acc.held || 0) > 0) parts.push(`Deposit held ${_fmtMoney(acc.held)}`);
+  }
+  money.textContent = parts.join(' · ') + '. Charges not yet billed, an unpaid bill or a deposit with no bill stop a change to Paid / Discharged; the billing staff are told of any forced change on an admission with money.';
+};
+window.cancelForceStatus = function() { document.getElementById('bypass-confirm-box').style.display = 'none'; };
+window.finalForceStatus = async function() {
+  const admId  = document.getElementById('bypass-adm-id').value;
+  const target = document.getElementById('bypass-target-status').value;
+  const reason = document.getElementById('bypass-reason').value.trim();
+  if (!reason) return;
+  const btn = document.getElementById('btn-bypass-final');
+  btn.disabled = true;
   const { error } = await supabase.rpc('force_ipd_admission_status', {
     p_admission_id: admId, p_new_status: target, p_reason: reason,
   });
+  btn.disabled = false;
   if (error) { _alert('error', safeErrorMessage(error, 'Could not force status change.')); return; }
 
   closeNotesDrawer();
   _alert('success', `Status forced to "${_statusLabel(target)}".`);
   await loadAll();
+};
+
+// Session 394 (§705, D10): the "Status forced" tag (ipd_status_override_marks; the tag is information only -- the list shows without it)
+const _forcedMarks = new Map();
+async function _loadForcedMarks(ids) {
+  _forcedMarks.clear();
+  for (let i = 0; i < ids.length; i += 500) {
+    const { data, error } = await supabase.rpc('ipd_status_override_marks', { p_admission_ids: ids.slice(i, i + 500) });
+    if (error) return;
+    (data || []).forEach(r => _forcedMarks.set(r.ipd_admission_id, r));
+  }
+}
+function _forcedTagHtml(id) {
+  const m = _forcedMarks.get(id);
+  if (!m) return '';
+  return ` <span class="status-badge status-forced">⚠ ${_esc('Status forced' + (m.forced_count > 1 ? ' ×' + m.forced_count : ''))}</span>`;
+}
+
+// Session 394 (§705, D9): the list of forced status changes -- the MS and the Super Admin (ipd_status_override_list decides)
+if (_isSuperAdmin || myProfile.designation === 'medical_superintendent') document.getElementById('btn-status-overrides').style.display = '';
+let _overrides = [];
+window.openOverridesDrawer = function() {
+  const today = todayISTStr();
+  const from = new Date(Date.parse(today + 'T00:00:00Z') - 7 * 86400000).toISOString().slice(0, 10);
+  if (!document.getElementById('ovr-from').value) document.getElementById('ovr-from').value = from;
+  if (!document.getElementById('ovr-to').value) document.getElementById('ovr-to').value = today;
+  document.getElementById('overrides-overlay').classList.add('open');
+  window.loadOverrides();
+};
+window.closeOverridesDrawer = function() { document.getElementById('overrides-overlay').classList.remove('open'); };
+window.loadOverrides = async function() {
+  const body = document.getElementById('ovr-body');
+  body.textContent = 'Loading…';
+  const { data, error } = await supabase.rpc('ipd_status_override_list', {
+    p_from: document.getElementById('ovr-from').value, p_to: document.getElementById('ovr-to').value });
+  if (error) { body.textContent = safeErrorMessage(error, 'Could not load the status overrides.'); _overrides = []; return; }
+  _overrides = data || [];
+  body.textContent = '';
+  if (!_overrides.length) { body.textContent = 'No status was forced in these dates.'; return; }
+  const t = document.createElement('table'); t.className = 'admissions-table';
+  const hr = document.createElement('tr');
+  ['When (IST)', 'IP no.', 'Patient', 'From → to', 'Reason', 'By', 'Money open'].forEach(h => { const th = document.createElement('th'); th.textContent = h; hr.appendChild(th); });
+  const thead = document.createElement('thead'); thead.appendChild(hr); t.appendChild(thead);
+  const tb = document.createElement('tbody');
+  _overrides.forEach(o => {
+    const tr = document.createElement('tr');
+    const money = [Number(o.unbilled_amount) > 0 ? 'unbilled ' + _fmtMoney(o.unbilled_amount) : '', Number(o.bill_due) > 0 ? 'due ' + _fmtMoney(o.bill_due) : '',
+                   Number(o.receipts_held) > 0 ? 'held ' + _fmtMoney(o.receipts_held) : ''].filter(Boolean).join(', ') || '—';
+    [new Date(o.forced_at).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }), o.ip_number || '—', o.patient_name || '—',
+     `${_statusLabel(o.from_status)} → ${_statusLabel(o.to_status)}`, o.reason, o.forced_by_name || '—',
+     money + (o.finance_alerted ? ' · billing told' : '')].forEach(v => { const td = document.createElement('td'); td.textContent = v; tr.appendChild(td); });
+    tb.appendChild(tr);
+  });
+  t.appendChild(tb); body.appendChild(t);
+};
+window.exportOverridesCSV = function() {
+  if (!_overrides.length) { _alert('error', 'Nothing to export.'); return; }
+  const cols = ['forced_at', 'ip_number', 'patient_name', 'from_status', 'to_status', 'reason', 'forced_by_name', 'unbilled_amount', 'bill_due', 'receipts_held', 'finance_alerted'];
+  // a cell starting with = + - @ is prefixed with ' (spreadsheet formula injection)
+  const esc = v => { let s = v == null ? '' : String(v); if (/^[=+\-@]/.test(s)) s = "'" + s; return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+  const csv = [cols.join(','), ..._overrides.map(o => cols.map(c => esc(o[c])).join(','))].join('\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+  a.download = `status_overrides_${document.getElementById('ovr-from').value}_to_${document.getElementById('ovr-to').value}.csv`;
+  a.click(); URL.revokeObjectURL(a.href);
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -3250,7 +3366,7 @@ window.saveOtProcedure = async function() {
 };
 
 // Close on overlay click
-['admit-overlay','discharge-overlay','notes-overlay','ot-overlay','pktt-overlay'].forEach(id => {
+['admit-overlay','discharge-overlay','notes-overlay','ot-overlay','pktt-overlay','overrides-overlay'].forEach(id => {
   document.getElementById(id).addEventListener('click', e => {
     if (e.target.id === id) document.getElementById(id).classList.remove('open');
   });
